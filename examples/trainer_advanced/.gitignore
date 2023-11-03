@@ -1,4 +1,5 @@
 .ipynb_checkpoints
 build
+nb_deco_timing_analysis.ipynb
 nb_deco_train_analysis.ipynb
 out
