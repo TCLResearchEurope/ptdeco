@@ -1,0 +1,13 @@
+train_mode: wrapped
+model:
+  name: timm.resnet18.a2_in1k
+imagenet_root_dir: /nas/datasets/vision/ImageNet/pod_download/data/fix
+trn_imagenet_classes_fname: /nas/datasets/vision/ImageNet/pod_download/data/train_es.txt
+val_imagenet_classes_fname: /nas/datasets/vision/ImageNet/pod_download/data/val.txt
+batch_size: 8
+normalization: PRESET_IMAGENET
+lmbda: 1.0
+nsr_threshold: 0.1
+lr: 0.001
+epochs: 10
+input_h_w: [224, 224]
