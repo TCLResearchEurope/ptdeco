@@ -6,7 +6,7 @@ from typing import Any, Optional
 
 import torch
 
-from . import common
+from . import common, modconfig
 
 logger = logging.getLogger(__name__)
 
@@ -258,6 +258,8 @@ def _process_module(
     full_rank = min(dim_in, dim_out)
 
     if full_rank == 1:
+        _unwrap_in_place(root_module, decomposed_submodule_name)
+        logger.warning(f"{decomposed_submodule_name} has rank 1, not decomposing")
         return {
             "proportion": 1.0,
             "nsr": 0.0,
@@ -369,10 +371,11 @@ def decompose_in_place(
     kl_threshold: float = 0.01,
     num_data_steps: int = 5,
     num_metric_steps: int = 5,
-) -> None:
+) -> dict[str, Any]:
     start_time = time.perf_counter()
 
     results_all = {}
+    decompose_config = {}
 
     if blacklisted_module_names is None:
         blacklisted_module_names = []
@@ -398,7 +401,8 @@ def decompose_in_place(
                 num_metric_steps=num_metric_steps,
                 device=device,
             )
-        results_all[submodule_name] = result
+        if result["decomposed_module"] is not None:
+            results_all[submodule_name] = result
 
     # Decompose
 
@@ -411,21 +415,20 @@ def decompose_in_place(
             result = results_all[submodule_name]
             proportion = result["proportion"]
             new_module = result["decomposed_module"]
-            if proportion < proportion_threshold and new_module is not None:
+            assert new_module is not None
+            if proportion < proportion_threshold:
                 assert new_module is not None
                 old_module = module.get_submodule(submodule_name)
                 old_module_type_name = common.get_type_name(old_module)
                 _replace_submodule_in_place(module, submodule_name, new_module)
+                decompose_config[submodule_name] = modconfig.get_module_config(
+                    new_module
+                )
                 decompose_counter[old_module_type_name] += 1
                 logger.info(f"{msg_prefix} finished {proportion=:.3f}")
-            elif new_module is None:
-                msg = f"{msg_prefix} SKIPPED, module decomposed with proprtion=1.0"
-                logger.info(msg)
-            elif proportion >= proportion_threshold:
+            else:
                 msg_prop = f"{proportion=:.3f} above {proportion_threshold=:.3f}"
                 logger.info(f"{msg_prefix} SKIPPED, {msg_prop}")
-            else:
-                assert False
         else:
             assert False
 
@@ -435,3 +438,4 @@ def decompose_in_place(
     stop_time = time.perf_counter()
 
     logger.info(f"Decomposition took {stop_time-start_time:.1f} seconds")
+    return decompose_config
