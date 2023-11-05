@@ -1,3 +1,13 @@
+"""Implementation of the FAL method
+
+Compressing transformers: features are low-rank, but weights are not!,
+Hao Yu, Jianxin Wu, AAAI Conference on Artificial Intelligence (2023)
+
+
+https://doi.org/10.1609/aaai.v37i9.26304
+
+"""
+
 import collections
 import collections.abc
 import logging
