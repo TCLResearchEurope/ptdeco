@@ -1,4 +1,4 @@
-train_mode: decomposed
+task: train_decomposed
 model:
   name: timm.resnet18.a2_in1k
   wrapped_model_checkpoint: inp/weights.pt
