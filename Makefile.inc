@@ -26,26 +26,26 @@ clean:
 	rm -rf make.black.log make.flake8.log make.mypy.log $(FILES_TO_CLEAN)
 
 fix:
-	ISORT_FLAGS="$(ISORT_FLAGS)" ../aux/fix.sh $(F)
+	ISORT_FLAGS="$(ISORT_FLAGS)" ./aux/fix.sh $(F)
 
 fixall:
-	ISORT_FLAGS="$(ISORT_FLAGS)" ../aux/fix.sh $(PY_MYPY_FLAKE8)
+	ISORT_FLAGS="$(ISORT_FLAGS)" ./aux/fix.sh $(PY_MYPY_FLAKE8)
 
 commit:
-	git commit -m "[$(MODULE_NAME)]" -e
+	git commit -e
 
 
 vercommit:
 	git restore --staged $(VER_FILE)
 	git checkout $(VER_FILE)
-	../aux/update_version.py --version-segment=2 --version-file=$(VER_FILE)
+	./aux/update_version.py --version-segment=2 --version-file=$(VER_FILE)
 	git add $(VER_FILE)
-	VER=$$(../aux/get_version.py --version-file=$(VER_FILE)) && git commit -m "[$(MODULE_NAME)] $${VER}" -e
+	VER=$$(./aux/get_version.py --version-file=$(VER_FILE)) && git commit -m "$${VER}" -e
 
 
 manualvercommit:
 	git add $(VER_FILE)
-	VER=$$(../aux/get_version.py --version-file=$(VER_FILE)) && git commit -m "[$(MODULE_NAME)] $${VER}" -e
+	VER=$$(./aux/get_version.py --version-file=$(VER_FILE)) && git commit -m "$${VER}" -e
 
 
 .PHONY: all check test clean fix fixall
