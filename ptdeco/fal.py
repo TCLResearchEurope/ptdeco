@@ -266,10 +266,11 @@ def _process_module(
     orig_weight = decomposed_submodule.get_weight_copy()
     dim_out, dim_in = orig_weight.shape
     full_rank = min(dim_in, dim_out)
+    msg_prefix = f"Processing {decomposed_submodule_name}:"
 
     if full_rank == 1:
         _unwrap_in_place(root_module, decomposed_submodule_name)
-        logger.warning(f"{decomposed_submodule_name} has rank 1, not decomposing")
+        logger.info(f"{msg_prefix} Module has rank 1, not decomposing")
         return {
             "proportion": 1.0,
             "nsr": 0.0,
@@ -277,7 +278,6 @@ def _process_module(
             "decomposed_module": None,
         }
 
-    msg_prefix = f"Processing {decomposed_submodule_name}:"
     msg = f"{msg_prefix} {decomposed_type} weight_shape={tuple(orig_weight.shape)}"
     logger.info(msg)
     logger.info(f"{msg_prefix} {nsr_threshold=:.6f} {kl_threshold=:.6f}")
@@ -344,6 +344,7 @@ def _process_module(
             u=U.T, v=V.T
         )
     else:
+        logger.info(f"{msg_prefix} Module decomposed to full rank, not decomposing")
         new_decomposed_submodule = None
 
     _unwrap_in_place(root_module, decomposed_submodule_name)
@@ -411,8 +412,7 @@ def decompose_in_place(
                 num_metric_steps=num_metric_steps,
                 device=device,
             )
-        if result["decomposed_module"] is not None:
-            results_all[submodule_name] = result
+        results_all[submodule_name] = result
 
     # Decompose
 
@@ -420,27 +420,28 @@ def decompose_in_place(
     for submodule_name in decomposable_submodules:
         msg_prefix = f"Decomposing {submodule_name}:"
         if submodule_name in blacklisted_module_names:
-            logger.info(f"{msg_prefix} SKIPPED blacklisted module")
-        elif submodule_name in results_all:
-            result = results_all[submodule_name]
-            proportion = result["proportion"]
-            new_module = result["decomposed_module"]
-            assert new_module is not None
-            if proportion < proportion_threshold:
-                assert new_module is not None
-                old_module = module.get_submodule(submodule_name)
-                old_module_type_name = common.get_type_name(old_module)
-                _replace_submodule_in_place(module, submodule_name, new_module)
-                decompose_config[submodule_name] = modconfig.get_module_config(
-                    new_module
-                )
-                decompose_counter[old_module_type_name] += 1
-                logger.info(f"{msg_prefix} finished {proportion=:.3f}")
-            else:
-                msg_prop = f"{proportion=:.3f} above {proportion_threshold=:.3f}"
-                logger.info(f"{msg_prefix} SKIPPED, {msg_prop}")
+            logger.info(f"{msg_prefix} SKIPPED blacklisted module {submodule_name}")
+            continue
+
+        assert submodule_name in results_all
+        result = results_all[submodule_name]
+        new_module = result["decomposed_module"]
+
+        if new_module is None:
+            logger.info(f"{msg_prefix} SKIPPED module decomposed to full rank")
+            continue
+
+        proportion = result["proportion"]
+        if proportion < proportion_threshold:
+            old_module = module.get_submodule(submodule_name)
+            old_module_type_name = common.get_type_name(old_module)
+            _replace_submodule_in_place(module, submodule_name, new_module)
+            decompose_config[submodule_name] = modconfig.get_module_config(new_module)
+            decompose_counter[old_module_type_name] += 1
+            logger.info(f"{msg_prefix} finished {proportion=:.3f}")
         else:
-            assert False
+            msg_prop = f"{proportion=:.3f} above {proportion_threshold=:.3f}"
+            logger.info(f"{msg_prefix} SKIPPED, {msg_prop}")
 
     for module_type_name, count in decompose_counter.items():
         logger.info(f"Decomposed {count} instances of {module_type_name}")
