@@ -8,9 +8,9 @@ from typing import Any
 import ptdeco
 import yaml
 
-import train_decomposed
-import train_direct
-import train_wrapped
+import examples.trainer_advanced.run_train_decomposed as run_train_decomposed
+import examples.trainer_advanced.run_decompose_fal as run_decompose_fal
+import examples.trainer_advanced.run_decompose_trainable as run_decompose_trainable
 import version
 
 logger = logging.getLogger(__name__)
@@ -116,21 +116,21 @@ def main(args: argparse.Namespace) -> None:
         output_path / "requirements.txt", output_path / "requirements_unsafe.txt"
     )
     config = read_config(args.config)
-    train_mode = config.get("train_mode")
+    task = config.get("task")
     logger.info(f"Using ptdeco trainer {version.__version__}")
     logger.info(f"Using ptdeco {ptdeco.__version__}")
 
-    if train_mode == "wrapped":
-        train_wrapped.main(config=config, output_path=output_path)
-    elif train_mode == "decomposed":
-        train_decomposed.main(config=config, output_path=output_path)
-    elif train_mode == "direct":
-        train_direct.main(config=config, output_path=output_path)
+    if task == "decompose_trainable":
+        run_decompose_trainable.main(config=config, output_path=output_path)
+    elif task == "decompose_fal":
+        run_decompose_fal.main(config=config, output_path=output_path)
+    elif task == "train_decomposed":
+        run_train_decomposed.main(config=config, output_path=output_path)
     else:
-        if train_mode is None:
+        if task is None:
             msg = "config.train_mode unspecified"
         else:
-            msg = f"Unknown config.train_mode={train_mode}"
+            msg = f"Unknown config.train_mode={task}"
         raise ValueError(msg)
 
 

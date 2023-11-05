@@ -1,8 +1,9 @@
+import json
 import pathlib
 from typing import Any
 
 import nvidia.dali.plugin.pytorch
-import ptdeco.direct
+import ptdeco.fal
 import torch
 
 import datasets_dali
@@ -40,8 +41,13 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
 
     m = models.create_model(config)
     m.to(device)
-    ptdeco.direct.decompose_in_place(
+    decompose_config = ptdeco.fal.decompose_in_place(
         module=m,
         device=device,
         data_iterator=data_iterator,
     )
+
+    out_decompose_config_path = output_path / "decompose_config.json"
+    with open(out_decompose_config_path, "wt") as f:
+        json.dump(decompose_config, f)
+
