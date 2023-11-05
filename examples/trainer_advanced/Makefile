@@ -16,24 +16,28 @@ mypy:
 
 
 commit:
-	git commit -m "[$(MODULE_NAME)] In trainer, " -e
+	git commit -m "[trainer] " -e
 
 
 vercommit:
 	git restore --staged $(VER_FILE)
 	git checkout $(VER_FILE)
-	../../../aux/update_version.py --version-segment=2 --version-file=$(VER_FILE)
+	../../aux/update_version.py --version-segment=2 --version-file=$(VER_FILE)
 	git add $(VER_FILE)
-	VER=$$(../../../aux/get_version.py --version-file=$(VER_FILE)) && git commit -m "[$(MODULE_NAME)] In trainer $${VER}, " -e
+	VER=$$(../../aux/get_version.py --version-file=$(VER_FILE)) && git commit -m "[trainer] $${VER} " -e
+
+manualvercommit:
+	git add $(VER_FILE)
+	VER=$$(../../aux/get_version.py --version-file=$(VER_FILE)) && git commit -m "[trainer] $${VER}" -e
 
 
 build:
 	@echo "Build - started"
 	@mkdir -p build
 	@cp -rp ../../ptdeco .
-	@cp train.py __main__.py
+	@cp run.py __main__.py
 		ZIP_NAME="build/ptdeco-$$(git rev-list --count HEAD)-$$(git rev-parse --short HEAD).zip"; \
-	 	zip -r $${ZIP_NAME} configurator.py datasets_dali.py models.py version.py train_decomposed.py train_wrapped.py __main__.py ptdeco; \
+		zip -r $${ZIP_NAME} configurator.py datasets_dali.py models.py run_decompose_fal.py run_decompose_trainable.py run_train_decomposed.py version.py  __main__.py ptdeco; \
 		rm -rf ptdeco __main__.py; \
 		echo "Build - created $${ZIP_NAME}"
 
