@@ -193,7 +193,6 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
 
     device = composer.devices.DeviceGPU()
 
-    # optimizers = torch.optim.Adam(torch_model_trainable_params, lr=config["lr"])
     optimizers = configurator.get_optimizer(torch_model_trainable_params, config)
     lr_schedulers = configurator.get_lr_scheduler(config)
     algorithms = configurator.get_algorithms(config)

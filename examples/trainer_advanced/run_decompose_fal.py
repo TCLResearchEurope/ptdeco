@@ -80,7 +80,7 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
         nsr_final_threshold=config["nsr_final_threshold"],
         num_data_steps=config["num_data_steps"],
         num_metric_steps=config["num_metric_steps"],
-        blacklisted_module_names=config["blacklisted_module_names"]
+        blacklisted_module_names=config["blacklisted_module_names"],
     )
     model_deco_stats = get_model_stats(model, b_c_h_w, device)
 
