@@ -19,12 +19,16 @@ def make_image_iterator(train_dataloader):
 
 
 def get_model_stats(
-    model: torch.nn.Module, b_c_h_w: tuple[int, int, int, int]
+    model: torch.nn.Module, b_c_h_w: tuple[int, int, int, int], device: torch.device
 ) -> dict[str, Any]:
     model.eval()
     return {
-        "gflops": models.get_fpops(model, b_c_h_w=b_c_h_w, units="gflops"),
-        "kmapps": models.get_fpops(model, b_c_h_w=b_c_h_w, units="kmapps"),
+        "gflops": models.get_fpops(
+            model, b_c_h_w=b_c_h_w, units="gflops", device=device
+        ),
+        "kmapps": models.get_fpops(
+            model, b_c_h_w=b_c_h_w, units="kmapps", device=device
+        ),
         "mparams": models.get_params(model) / 1.0e6,
     }
 
@@ -64,7 +68,7 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
     data_iterator = make_image_iterator(train_dataloader)
 
     model = models.create_model(config)
-    model_orig_stats = get_model_stats(model, b_c_h_w)
+    model_orig_stats = get_model_stats(model, b_c_h_w, device)
 
     model.to(device)
     decompose_config = ptdeco.fal.decompose_in_place(
@@ -72,7 +76,7 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
         device=device,
         data_iterator=data_iterator,
     )
-    model_deco_stats = get_model_stats(model, b_c_h_w)
+    model_deco_stats = get_model_stats(model, b_c_h_w, device)
 
     out_decompose_config_path = output_path / "decompose_config.json"
     with open(out_decompose_config_path, "wt") as f:
