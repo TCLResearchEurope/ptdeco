@@ -380,7 +380,7 @@ def add_meta_to_module_config(
     module_config: dict[str, Any], module_deco_results: dict[str, Any]
 ) -> None:
     meta = {k: v for k, v in module_deco_results.items() if k != "decomposed_module"}
-    module_config[modconfig.META_KEY] = meta
+    module_config[modconfig.MODCONFIG_META_KEY] = meta
 
 
 def decompose_in_place(
