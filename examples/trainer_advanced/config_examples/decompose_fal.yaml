@@ -1,13 +1,23 @@
 task: decompose_fal
-model:
-  name: timm.swinv2_cr_tiny_ns_224.sw_in1k
+
+# Dataset setup
+
 imagenet_root_dir: /nas/datasets/vision/ImageNet/pod_download/data/fix
 trn_imagenet_classes_fname: /nas/datasets/vision/ImageNet/pod_download/data/train_es.txt
 val_imagenet_classes_fname: /nas/datasets/vision/ImageNet/pod_download/data/val.txt
 batch_size: 8
 normalization: imagenet
-lmbda: 1.0
-nsr_threshold: 0.1
-lr: 0.001
-epochs: 10
 input_h_w: [224, 224]
+
+# Model setup
+
+model_name: timm.swinv2_cr_tiny_ns_224.sw_in1k
+
+# Decomposition setup
+
+nsr_final_threshold: 0.01
+kl_final_threshold: 0.01
+proportion_threshold: 10.0
+num_data_steps: 5
+num_metric_steps: 5
+blacklisted_module_names: []
