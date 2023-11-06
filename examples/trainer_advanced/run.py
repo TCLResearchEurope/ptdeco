@@ -49,8 +49,9 @@ def setup_logging() -> None:
         "ptdeco",
         "models",
         "configurator",
-        "train_wrapped",
-        "train_decomposed",
+        "run_decompose_trainable",
+        "run_decompose_fal",
+        "run_train_decomposed",
     ]
     for module_name in module_names_verbose:
         logging.getLogger(module_name).setLevel(logging.INFO)
