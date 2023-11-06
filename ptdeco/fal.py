@@ -265,6 +265,7 @@ def _process_module(
     decomposed_submodule = root_module.get_submodule(decomposed_submodule_name)
     assert isinstance(decomposed_submodule, DirectWrappedModule)
     orig_weight = decomposed_submodule.get_weight_copy()
+    orig_device = orig_weight.device
     dim_out, dim_in = orig_weight.shape
     full_rank = min(dim_in, dim_out)
     msg_prefix = f"Processing {decomposed_submodule_name}:"
@@ -344,6 +345,7 @@ def _process_module(
         new_decomposed_submodule = decomposed_submodule.get_decomposed_module(
             u=U.T, v=V.T
         )
+        new_decomposed_submodule.to(orig_device)
     else:
         logger.info(f"{msg_prefix} Module decomposed to full rank, not decomposing")
         new_decomposed_submodule = None
