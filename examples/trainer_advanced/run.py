@@ -66,7 +66,7 @@ def copy_config(config_path: pathlib.Path, output_path: pathlib.Path) -> None:
     if config_copy_path.exists():
         msg = f"Config copy already exists, please delete it first, {config_copy_path}"
         raise FileExistsError(msg)
-
+    config_copy_path.parent.mkdir(exist_ok=True, parents=True)
     with open(config_path, "rt") as f_in, open(config_copy_path, "wt") as f_out:
         f_out.write(f'ptdeco_trainer_version: "{version.__version__}"\n')
         f_out.write(f'ptdeco_version: "{ptdeco.__version__}"\n\n')
