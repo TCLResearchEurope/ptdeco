@@ -3,7 +3,10 @@ from typing import Any
 
 import torch
 
-__all__ = ["get_module_config", "build_module_from_config"]
+__all__ = ["get_module_config", "build_module_from_config", "META_KEY"]
+
+
+META_KEY = "__meta__"
 
 
 def _get_module_config_sequential(m: torch.nn.Sequential) -> dict[str, Any]:

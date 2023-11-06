@@ -1,4 +1,4 @@
-"""Implementation of the FAL method
+"""Implementation of the FAL method (FAL = Features Are Low-rank)
 
 Compressing transformers: features are low-rank, but weights are not!,
 Hao Yu, Jianxin Wu, AAAI Conference on Artificial Intelligence (2023)
@@ -376,6 +376,13 @@ def _get_decomposeable_submodule_names(module: torch.nn.Module) -> list[str]:
     ]
 
 
+def add_meta_to_module_config(
+    module_config: dict[str, Any], module_deco_results: dict[str, Any]
+) -> None:
+    meta = {k: v for k, v in module_deco_results.items() if k != "decomposed_module"}
+    module_config[modconfig.META_KEY] = meta
+
+
 def decompose_in_place(
     *,
     module: torch.nn.Module,
@@ -441,7 +448,9 @@ def decompose_in_place(
             old_module = module.get_submodule(submodule_name)
             old_module_type_name = common.get_type_name(old_module)
             _replace_submodule_in_place(module, submodule_name, new_module)
-            decompose_config[submodule_name] = modconfig.get_module_config(new_module)
+            module_config = modconfig.get_module_config(new_module)
+            add_meta_to_module_config(module_config, result)
+            decompose_config[submodule_name] = module_config
             decompose_counter[old_module_type_name] += 1
             logger.info(f"{msg_prefix} finished {proportion=:.3f}")
         else:
