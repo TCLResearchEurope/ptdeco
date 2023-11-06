@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 def get_precision(config: dict[str, Any]) -> Optional[composer.core.Precision]:
     precision = config.get("precision")
-    if "precision" is not None:
+    if precision is not None:
         precision = composer.core.Precision(config["precision"])
     logger.info(f"Using {precision=}")
     return precision
