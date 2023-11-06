@@ -273,9 +273,8 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
         )
     )
 
-    student_model, teacher_model = create_student_teacher_models(
-        config, output_path / "decompose_config.json"
-    )
+    student_model, teacher_model = create_student_teacher_models(config)
+
     model = KdClassificationModel(
         student_model=student_model,
         teacher_model=teacher_model,
