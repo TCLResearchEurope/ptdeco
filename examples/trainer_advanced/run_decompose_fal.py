@@ -72,7 +72,7 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
         device=device,
         data_iterator=data_iterator,
     )
-    model_deco_stats = get_model_stats(model.b_c_h_w)
+    model_deco_stats = get_model_stats(model, b_c_h_w)
 
     out_decompose_config_path = output_path / "decompose_config.json"
     with open(out_decompose_config_path, "wt") as f:
