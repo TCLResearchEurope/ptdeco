@@ -171,7 +171,7 @@ def filter_state_dict(
         keep = True
         for m in skipped_module_names:
             if k.startswith(m):
-                logger.info("Removing {k} from model state_dict (blacklisted {m})")
+                logger.info(f"Removing {k} from model state_dict ({m} not decomposed)")
                 keep = False
                 break
         if keep:
