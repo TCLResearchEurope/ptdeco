@@ -163,6 +163,7 @@ def _compute_decompositon_of_covariance_matrix(
     num_data_steps: int,
     device: torch.device,
 ) -> torch.Tensor:
+    root_module.eval()
     decomposed_submodule = root_module.get_submodule(decomposed_submodule_name)
     assert isinstance(decomposed_submodule, DirectWrappedModule)
 
