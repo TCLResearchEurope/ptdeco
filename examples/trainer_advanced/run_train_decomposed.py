@@ -1,3 +1,4 @@
+import collections
 import json
 import logging
 import pathlib
@@ -136,34 +137,77 @@ class TensorboardCallBack(composer.Callback):
         state.model.writer.add_scalar("valid/accuracy", eval_accuracy, epoch)
 
 
-def create_student_teacher_models(
-    config: dict[str, Any], out_decompose_config_path: pathlib.Path
-) -> tuple[torch.nn.Module, torch.nn.Module]:
-    teacher_model = models.create_model(config)
-    b_c_h_w = (1, 3, int(config["input_h_w"][0]), int(config["input_h_w"][1]))
+def filter_decompose_config(
+    decompose_config: dict[str, Any],
+    proportion_threshold: float,
+    blacklisted_module_names: list[str],
+) -> tuple[dict[str, Any], list[str]]:
+    decompose_config_filtered = {}
+    skipped_module_names = []
 
-    student_model = models.create_model(config)
+    for module_name, module_data in decompose_config.items():
+        meta = module_data[ptdeco.MODCONFIG_META_KEY]
+        proportion = meta["proportion"]
+        if module_name in blacklisted_module_names:
+            logger.info(f"Skippping decomposition - {module_name} module blacklisted")
+            skipped_module_names.append(module_name)
+            continue
+        if proportion > proportion_threshold:
+            msg = f"{proportion=:.3} > {proportion_threshold} proportion too large"
+            logger.info(f"Skippping decomposition - {module_name} {msg}")
+            skipped_module_names.append(module_name)
+            continue
 
-    ptdeco.wrap_in_place(student_model)
-    sd = torch.load(config["model"]["wrapped_model_checkpoint"])
-    student_model.load_state_dict(sd)
-    proportion_threshold = config["model"][
-        "wrapped_model_decomposition_proportion_threshold"
-    ]
+        decompose_config_filtered[module_name] = module_data
 
-    blacklist = config["model"].get("wrapped_model_decomposition_blacklisted_modules")
+    return decompose_config_filtered, skipped_module_names
 
-    decompose_config = ptdeco.decompose_in_place(
-        student_model,
-        proportion_threshold=proportion_threshold,
-        blacklisted_module_names=blacklist,
+
+def filter_state_dict(
+    sd: collections.OrderedDict[str, torch.Tensor], skipped_module_names: list[str]
+) -> collections.OrderedDict[str, torch.Tensor]:
+    filtered_sd = collections.OrderedDict()
+    for k, v in sd.items():
+        keep = True
+        for m in skipped_module_names:
+            if k.startswith(m):
+                logger.info("Removing {k} from model state_dict (blacklisted {m})")
+                keep = False
+                break
+        if keep:
+            filtered_sd[k] = v
+    return filtered_sd
+
+
+def create_decomposed_model(config) -> torch.nn.Module:
+    model_name = config["model_name"]
+    model = models.create_model(model_name)
+    with open(config["decompose_config"], "rt") as f:
+        decompose_config = json.load(f)
+
+    decompose_state_dict = torch.load(config["decompose_state_dict"])
+    proportion_threshold = config["decompose_proportion_threshold"]
+    blacklisted_module_names = config.get("decompose_blaclisted_modules")
+
+    decompose_config, skipped_module_names = filter_decompose_config(
+        decompose_config, proportion_threshold, blacklisted_module_names
     )
-    student_model.eval()
+    decompose_state_dict = filter_state_dict(decompose_state_dict, skipped_module_names)
+    ptdeco.apply_decompose_config_in_place(model, decompose_config)
+    model.load_state_dict(decompose_state_dict, strict=False)
+    return model
 
-    with open(out_decompose_config_path, "wt") as f:
-        json.dump(decompose_config, f)
 
-    # Compute & log statistics of teacher and student model
+def create_student_teacher_models(
+    config: dict[str, Any]
+) -> tuple[torch.nn.Module, torch.nn.Module]:
+    model_name = config["model_name"]
+    teacher_model = models.create_model(model_name)
+    student_model = create_decomposed_model(config)
+
+    # Compute statistics of teacher model
+
+    b_c_h_w = (1, 3, int(config["input_h_w"][0]), int(config["input_h_w"][1]))
 
     teacher_model.eval()
 
@@ -177,6 +221,9 @@ def create_student_teacher_models(
     msg_ops = f"gflops={teacher_model_gflops:.2f} kmapps={teacher_model_kmapps:.2f}"
     msg_par = f"params={teacher_model_params:.2f}"
 
+    # Compute statistics of student model model
+
+    student_model.eval()
     student_model_gflops = models.get_fpops(
         student_model, b_c_h_w=b_c_h_w, units="gflops"
     )
