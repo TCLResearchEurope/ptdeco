@@ -68,9 +68,9 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
     data_iterator = make_image_iterator(train_dataloader)
 
     model = models.create_model(config)
+    model.to(device)
     model_orig_stats = get_model_stats(model, b_c_h_w, device)
 
-    model.to(device)
     decompose_config = ptdeco.fal.decompose_in_place(
         module=model,
         device=device,
