@@ -67,7 +67,7 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
 
     data_iterator = make_image_iterator(train_dataloader)
 
-    model = models.create_model(config)
+    model = models.create_model(config["model_name"])
     model.to(device)
     model_orig_stats = get_model_stats(model, b_c_h_w, device)
 
@@ -75,6 +75,12 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
         module=model,
         device=device,
         data_iterator=data_iterator,
+        proportion_threshold=config["proportion_threshold"],
+        kl_final_threshold=config["kl_final_threshold"],
+        nsr_final_threshold=config["nsr_final_threshold"],
+        num_data_steps=config["num_data_steps"],
+        num_metric_steps=config["num_metric_steps"],
+        blacklisted_module_names=config["blacklisted_module_names"]
     )
     model_deco_stats = get_model_stats(model, b_c_h_w, device)
 

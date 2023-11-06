@@ -1,5 +1,4 @@
 import logging
-from typing import Any
 
 import fvcore.nn  # type: ignore
 import timm  # type: ignore
@@ -41,8 +40,8 @@ def get_params(m: torch.nn.Module, only_trainable: bool = False) -> int:
     return sum(p.numel() for p in unique)
 
 
-def create_model(config: dict[str, Any]) -> torch.nn.Module:
-    builder, model_name = config["model"]["name"].split(".", maxsplit=1)
+def create_model(model_name) -> torch.nn.Module:
+    builder, model_name = model_name.split(".", maxsplit=1)
 
     logger.info(f"Creating model: {builder} {model_name}")
 
