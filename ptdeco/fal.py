@@ -192,17 +192,19 @@ def _compute_metrics(
 ) -> tuple[torch.Tensor, torch.Tensor]:
     assert isinstance(decomposed_submodule, DirectWrappedModule)
 
+    root_module.eval()
+
     decomposed_submodule.set_weight(deco_weight)
     out1 = root_module(x)
 
     decomposed_submodule.set_weight(orig_weight)
     out2 = root_module(x)
 
-    nsr = common.calc_per_channel_noise_to_signal_ratio(
+    nsr_final = common.calc_per_channel_noise_to_signal_ratio(
         y=out1, x=out2, non_channel_dim=(0,)
     ).mean()
-    kl = common.calc_kl_loss(out1, out2)
-    return nsr, kl
+    kl_final = common.calc_kl_loss(out1, out2)
+    return nsr_final, kl_final
 
 
 def _replace_submodule_in_place(
@@ -253,8 +255,8 @@ def _process_module(
     root_module: torch.nn.Module,
     decomposed_submodule_name: str,
     data_iterator: collections.abc.Iterator[torch.Tensor],
-    nsr_threshold: float,
-    kl_threshold: float,
+    nsr_final_threshold: float,
+    kl_final_threshold: float,
     num_data_steps: int,
     num_metric_steps: int,
     device: torch.device,
@@ -275,14 +277,14 @@ def _process_module(
         logger.info(f"{msg_prefix} Module has rank 1, not decomposing")
         return {
             "proportion": 1.0,
-            "nsr": 0.0,
-            "kl": 0.0,
+            "nsr_final": 0.0,
+            "kl_final": 0.0,
             "decomposed_module": None,
         }
 
     msg = f"{msg_prefix} {decomposed_type} weight_shape={tuple(orig_weight.shape)}"
     logger.info(msg)
-    logger.info(f"{msg_prefix} {nsr_threshold=:.6f} {kl_threshold=:.6f}")
+    logger.info(f"{msg_prefix} {nsr_final_threshold=:.6f} {kl_final_threshold=:.6f}")
 
     u = _compute_decompositon_of_covariance_matrix(
         root_module=root_module,
@@ -325,7 +327,7 @@ def _process_module(
         nsr_new /= num_metric_steps
         kl_new /= num_metric_steps
 
-        if nsr_new < nsr_threshold and kl_new < kl_threshold:
+        if nsr_new < nsr_final_threshold and kl_new < kl_final_threshold:
             rank_best = rank_new
             nsr_best = nsr_new
             kl_best = kl_new
@@ -353,8 +355,8 @@ def _process_module(
     _unwrap_in_place(root_module, decomposed_submodule_name)
     return {
         "proportion": proportion,
-        "nsr": nsr_new,
-        "kl": kl_new,
+        "nsr_final": nsr_new,
+        "kl_final": kl_new,
         "decomposed_module": new_decomposed_submodule,
     }
 
@@ -380,11 +382,11 @@ def decompose_in_place(
     device: torch.device,
     data_iterator: collections.abc.Iterator[torch.Tensor],
     blacklisted_module_names: Optional[list[str]] = None,
-    proportion_threshold: float = 0.7,
-    nsr_threshold: float = 0.01,
-    kl_threshold: float = 0.01,
-    num_data_steps: int = 5,
-    num_metric_steps: int = 5,
+    proportion_threshold: float,
+    nsr_final_threshold: float,
+    kl_final_threshold: float,
+    num_data_steps: int,
+    num_metric_steps: int,
 ) -> dict[str, Any]:
     start_time = time.perf_counter()
 
@@ -409,8 +411,8 @@ def decompose_in_place(
                 root_module=module,
                 decomposed_submodule_name=submodule_name,
                 data_iterator=data_iterator,
-                nsr_threshold=nsr_threshold,
-                kl_threshold=kl_threshold,
+                nsr_final_threshold=nsr_final_threshold,
+                kl_final_threshold=kl_final_threshold,
                 num_data_steps=num_data_steps,
                 num_metric_steps=num_metric_steps,
                 device=device,
