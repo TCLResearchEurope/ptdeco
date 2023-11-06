@@ -3,8 +3,8 @@ SHELL=bash
 MODULE_NAME=ptdeco
 VER_FILE=version.py
 
-PYTHON_FILES=configurator.py datasets_dali.py models.py version.py \
-             train_wrapped.py train_decomposed.py train_direct.py train.py
+PYTHON_FILES= configurator.py datasets_dali.py models.py version.py \
+			  run.py run_decompose_fal.py run_decompose_trainable.py run_train_decomposed.py
 
 check:
 	-isort --check --profile=black $(PYTHON_FILES)
