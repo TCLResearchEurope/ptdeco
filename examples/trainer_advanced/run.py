@@ -5,12 +5,12 @@ import subprocess
 import sys
 from typing import Any
 
-import examples.trainer_advanced.run_decompose_fal as run_decompose_fal
-import examples.trainer_advanced.run_decompose_trainable as run_decompose_trainable
-import examples.trainer_advanced.run_train_decomposed as run_train_decomposed
 import ptdeco
 import yaml
 
+import run_decompose_fal
+import run_decompose_trainable
+import run_train_decomposed
 import version
 
 logger = logging.getLogger(__name__)
