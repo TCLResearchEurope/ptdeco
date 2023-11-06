@@ -39,10 +39,10 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
 
     data_iterator = make_image_iterator(train_dataloader)
 
-    m = models.create_model(config)
-    m.to(device)
+    model = models.create_model(config)
+    model.to(device)
     decompose_config = ptdeco.fal.decompose_in_place(
-        module=m,
+        module=model,
         device=device,
         data_iterator=data_iterator,
     )
@@ -50,4 +50,5 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
     out_decompose_config_path = output_path / "decompose_config.json"
     with open(out_decompose_config_path, "wt") as f:
         json.dump(decompose_config, f)
-
+    out_decompose_state_dict_path = output_path / "decompose_state_dict.pt"
+    torch.save(model.state_dict(), out_decompose_state_dict_path)
