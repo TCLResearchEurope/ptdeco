@@ -15,6 +15,8 @@ import version
 
 logger = logging.getLogger(__name__)
 
+REPRO_SUBDIR = "repro"
+
 
 def parse_args() -> argparse.Namespace:
     arg_parser = argparse.ArgumentParser()
@@ -60,7 +62,7 @@ def read_config(fname: str) -> dict[str, Any]:
 
 
 def copy_config(config_path: pathlib.Path, output_path: pathlib.Path) -> None:
-    config_copy_path = output_path / "config.yaml"
+    config_copy_path = output_path / REPRO_SUBDIR / "config.yaml"
     if config_copy_path.exists():
         msg = f"Config copy already exists, please delete it first, {config_copy_path}"
         raise FileExistsError(msg)
@@ -113,7 +115,8 @@ def main(args: argparse.Namespace) -> None:
     output_path.mkdir(exist_ok=True, parents=True)
     copy_config(args.config, output_path)
     save_requirements(
-        output_path / "requirements.txt", output_path / "requirements_unsafe.txt"
+        output_path / REPRO_SUBDIR / "requirements.txt",
+        output_path / REPRO_SUBDIR / "requirements_unsafe.txt",
     )
     config = read_config(args.config)
     task = config.get("task")
