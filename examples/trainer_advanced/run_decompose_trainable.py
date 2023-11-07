@@ -1,5 +1,6 @@
 # flake8: noqa
 
+import json
 import logging
 import pathlib
 from typing import Any
@@ -165,13 +166,15 @@ def get_callbacks(
 
 
 def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
+    h_w = (int(config["input_h_w"][0]), int(config["input_h_w"][1]))
+    b_c_h_w = (1, 3, *h_w)
     train_pipeline, _ = datasets_dali.make_imagenet_pipelines(
         imagenet_root_dir=config["imagenet_root_dir"],
         trn_image_classes_fname=config["trn_imagenet_classes_fname"],
         val_image_classes_fname=config["val_imagenet_classes_fname"],
         batch_size=config["batch_size"],
         normalization=config["normalization"],
-        h_w=(int(config["input_h_w"][0]), int(config["input_h_w"][1])),
+        h_w=h_w,
     )
 
     train_dataloader = datasets_dali.DaliGenericIteratorWrapper(
@@ -180,7 +183,10 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
         )
     )
 
-    torch_wrapped_model = models.create_model(config)
+    torch_wrapped_model = models.create_model(config["model_name"])
+
+    model_orig_stats = model.get_model_stats(model, b_c_h_w)
+
     ptdeco.wrap_in_place(torch_wrapped_model)
     torch_model_trainable_params = ptdeco.get_parameters_trainable(torch_wrapped_model)
 
@@ -223,3 +229,18 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
         console_log_interval="1000ba",
     )
     stage_zero_trainer.fit()
+
+    # Decompose model
+    decompose_config = ptdeco.decompose_in_place(torch_wrapped_model)
+    model_deco_stats = model.get_model_stats(model, b_c_h_w)
+
+    # Save decompose_config and state_dict
+    out_decompose_config_path = output_path / "decompose_config.json"
+    with open(out_decompose_config_path, "wt") as f:
+        json.dump(decompose_config, f)
+    out_decompose_state_dict_path = output_path / "decompose_state_dict.pt"
+    torch.save(model.state_dict(), out_decompose_state_dict_path)
+
+    # Log statistics
+    model.log_model_stats(logger, "Original model  :", model_orig_stats)
+    model.log_model_stats(logger, "Decomposed model:", model_deco_stats)
