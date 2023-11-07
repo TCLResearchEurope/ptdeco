@@ -231,7 +231,11 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
     stage_zero_trainer.fit()
 
     # Decompose model
-    decompose_config = ptdeco.decompose_in_place(torch_wrapped_model)
+    decompose_config = ptdeco.decompose_in_place(
+        torch_wrapped_model,
+        proportion_threshold=config["decompose_proportion_threshold"],
+        blacklisted_module_names=config["decompose_blacklisted_modules"],
+    )
     model_deco_stats = model.get_model_stats(model, b_c_h_w)
 
     # Save decompose_config and state_dict
