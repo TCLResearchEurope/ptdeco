@@ -4,7 +4,7 @@ MODULE_NAME=ptdeco
 VER_FILE=version.py
 
 PYTHON_FILES= configurator.py datasets_dali.py models.py version.py \
-			  run.py run_decompose_fal.py run_decompose_trainable.py run_train_decomposed.py
+			  run.py run_decompose_fal.py run_decompose_trainable.py run_finetune.py
 
 check:
 	-isort --check --profile=black $(PYTHON_FILES)
@@ -37,7 +37,7 @@ build:
 	@cp -rp ../../ptdeco .
 	@cp run.py __main__.py
 		ZIP_NAME="build/ptdeco-$$(git rev-list --count HEAD)-$$(git rev-parse --short HEAD).zip"; \
-		zip -r $${ZIP_NAME} configurator.py datasets_dali.py models.py run_decompose_fal.py run_decompose_trainable.py run_train_decomposed.py version.py  __main__.py ptdeco; \
+		zip -r $${ZIP_NAME} configurator.py datasets_dali.py models.py run_decompose_fal.py run_decompose_trainable.py run_finetune.py version.py  __main__.py ptdeco; \
 		rm -rf ptdeco __main__.py; \
 		echo "Build - created $${ZIP_NAME}"
 
