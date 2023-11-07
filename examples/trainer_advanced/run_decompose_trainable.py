@@ -185,7 +185,7 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
 
     torch_wrapped_model = models.create_model(config["model_name"])
 
-    model_orig_stats = model.get_model_stats(model, b_c_h_w)
+    model_orig_stats = model.get_model_stats(torch_wrapped_model, b_c_h_w)
 
     ptdeco.wrap_in_place(torch_wrapped_model)
     torch_model_trainable_params = ptdeco.get_parameters_trainable(torch_wrapped_model)
@@ -236,7 +236,7 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
         proportion_threshold=config["decompose_proportion_threshold"],
         blacklisted_module_names=config["decompose_blacklisted_modules"],
     )
-    model_deco_stats = model.get_model_stats(model, b_c_h_w)
+    model_deco_stats = model.get_model_stats(torch_wrapped_model, b_c_h_w)
 
     # Save decompose_config and state_dict
     out_decompose_config_path = output_path / "decompose_config.json"
