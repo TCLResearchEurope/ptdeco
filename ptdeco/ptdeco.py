@@ -70,7 +70,7 @@ class WrappedModule(torch.nn.Module):
     def parameters_trainable(self) -> list[torch.nn.Parameter]:
         raise NotImplementedError
 
-    def get_decomposed_module(self) -> torch.nn.Module:
+    def get_decomposed_module_and_meta(self) -> tuple[torch.nn.Module, dict[str, Any]]:
         raise NotImplementedError
 
     def get_orig_module(self) -> torch.nn.Module:
@@ -153,7 +153,7 @@ class WrappedConv2d(WrappedModule):
             + [self.logits]
         )
 
-    def get_decomposed_module(self) -> torch.nn.Module:
+    def get_decomposed_module_and_meta(self) -> tuple[torch.nn.Module, dict[str, Any]]:
         indices = torch.where(self.logits > 0)[0]
         if len(indices) == 0:
             max_logit = self.logits.max()
@@ -174,7 +174,8 @@ class WrappedConv2d(WrappedModule):
             self.conv_2.weight, dim=1, indices=indices_conv2
         )
         self.conv_2.weight.data = new_weight_conv2
-        return torch.nn.Sequential(self.conv_1, self.conv_2)
+        meta = {"proportion": p}
+        return torch.nn.Sequential(self.conv_1, self.conv_2), meta
 
     def get_orig_module(self) -> torch.nn.Module:
         return self.conv_orig
@@ -263,7 +264,7 @@ class WrappedLinear(WrappedModule):
             + [self.logits]
         )
 
-    def get_decomposed_module(self) -> torch.nn.Module:
+    def get_decomposed_module_and_meta(self) -> tuple[torch.nn.Module, dict[str, Any]]:
         indices = torch.where(self.logits > 0)[0]
         c1 = len(indices)
         c0 = len(self.logits)
@@ -281,7 +282,8 @@ class WrappedLinear(WrappedModule):
         self.lin_1.weight.data = new_weight_lin1
         self.lin_0.out_features = len(indices)
         self.lin_1.in_features = len(indices)
-        return torch.nn.Sequential(self.lin_0, self.lin_1)
+        meta = {"proportion": p}
+        return torch.nn.Sequential(self.lin_0, self.lin_1), meta
 
     def get_orig_module(self) -> torch.nn.Module:
         return self.lin_orig
@@ -441,12 +443,12 @@ def _decompose_in_place(
             if not blacklisted and p < proportion_threshold:
                 msg = f"Decomposing {msg_info}"
                 logger.info(msg)
-                new_module = child_module.get_decomposed_module()
+                new_module, meta = child_module.get_decomposed_module_and_meta()
                 setattr(module, child_name, new_module)
                 decompose_counter[child_module_type_name] += 1
-                decompose_config[full_child_name] = modconfig.get_module_config(
-                    new_module
-                )
+                module_config = modconfig.get_module_config(new_module)
+                module_config[modconfig.MODCONFIG_META_KEY] = meta
+                decompose_config[full_child_name] = module_config
             else:
                 old_module = child_module.get_orig_module()
                 setattr(module, child_name, old_module)
