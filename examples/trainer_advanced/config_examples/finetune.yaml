@@ -1,32 +1,33 @@
-task: decompose_trainable
+task: finetune
 
 # Dataset setup
 
 imagenet_root_dir: /nas/datasets/vision/ImageNet/pod_download/data/fix
 trn_imagenet_classes_fname: /nas/datasets/vision/ImageNet/pod_download/data/train_es.txt
 val_imagenet_classes_fname: /nas/datasets/vision/ImageNet/pod_download/data/val.txt
-batch_size: 128
+batch_size: 8
 normalization: imagenet
 input_h_w: [224, 224]
 
+
 # Model setup
 
-decompose_model_name: timm.resnet18.a2_in1k
-
-# Decomposition setup
-
-proportion_threshold: 10.0
-blacklisted_modules: []
-lmbda: 1.0
-nsr_threshold: 0.1
+decompose_model_name: timm.efficientformerv2_s2.snap_dist_in1k
+decompose_config: tmp/decompose_config.json
+decompose_state_dict: tmp/decompose_state_dict.pt
+proportion_threshold: 0.8
+blacklisted_modules:
+  - stem.conv1.conv
+  - head
+  - head_dist
 
 # Training setup
 
-lr: 0.001
-lr_t_warmup:  0ep
-max_duration: 10ba
+lr: 0.0015
+lr_t_warmup: 5ep
+max_duration: 200ep
 input_h_w: [224, 224]
-optimizer: Adam
+optimizer: SGD
 precision: null
 compile_config:
     mode: default

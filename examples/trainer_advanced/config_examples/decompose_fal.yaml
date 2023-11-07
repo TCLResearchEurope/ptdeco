@@ -11,7 +11,7 @@ input_h_w: [224, 224]
 
 # Model setup
 
-model_name: timm.swinv2_cr_tiny_ns_224.sw_in1k
+decompose_model_name: timm.swinv2_cr_tiny_ns_224.sw_in1k
 
 # Decomposition setup
 
@@ -20,4 +20,4 @@ kl_final_threshold: 0.01
 proportion_threshold: 10.0
 num_data_steps: 5
 num_metric_steps: 5
-blacklisted_module_names: []
+blacklisted_modules: []
