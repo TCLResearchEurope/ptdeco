@@ -12,17 +12,25 @@ def get_type_name(o: Any) -> str:
     return to.__module__ + "." + to.__name__
 
 
-def split_module_parent_child_name(target: str) -> tuple[str, str]:
-    *parent, name = target.rsplit(".", 1)
-    return parent[0] if parent else "", name
-
-
 def get_default_device(module: torch.nn.Module) -> torch.device:
     p = next(module.parameters(), None)
     if p is None:
         return torch.device("cpu")
     else:
         return p.device
+
+
+def split_module_parent_child_name(target: str) -> tuple[str, str]:
+    *parent, name = target.rsplit(".", 1)
+    return parent[0] if parent else "", name
+
+
+def replace_submodule_in_place(
+    root_module: torch.nn.Module, submodule_name: str, new_submodule: torch.nn.Module
+) -> None:
+    parent_name, child_name = split_module_parent_child_name(submodule_name)
+    parent_module = root_module.get_submodule(parent_name)
+    setattr(parent_module, child_name, new_submodule)
 
 
 def calc_per_channel_noise_to_signal_ratio(

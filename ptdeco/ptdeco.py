@@ -405,9 +405,7 @@ def apply_decompose_config_in_place(
         submodule = module.get_submodule(submodule_name)
         new_submodule = modconfig.build_module_from_config(new_submodule_config)
         new_submodule.to(device)
-        parent_name, child_name = common.split_module_parent_child_name(submodule_name)
-        parent = module.get_submodule(parent_name)
-        setattr(parent, child_name, new_submodule)
+        common.replace_submodule_in_place(module, submodule_name, new_submodule)
         del submodule
 
 

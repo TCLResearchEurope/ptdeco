@@ -207,14 +207,6 @@ def _compute_metrics(
     return nsr_final, kl_final
 
 
-def _replace_submodule_in_place(
-    root_module: torch.nn.Module, submodule_name: str, new_submodule: torch.nn.Module
-) -> None:
-    parent_name, child_name = common.split_module_parent_child_name(submodule_name)
-    parent_module = root_module.get_submodule(parent_name)
-    setattr(parent_module, child_name, new_submodule)
-
-
 def _wrap_in_place(
     root_module: torch.nn.Module, decomposed_submodule_name: str
 ) -> None:
@@ -236,7 +228,7 @@ def _wrap_in_place(
         raise ValueError(
             f"Cannot decompose {decomposed_submodule_name}={decomposed_submodule}"
         )
-    _replace_submodule_in_place(
+    common.replace_submodule_in_place(
         root_module, decomposed_submodule_name, wrapped_decomposed_submodule
     )
 
@@ -247,7 +239,9 @@ def _unwrap_in_place(
     decomposed_submodule = root_module.get_submodule(decomposed_submodule_name)
     assert isinstance(decomposed_submodule, DirectWrappedModule)
     orig_module = decomposed_submodule.get_orig_module()
-    _replace_submodule_in_place(root_module, decomposed_submodule_name, orig_module)
+    common.replace_submodule_in_place(
+        root_module, decomposed_submodule_name, orig_module
+    )
 
 
 def _process_module(
@@ -447,7 +441,7 @@ def decompose_in_place(
         if proportion < proportion_threshold:
             old_module = module.get_submodule(submodule_name)
             old_module_type_name = common.get_type_name(old_module)
-            _replace_submodule_in_place(module, submodule_name, new_module)
+            common.replace_submodule_in_place(module, submodule_name, new_module)
             module_config = modconfig.get_module_config(new_module)
             add_meta_to_module_config(module_config, result)
             decompose_config[submodule_name] = module_config
