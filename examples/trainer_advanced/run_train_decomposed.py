@@ -301,7 +301,7 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
         model=model,
         train_dataloader=train_dataloader,
         eval_dataloader=evaluator,
-        max_duration=config["epochs"],
+        max_duration=config["max_duration"],
         optimizers=optimizers,
         schedulers=lr_schedulers,
         device=device,

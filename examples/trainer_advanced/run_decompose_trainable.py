@@ -209,7 +209,7 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
     stage_zero_trainer = composer.Trainer(
         model=model,
         train_dataloader=train_dataloader,
-        max_duration=config["epochs"],
+        max_duration=config["max_duration"],
         optimizers=optimizers,
         schedulers=lr_schedulers,
         device=device,
