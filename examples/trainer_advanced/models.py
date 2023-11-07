@@ -45,8 +45,12 @@ def get_params(m: torch.nn.Module, only_trainable: bool = False) -> int:
 
 
 def get_model_stats(
-    model: torch.nn.Module, b_c_h_w: tuple[int, int, int, int], device: torch.device
+    model: torch.nn.Module,
+    b_c_h_w: tuple[int, int, int, int],
+    device: Optional[torch.device] = None,
 ) -> dict[str, float]:
+    if device is None:
+        device = ptdeco.common.get_default_device(model)
     model.eval()
     return {
         "gflops": get_fpops(model, b_c_h_w=b_c_h_w, units="gflops", device=device),
