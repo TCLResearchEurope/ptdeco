@@ -160,8 +160,9 @@ class WrappedConv2d(WrappedModule):
             indices = torch.where(self.logits >= max_logit)[0]
         c1 = len(indices)
         c0 = len(self.logits)
-        p = c1 / c0 * 100.0
-        logger.info(f"Leaving {c1} out of {c0} intermediate channels ({p:4.1f} %)")
+        p = c1 / c0
+        msg = f"Leaving {c1} out of {c0} intermediate channels ({p*100.0:4.1f} %)"
+        logger.info(msg)
         indices_conv1 = indices.view(-1, 1, 1, 1)
         indices_conv2 = indices.view(1, -1, 1, 1)
         new_weight_conv1 = torch.take_along_dim(
@@ -268,8 +269,9 @@ class WrappedLinear(WrappedModule):
         indices = torch.where(self.logits > 0)[0]
         c1 = len(indices)
         c0 = len(self.logits)
-        p = c1 / c0 * 100.0
-        logger.info(f"Leaving {c1} out of {c0} intermediate channels ({p:4.1f} %)")
+        p = c1 / c0
+        msg = f"Leaving {c1} out of {c0} intermediate channels ({p*100.0:4.1f} %)"
+        logger.info(msg)
         indices_lin0 = indices.view(-1, 1)
         new_weight_lin0 = torch.take_along_dim(
             self.lin_0.weight, dim=0, indices=indices_lin0
