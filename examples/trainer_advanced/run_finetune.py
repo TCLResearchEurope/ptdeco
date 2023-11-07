@@ -252,6 +252,9 @@ def get_callbacks(
 
 
 def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
+    config_class = configurator.FinetuneConfig(**config)
+    print(config_class)
+
     train_pipeline, valid_pipeline = datasets_dali.make_imagenet_pipelines(
         imagenet_root_dir=config["imagenet_root_dir"],
         trn_image_classes_fname=config["trn_imagenet_classes_fname"],

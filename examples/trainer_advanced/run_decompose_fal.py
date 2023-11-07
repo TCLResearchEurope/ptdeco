@@ -7,6 +7,7 @@ import nvidia.dali.plugin.pytorch
 import ptdeco.fal
 import torch
 
+import configurator
 import datasets_dali
 import models
 
@@ -19,6 +20,8 @@ def make_image_iterator(train_dataloader):
 
 
 def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
+    config_class = configurator.DecomposeFALConfig(**config)
+    print(config_class)
     h_w = (int(config["input_h_w"][0]), int(config["input_h_w"][1]))
     b_c_h_w = (1, 3, *h_w)
     train_pipeline, valid_pipeline = datasets_dali.make_imagenet_pipelines(
@@ -52,12 +55,12 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
         module=model,
         device=device,
         data_iterator=data_iterator,
-        proportion_threshold=config["decompose_proportion_threshold"],
+        proportion_threshold=config["proportion_threshold"],
         kl_final_threshold=config["kl_final_threshold"],
         nsr_final_threshold=config["nsr_final_threshold"],
         num_data_steps=config["num_data_steps"],
         num_metric_steps=config["num_metric_steps"],
-        blacklisted_module_names=config["decompose_blacklisted_modules"],
+        blacklisted_module_names=config["blacklisted_modules"],
     )
     model_deco_stats = model.get_model_stats(model, b_c_h_w)
 

@@ -166,6 +166,9 @@ def get_callbacks(
 
 
 def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
+    config_class = configurator.DecomposeTrainableConfig(**config)
+    print(config_class)
+
     h_w = (int(config["input_h_w"][0]), int(config["input_h_w"][1]))
     b_c_h_w = (1, 3, *h_w)
     train_pipeline, _ = datasets_dali.make_imagenet_pipelines(
@@ -233,8 +236,8 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
     # Decompose model
     decompose_config = ptdeco.decompose_in_place(
         torch_wrapped_model,
-        proportion_threshold=config["decompose_proportion_threshold"],
-        blacklisted_module_names=config["decompose_blacklisted_modules"],
+        proportion_threshold=config["proportion_threshold"],
+        blacklisted_module_names=config["blacklisted_modules"],
     )
     model_deco_stats = models.get_model_stats(torch_wrapped_model, b_c_h_w)
 

@@ -10,7 +10,7 @@ import yaml
 
 import run_decompose_fal
 import run_decompose_trainable
-import run_train_decomposed
+import run_finetune
 import version
 
 logger = logging.getLogger(__name__)
@@ -128,8 +128,8 @@ def main(args: argparse.Namespace) -> None:
         run_decompose_trainable.main(config=config, output_path=output_path)
     elif task == "decompose_fal":
         run_decompose_fal.main(config=config, output_path=output_path)
-    elif task == "train_decomposed":
-        run_train_decomposed.main(config=config, output_path=output_path)
+    elif task == "finetune":
+        run_finetune.main(config=config, output_path=output_path)
     else:
         if task is None:
             msg = "config.train_mode unspecified"

@@ -1,11 +1,70 @@
 import logging
 from collections.abc import Iterable
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 import composer
+import pydantic
 import torch
 
 logger = logging.getLogger(__name__)
+
+
+class _VersionConfig(pydantic.BaseModel):
+    ptdeco_trainer_version: Optional[str] = None
+    ptdeco_version: Optional[str] = None
+
+
+class _DataConfig(pydantic.BaseModel):
+    imagenet_root_dir: str
+    trn_imagenet_classes_fname: str
+    val_imagenet_classes_fname: str
+    batch_size: int
+    normalization: Literal["zero_to_one", "negative_one_to_one", "imagenet", "identity"]
+    input_h_w: tuple[int, int]
+
+
+class _TrainConfig(pydantic.BaseModel):
+    lr: float
+    lr_t_warmup: str
+    max_duration: str
+    optimizer: Literal["Adam", "SGD"]
+    precision: Optional[Literal["fp32", "amp_fp16", "amp_bf16", "amp_fp8"]]
+    compile_config: dict[str, Any]
+
+
+class DecomposeTrainableConfig(_DataConfig, _TrainConfig):
+    task: Literal["decompose_trainable"]
+    decompose_model_name: str
+    proportion_threshold: float
+    blacklisted_modules: list[str]
+    lmbda: float
+    nsr_threshold: float
+
+    model_config = pydantic.ConfigDict(extra="forbid")
+
+
+class DecomposeFALConfig(_VersionConfig, _DataConfig):
+    task: Literal["decompose_fal"]
+    decompose_model_name: str
+    proportion_threshold: float
+    blacklisted_modules: list[str]
+    kl_final_threshold: float
+    nsr_final_threshold: float
+    num_data_steps: int
+    num_metric_steps: int
+
+    model_config = pydantic.ConfigDict(extra="forbid")
+
+
+class FinetuneConfig(_VersionConfig, _DataConfig, _TrainConfig):
+    task: Literal["finetune"]
+    decompose_model_name: str
+    decompose_config: str
+    decompose_state_dict: str
+    proportion_threshold: float
+    blacklisted_modules: list[str]
+
+    model_config = pydantic.ConfigDict(extra="forbid")
 
 
 def get_precision(config: dict[str, Any]) -> Optional[composer.core.Precision]:
