@@ -18,29 +18,6 @@ def make_image_iterator(train_dataloader):
         yield d["inputs"].permute(0, 3, 1, 2)
 
 
-def get_model_stats(
-    model: torch.nn.Module, b_c_h_w: tuple[int, int, int, int], device: torch.device
-) -> dict[str, Any]:
-    model.eval()
-    return {
-        "gflops": models.get_fpops(
-            model, b_c_h_w=b_c_h_w, units="gflops", device=device
-        ),
-        "kmapps": models.get_fpops(
-            model, b_c_h_w=b_c_h_w, units="kmapps", device=device
-        ),
-        "mparams": models.get_params(model) / 1.0e6,
-    }
-
-
-def log_model_stats(log_prefix: str, model_stats: dict[str, Any]) -> None:
-    gflops = model_stats["gflops"]
-    kmapps = model_stats["kmapps"]
-    mparams = model_stats["mparams"]
-    msg = f"{log_prefix} gflops={gflops:.2f} kmapps={kmapps:.2f} Mparams={mparams:.2f}"
-    logger.info(msg)
-
-
 def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
     h_w = (int(config["input_h_w"][0]), int(config["input_h_w"][1]))
     b_c_h_w = (1, 3, *h_w)
@@ -69,7 +46,7 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
 
     model = models.create_model(config["model_name"])
     model.to(device)
-    model_orig_stats = get_model_stats(model, b_c_h_w, device)
+    model_orig_stats = model.get_model_stats(model, b_c_h_w)
 
     decompose_config = ptdeco.fal.decompose_in_place(
         module=model,
@@ -82,12 +59,13 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
         num_metric_steps=config["num_metric_steps"],
         blacklisted_module_names=config["blacklisted_module_names"],
     )
-    model_deco_stats = get_model_stats(model, b_c_h_w, device)
+    model_deco_stats = model.get_model_stats(model, b_c_h_w)
 
     out_decompose_config_path = output_path / "decompose_config.json"
     with open(out_decompose_config_path, "wt") as f:
         json.dump(decompose_config, f)
     out_decompose_state_dict_path = output_path / "decompose_state_dict.pt"
     torch.save(model.state_dict(), out_decompose_state_dict_path)
-    log_model_stats("Original model  :", model_orig_stats)
-    log_model_stats("Decomposed model:", model_deco_stats)
+
+    model.log_model_stats(logger, "Original model  :", model_orig_stats)
+    model.log_model_stats(logger, "Decomposed model:", model_deco_stats)

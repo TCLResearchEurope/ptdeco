@@ -1,6 +1,8 @@
 import logging
+from typing import Any, Optional
 
 import fvcore.nn  # type: ignore
+import ptdeco.common
 import timm  # type: ignore
 import torch
 
@@ -11,9 +13,11 @@ def get_fpops(
     model: torch.nn.Module,
     b_c_h_w: tuple[int, int, int, int],
     units: str = "gflops",
-    device: torch.device = torch.device("cpu"),
+    device: Optional[torch.device] = None,
     warnings_off: bool = False,
 ) -> float:
+    if device is None:
+        device = ptdeco.common.get_default_device(model)
     x = torch.rand(size=b_c_h_w, device=device)
     fca = fvcore.nn.FlopCountAnalysis(model, x)
 
@@ -38,6 +42,27 @@ def get_params(m: torch.nn.Module, only_trainable: bool = False) -> int:
         parameters = [p for p in parameters if p.requires_grad]
     unique = {p.data_ptr(): p for p in parameters}.values()
     return sum(p.numel() for p in unique)
+
+
+def get_model_stats(
+    model: torch.nn.Module, b_c_h_w: tuple[int, int, int, int], device: torch.device
+) -> dict[str, float]:
+    model.eval()
+    return {
+        "gflops": get_fpops(model, b_c_h_w=b_c_h_w, units="gflops", device=device),
+        "kmapps": get_fpops(model, b_c_h_w=b_c_h_w, units="kmapps", device=device),
+        "mparams": get_params(model) / 1.0e6,
+    }
+
+
+def log_model_stats(
+    logger: logging.Logger, log_prefix: str, model_stats: dict[str, Any]
+) -> None:
+    gflops = model_stats["gflops"]
+    kmapps = model_stats["kmapps"]
+    mparams = model_stats["mparams"]
+    msg = f"{log_prefix} gflops={gflops:.2f} kmapps={kmapps:.2f} Mparams={mparams:.2f}"
+    logger.info(msg)
 
 
 def create_model(model_name) -> torch.nn.Module:
