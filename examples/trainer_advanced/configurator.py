@@ -32,7 +32,7 @@ class _TrainConfig(pydantic.BaseModel):
     alg_channel_last: bool
     alg_gradient_clipping_type: Optional[Literal["norm", "value", "adaptive"]]
     alg_gradient_clipping_threshold: Optional[float] = None
-    compile_config: dict[str, Any]
+    compile_config: Optional[dict[str, Any]]
 
 
 class DecomposeTrainableConfig(_DataConfig, _TrainConfig):
