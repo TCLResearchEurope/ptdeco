@@ -167,9 +167,7 @@ def get_callbacks(
 
 def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
     config_parsed = configurator.DecomposeTrainableConfig(**config)
-
-    h_w = (config_parsed.input_h_w[0], config_parsed.input_h_w[1])
-    b_c_h_w = (1, 3, *h_w)
+    b_c_h_w = (1, 3, *config_parsed.input_h_w)
 
     train_pipeline, _ = datasets_dali.make_imagenet_pipelines(
         imagenet_root_dir=config_parsed.imagenet_root_dir,
@@ -177,7 +175,7 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
         val_image_classes_fname=config_parsed.val_imagenet_classes_fname,
         batch_size=config_parsed.batch_size,
         normalization=config_parsed.normalization,
-        h_w=h_w,
+        h_w=config_parsed.input_h_w,
     )
 
     train_dataloader = datasets_dali.DaliGenericIteratorWrapper(
@@ -221,7 +219,7 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
         autoresume=True,
         save_folder=str(output_path / CHECKPOINTS_DIRNAME),
         save_overwrite=False,
-        run_name="train_wrapped",
+        run_name="decompose_trainable",
         save_interval="1ep",
         callbacks=callbacks,
         precision=precision,

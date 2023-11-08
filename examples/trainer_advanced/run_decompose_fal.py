@@ -21,16 +21,15 @@ def make_image_iterator(train_dataloader):
 
 def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
     config_parsed = configurator.DecomposeFALConfig(**config)
+    b_c_h_w = (1, 3, *config_parsed.input_h_w)
 
-    h_w = (config_parsed.input_h_w[0], config_parsed.input_h_w[1])
-    b_c_h_w = (1, 3, *h_w)
     train_pipeline, valid_pipeline = datasets_dali.make_imagenet_pipelines(
         imagenet_root_dir=config_parsed.imagenet_root_dir,
         trn_image_classes_fname=config_parsed.trn_imagenet_classes_fname,
         val_image_classes_fname=config_parsed.val_imagenet_classes_fname,
         batch_size=config_parsed.batch_size,
         normalization=config_parsed.normalization,
-        h_w=h_w,
+        h_w=config_parsed.input_h_w,
     )
     del valid_pipeline
 
