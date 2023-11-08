@@ -7,9 +7,9 @@ import nvidia.dali.plugin.pytorch
 import ptdeco.fal
 import torch
 
+import builder
 import configurator
 import datasets_dali
-import models
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +47,7 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
 
     data_iterator = make_image_iterator(train_dataloader)
 
-    model = models.create_model(config["model_name"])
+    model = builder.create_model(config["model_name"])
     model.to(device)
     model_orig_stats = model.get_model_stats(model, b_c_h_w)
 

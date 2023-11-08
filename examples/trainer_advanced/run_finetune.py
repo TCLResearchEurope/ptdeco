@@ -15,9 +15,9 @@ import ptdeco
 import torch
 import torchmetrics
 
+import builder
 import configurator
 import datasets_dali
-import models
 
 TENSORBOARD_DIRNAME = "tensorboard"
 CHECKPOINTS_DIRNAME = "checkpoints"
@@ -181,7 +181,7 @@ def filter_state_dict(
 
 def create_decomposed_model(config) -> torch.nn.Module:
     model_name = config["model_name"]
-    model = models.create_model(model_name)
+    model = builder.create_model(model_name)
     with open(config["decompose_config"], "rt") as f:
         decompose_config = json.load(f)
 
@@ -202,7 +202,7 @@ def create_student_teacher_models(
     config: dict[str, Any]
 ) -> tuple[torch.nn.Module, torch.nn.Module]:
     model_name = config["model_name"]
-    teacher_model = models.create_model(model_name)
+    teacher_model = builder.create_model(model_name)
     student_model = create_decomposed_model(config)
 
     # Compute statistics of teacher model
@@ -211,26 +211,26 @@ def create_student_teacher_models(
 
     teacher_model.eval()
 
-    teacher_model_gflops = models.get_fpops(
+    teacher_model_gflops = builder.get_fpops(
         teacher_model, b_c_h_w=b_c_h_w, units="gflops"
     )
-    teacher_model_kmapps = models.get_fpops(
+    teacher_model_kmapps = builder.get_fpops(
         teacher_model, b_c_h_w=b_c_h_w, units="kmapps"
     )
-    teacher_model_params = models.get_params(teacher_model) / 1.0e6
+    teacher_model_params = builder.get_params(teacher_model) / 1.0e6
     msg_ops = f"gflops={teacher_model_gflops:.2f} kmapps={teacher_model_kmapps:.2f}"
     msg_par = f"params={teacher_model_params:.2f}"
 
     # Compute statistics of student model model
 
     student_model.eval()
-    student_model_gflops = models.get_fpops(
+    student_model_gflops = builder.get_fpops(
         student_model, b_c_h_w=b_c_h_w, units="gflops"
     )
-    student_model_kmapps = models.get_fpops(
+    student_model_kmapps = builder.get_fpops(
         student_model, b_c_h_w=b_c_h_w, units="kmapps"
     )
-    student_model_params = models.get_params(student_model) / 1.0e6
+    student_model_params = builder.get_params(student_model) / 1.0e6
     student_model.train()
 
     logger.info(f"Teacher model {msg_ops} {msg_par}")
