@@ -85,4 +85,4 @@ def validate_module_names(model: torch.nn.Module, module_names: list[str]) -> No
     unknown_modules = [name for name in module_names if name not in known_module_names]
     if unknown_modules:
         msg = ", ".join(unknown_modules)
-        raise ValueError(f"Unknown module names specified {msg}")
+        raise ValueError(f"Unknown module names specified: {msg}")
