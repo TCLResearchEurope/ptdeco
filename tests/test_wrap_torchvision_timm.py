@@ -3,7 +3,7 @@ import typing
 import pytest
 import torch
 
-import ptdeco
+import ptdeco.lockd
 
 if typing.TYPE_CHECKING:
     import timm  # type: ignore
@@ -22,7 +22,7 @@ else:
 
 def check_wrap(model: torch.nn.Module, x: torch.Tensor) -> None:
     y1 = model(x)
-    ptdeco.wrap_in_place(model)
+    ptdeco.lockd.wrap_in_place(model)
     y2 = model(x)
     assert y1.shape == y2.shape
 

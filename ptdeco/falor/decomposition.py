@@ -16,7 +16,8 @@ from typing import Any, Optional
 
 import torch
 
-from .. import common, modconfig
+from .. import utils
+from ..utils import modconfig
 
 logger = logging.getLogger(__name__)
 
@@ -202,10 +203,10 @@ def _compute_metrics(
     decomposed_submodule.set_weight(orig_weight)
     out2 = root_module(x)
 
-    nsr_final = common.calc_per_channel_noise_to_signal_ratio(
+    nsr_final = utils.calc_per_channel_noise_to_signal_ratio(
         y=out1, x=out2, non_channel_dim=(0,)
     ).mean()
-    kl_final = common.calc_kl_loss(out1, out2)
+    kl_final = utils.calc_kl_loss(out1, out2)
     return nsr_final, kl_final
 
 
@@ -230,7 +231,7 @@ def _wrap_in_place(
         raise ValueError(
             f"Cannot decompose {decomposed_submodule_name}={decomposed_submodule}"
         )
-    common.replace_submodule_in_place(
+    utils.replace_submodule_in_place(
         root_module, decomposed_submodule_name, wrapped_decomposed_submodule
     )
 
@@ -241,7 +242,7 @@ def _unwrap_in_place(
     decomposed_submodule = root_module.get_submodule(decomposed_submodule_name)
     assert isinstance(decomposed_submodule, DirectWrappedModule)
     orig_module = decomposed_submodule.get_orig_module()
-    common.replace_submodule_in_place(
+    utils.replace_submodule_in_place(
         root_module, decomposed_submodule_name, orig_module
     )
 
@@ -258,7 +259,7 @@ def _process_module(
     device: torch.device,
 ) -> dict[str, Any]:
     decomposed_submodule = root_module.get_submodule(decomposed_submodule_name)
-    decomposed_type = common.get_type_name(decomposed_submodule)
+    decomposed_type = utils.get_type_name(decomposed_submodule)
     _wrap_in_place(root_module, decomposed_submodule_name)
     decomposed_submodule = root_module.get_submodule(decomposed_submodule_name)
     assert isinstance(decomposed_submodule, DirectWrappedModule)
@@ -442,8 +443,8 @@ def decompose_in_place(
         proportion = result["proportion"]
         if proportion < proportion_threshold:
             old_module = module.get_submodule(submodule_name)
-            old_module_type_name = common.get_type_name(old_module)
-            common.replace_submodule_in_place(module, submodule_name, new_module)
+            old_module_type_name = utils.get_type_name(old_module)
+            utils.replace_submodule_in_place(module, submodule_name, new_module)
             module_config = modconfig.get_module_config(new_module)
             add_meta_to_module_config(module_config, result)
             decompose_config[submodule_name] = module_config

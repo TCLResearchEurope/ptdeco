@@ -3,7 +3,7 @@ import typing
 import pytest
 import torch
 
-import ptdeco
+import ptdeco.lockd
 
 if typing.TYPE_CHECKING:
     import timm  # type: ignore
@@ -26,24 +26,24 @@ TIMM_TEST_MODELS = ["efficientformerv2_s0"]
 
 
 def check_losses(model: torch.nn.Module, x: torch.Tensor) -> None:
-    ptdeco.wrap_in_place(model)
+    ptdeco.lockd.wrap_in_place(model)
     _ = model(x)
 
-    d_entropy = ptdeco.get_entropy_dict(model)
+    d_entropy = ptdeco.lockd.get_entropy_dict(model)
     assert isinstance(d_entropy, dict)
 
-    l_entropy = ptdeco.get_entropy_loss(model)
+    l_entropy = ptdeco.lockd.get_entropy_loss(model)
     assert isinstance(l_entropy, torch.Tensor) and l_entropy.device == x.device
 
-    d_nsr = ptdeco.get_nsr_dict(model)
+    d_nsr = ptdeco.lockd.get_nsr_dict(model)
     assert isinstance(d_nsr, dict)
     l_nsr_threshold = torch.tensor(0.01)
-    l_nsr = ptdeco.get_nsr_loss(model, l_nsr_threshold)
+    l_nsr = ptdeco.lockd.get_nsr_loss(model, l_nsr_threshold)
     assert isinstance(l_nsr, torch.Tensor) and l_nsr.device == x.device
 
-    d_proportion = ptdeco.get_proportion_dict(model)
+    d_proportion = ptdeco.lockd.get_proportion_dict(model)
     assert isinstance(d_proportion, dict)
-    l_proportion = ptdeco.get_proportion_loss(model)
+    l_proportion = ptdeco.lockd.get_proportion_loss(model)
     assert isinstance(l_proportion, torch.Tensor) and l_proportion.device == x.device
 
 

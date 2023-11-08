@@ -1,12 +1,22 @@
+"""Implementation of the LOCKD method (LOCal Knowledge Distillation)
+"""
+
 import collections
 import logging
 from typing import Any, Optional, Union
 
 import torch
 
-from . import common, modconfig
+from .. import utils
 
 logger = logging.getLogger(__name__)
+
+__all__ = [
+    "get_parameters_trainable",
+    "wrap_in_place",
+    "decompose_in_place",
+    "WrappedModule",
+]
 
 
 def _to_str_int_tuple_int_int(o: Any) -> Union[str, int, tuple[int, int]]:
@@ -31,20 +41,6 @@ def _to_int_tuple_int_int(o: Any) -> Union[int, tuple[int, int]]:
         return o[0], o[1]
     else:
         assert False
-
-
-def calc_entropy_from_logits(
-    logits: torch.Tensor, epsilon: float = 0.01
-) -> torch.Tensor:
-    probs_ = torch.sigmoid(logits)[..., None]
-    probs = torch.cat([probs_, 1.0 - probs_], dim=1)
-    return torch.maximum(
-        -(probs * torch.log(probs)).sum(dim=1).mean(), torch.tensor(epsilon)
-    )
-
-
-def calc_propotion_from_logits(logits: torch.Tensor) -> torch.Tensor:
-    return torch.sigmoid(logits).mean()
 
 
 def sample_from_logits(logits: torch.Tensor) -> torch.Tensor:
@@ -135,7 +131,7 @@ class WrappedConv2d(WrappedModule):
         z = self.conv_1(x)
         z = mask.view(1, -1, 1, 1) * z
         z = self.conv_2(z)
-        self.nsr = common.calc_per_channel_noise_to_signal_ratio(
+        self.nsr = utils.calc_per_channel_noise_to_signal_ratio(
             y=y0, x=z, non_channel_dim=(0, 2, 3)
         )
         return y0
@@ -247,7 +243,7 @@ class WrappedLinear(WrappedModule):
         else:
             msg = f"WrappedLinear: {x.shape=} not of length 2 or 3"
             raise NotImplementedError(msg)
-        self.nsr = common.calc_per_channel_noise_to_signal_ratio(
+        self.nsr = utils.calc_per_channel_noise_to_signal_ratio(
             y=y, x=y0, non_channel_dim=non_channel_dim
         )
         return y
@@ -312,6 +308,10 @@ class WrappedLinear(WrappedModule):
 _WRAPPED_MODULE_TYPES = (torch.nn.Conv2d, torch.nn.Linear)
 
 
+def calc_propotion_from_logits(logits: torch.Tensor) -> torch.Tensor:
+    return torch.sigmoid(logits).mean()
+
+
 def is_wrapped_module(m: torch.nn.Module) -> bool:
     if isinstance(m, WrappedModule):
         return True
@@ -329,20 +329,20 @@ def _wrap(
     blacklisted_module_names: set[str],
 ) -> None:
     if isinstance(module, WrappedModule):
-        msg = f"{common.get_type_name(module)} cannot be wrapped in place"
+        msg = f"{utils.get_type_name(module)} cannot be wrapped in place"
         raise ValueError(msg)
     if isinstance(module, WrappedModule):
-        msg = f"Model already wrapped, root module type {common.get_type_name(module)}"
+        msg = f"Model already wrapped, root module type {utils.get_type_name(module)}"
         raise ValueError(msg)
 
     for child_name, child_module in module.named_children():
         full_child_name = ".".join((*module_path, child_name))
         if isinstance(child_module, WrappedModule):
             msg = "Model already wrapped, "
-            msg += f"{full_child_name} type is {common.get_type_name(child_module)}"
+            msg += f"{full_child_name} type is {utils.get_type_name(child_module)}"
             raise ValueError(msg)
         elif isinstance(child_module, _WRAPPED_MODULE_TYPES):
-            child_module_type_name = common.get_type_name(child_module)
+            child_module_type_name = utils.get_type_name(child_module)
 
             # Skip blacklisted modules
 
@@ -365,7 +365,7 @@ def _wrap(
                 assert False, f"Usupported type {type(child_module)}"
 
             wrapped_counter[child_module_type_name] += 1
-        elif common.is_compound_module(child_module):
+        elif utils.is_compound_module(child_module):
             _wrap(
                 module=child_module,
                 module_path=(*module_path, child_name),
@@ -397,22 +397,6 @@ def unwrap_in_place(wrapped_module: torch.nn.Module) -> None:
     raise NotImplementedError("Unrapping not implemented")  # TODO
 
 
-def apply_decompose_config_in_place(
-    module: torch.nn.Module,
-    decompose_config: dict[str, Any],
-    device: Optional[torch.device] = None,
-) -> None:
-    if device is None:
-        device = common.get_default_device(module)
-
-    for submodule_name, new_submodule_config in decompose_config.items():
-        submodule = module.get_submodule(submodule_name)
-        new_submodule = modconfig.build_module_from_config(new_submodule_config)
-        new_submodule.to(device)
-        common.replace_submodule_in_place(module, submodule_name, new_submodule)
-        del submodule
-
-
 def _decompose_in_place(
     *,
     module: torch.nn.Module,
@@ -423,18 +407,18 @@ def _decompose_in_place(
     blacklisted_module_names: set[str],
 ) -> None:
     if isinstance(module, WrappedModule):
-        msg = f"{common.get_type_name(module)} cannot be wrapped in place"
+        msg = f"{utils.get_type_name(module)} cannot be wrapped in place"
         raise ValueError(msg)
     if isinstance(module, WrappedModule):
         msg = (
-            f"Model already wrapped, root module type is {common.get_type_name(module)}"
+            f"Model already wrapped, root module type is {utils.get_type_name(module)}"
         )
         raise ValueError(msg)
 
     for child_name, child_module in module.named_children():
         full_child_name = ".".join((*module_path, child_name))
         if isinstance(child_module, WrappedModule):
-            child_module_type_name = common.get_type_name(child_module)
+            child_module_type_name = utils.get_type_name(child_module)
             logger.debug(f"Wrapping {child_module_type_name} at {full_child_name}")
             with torch.no_grad():
                 p = calc_propotion_from_logits(child_module.get_logits()).item()
@@ -448,8 +432,8 @@ def _decompose_in_place(
                 new_module, meta = child_module.get_decomposed_module_and_meta()
                 setattr(module, child_name, new_module)
                 decompose_counter[child_module_type_name] += 1
-                module_config = modconfig.get_module_config(new_module)
-                module_config[modconfig.MODCONFIG_META_KEY] = meta
+                module_config = utils.get_module_config(new_module)
+                module_config[utils.MODCONFIG_META_KEY] = meta
                 decompose_config[full_child_name] = module_config
             else:
                 old_module = child_module.get_orig_module()
@@ -459,7 +443,7 @@ def _decompose_in_place(
                     logger.info(f"{msg_start} blacklisted module - {msg_info}")
                 else:
                     logger.info(f"{msg_start} proportion too high - {msg_info}")
-        elif common.is_compound_module(child_module):
+        elif utils.is_compound_module(child_module):
             _decompose_in_place(
                 module=child_module,
                 proportion_threshold=proportion_threshold,
@@ -495,66 +479,6 @@ def decompose_in_place(
     return decompose_config
 
 
-def get_entropy_dict(wrapped_module: torch.nn.Module) -> dict[str, torch.Tensor]:
-    entropy_dict = {}
-
-    for submodule_name, submodule in wrapped_module.named_modules():
-        if isinstance(submodule, WrappedModule):
-            entropy_dict[submodule_name] = calc_entropy_from_logits(
-                submodule.get_logits()
-            )
-    return entropy_dict
-
-
-def get_entropy_loss(wrapped_module: torch.nn.Module) -> torch.Tensor:
-    entropy_list = []
-
-    for submodule in wrapped_module.modules():
-        if isinstance(submodule, WrappedModule):
-            entropy_list.append(calc_entropy_from_logits(submodule.get_logits()))
-
-    return torch.stack(entropy_list).mean()
-
-
-def get_nsr_dict(wrapped_module: torch.nn.Module) -> dict[str, torch.Tensor]:
-    nsr_dict: dict[str, torch.Tensor] = {}
-
-    for submodule_name, submodule in wrapped_module.named_modules():
-        if isinstance(submodule, WrappedModule):
-            nsr_dict[submodule_name] = submodule.get_nsr()
-    return nsr_dict
-
-
-def get_nsr_loss(
-    wrapped_module: torch.nn.Module, nsr_threshold: torch.Tensor
-) -> torch.Tensor:
-    nsr_list: list[torch.Tensor] = []
-    for submodule in wrapped_module.modules():
-        if isinstance(submodule, WrappedModule):
-            nsr = submodule.get_nsr()
-            nsr_list.append(torch.relu(nsr - nsr_threshold) / nsr_threshold)
-    return torch.stack(nsr_list).mean()
-
-
-def get_proportion_dict(wrapped_module: torch.nn.Module) -> dict[str, torch.Tensor]:
-    proportion_dict = {}
-
-    for submodule_name, submodule in wrapped_module.named_modules():
-        if isinstance(submodule, WrappedModule):
-            proportion_dict[submodule_name] = calc_propotion_from_logits(
-                submodule.get_logits()
-            )
-    return proportion_dict
-
-
-def get_proportion_loss(wrapped_module: torch.nn.Module) -> torch.Tensor:
-    proportion_list: list[torch.Tensor] = []
-    for submodule in wrapped_module.modules():
-        if isinstance(submodule, WrappedModule):
-            proportion_list.append(calc_propotion_from_logits(submodule.get_logits()))
-    return torch.stack(proportion_list).mean()
-
-
 def get_parameters_trainable(
     module: torch.nn.Module,
 ) -> list[torch.nn.Parameter]:
@@ -563,7 +487,7 @@ def get_parameters_trainable(
     for child_module in module.children():
         if isinstance(child_module, WrappedModule):
             parameterts_trainable.extend(child_module.parameters_trainable())
-        elif common.is_compound_module(child_module):
+        elif utils.is_compound_module(child_module):
             parameterts_trainable.extend(get_parameters_trainable(child_module))
 
     return parameterts_trainable

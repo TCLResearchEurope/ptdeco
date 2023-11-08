@@ -28,15 +28,15 @@ TIMM_TEST_MODELS = ["efficientformerv2_s0"]
 def check_config(
     model1: torch.nn.Module, model2: torch.nn.Module, x: torch.Tensor
 ) -> None:
-    ptdeco.wrap_in_place(model1)
+    ptdeco.lockd.wrap_in_place(model1)
     helpers.set_half_logits(model1)
-    dc = ptdeco.decompose_in_place(model1, proportion_threshold=0.9)
+    dc = ptdeco.lockd.decompose_in_place(model1, proportion_threshold=0.9)
     sd = model1.state_dict()
     model1.eval()
     with torch.no_grad():
         y1 = model1(x)
 
-    ptdeco.apply_decompose_config_in_place(model2, dc)
+    ptdeco.utils.apply_decompose_config_in_place(model2, dc)
     model2.load_state_dict(sd, strict=True)
     model2.eval()
     with torch.no_grad():

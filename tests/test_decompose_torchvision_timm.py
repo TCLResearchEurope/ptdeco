@@ -4,7 +4,7 @@ import helpers
 import pytest
 import torch
 
-import ptdeco
+import ptdeco.lockd
 
 if typing.TYPE_CHECKING:
     import timm  # type: ignore
@@ -27,9 +27,9 @@ TIMM_TEST_MODELS = ["efficientformerv2_s0"]
 
 def check_decompose(model: torch.nn.Module, x: torch.Tensor) -> None:
     y1 = model(x)
-    ptdeco.wrap_in_place(model)
+    ptdeco.lockd.wrap_in_place(model)
     helpers.set_half_logits(model)
-    ptdeco.decompose_in_place(model, proportion_threshold=0.9)
+    ptdeco.lockd.decompose_in_place(model, proportion_threshold=0.9)
     y2 = model(x)
     assert y1.shape == y2.shape
 
