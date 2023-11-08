@@ -57,8 +57,8 @@ class ComposerWrappedModel(composer.ComposerModel):
     def loss(
         self, outputs: Any, batch: composer.core.Batch, *args, **kwargs
     ) -> torch.Tensor:
-        model_size_loss = ptdeco.get_proportion_loss(self.wrapped_model)
-        nsr_loss = ptdeco.get_nsr_loss(self.wrapped_model, self.nsr_threshold)
+        model_size_loss = ptdeco.lockd.get_proportion_loss(self.wrapped_model)
+        nsr_loss = ptdeco.lockd.get_nsr_loss(self.wrapped_model, self.nsr_threshold)
         loss = nsr_loss + self.proportion_lambda * model_size_loss
         return loss
 
@@ -99,17 +99,19 @@ class TensorboardCallBack(composer.Callback):
 
             state.model.writer.add_scalar("train/loss", state.loss, batch_num)
             with torch.no_grad():
-                loss_nsr = ptdeco.get_nsr_loss(
+                loss_nsr = ptdeco.lockd.get_nsr_loss(
                     state.model.wrapped_model, state.model.nsr_threshold
                 )
             state.model.writer.add_scalar("train/loss_nsr", loss_nsr, batch_num)
             with torch.no_grad():
-                loss_proportion = ptdeco.get_proportion_loss(state.model.wrapped_model)
+                loss_proportion = ptdeco.lockd.get_proportion_loss(
+                    state.model.wrapped_model
+                )
             state.model.writer.add_scalar(
                 "train/loss_proportion", loss_proportion, batch_num
             )
             with torch.no_grad():
-                loss_entropy = ptdeco.get_entropy_loss(state.model.wrapped_model)
+                loss_entropy = ptdeco.lockd.get_entropy_loss(state.model.wrapped_model)
             state.model.writer.add_scalar("train/loss_entropy", loss_entropy, batch_num)
 
             # METRICS
@@ -128,7 +130,7 @@ class TensorboardCallBack(composer.Callback):
             # LOSSES - PARTIAL
 
             with torch.no_grad():
-                nsr_dict = ptdeco.get_nsr_dict(state.model.wrapped_model)
+                nsr_dict = ptdeco.lockd.get_nsr_dict(state.model.wrapped_model)
             for key, nsr in nsr_dict.items():
                 key_tb = key.replace(".", "_")
                 state.model.writer.add_scalar(
@@ -136,7 +138,9 @@ class TensorboardCallBack(composer.Callback):
                 )
 
             with torch.no_grad():
-                proportion_dict = ptdeco.get_proportion_dict(state.model.wrapped_model)
+                proportion_dict = ptdeco.lockd.get_proportion_dict(
+                    state.model.wrapped_model
+                )
             for key, prop in proportion_dict.items():
                 key_tb = key.replace(".", "_")
                 state.model.writer.add_scalar(f"stage_zero/{key_tb}_p", prop, batch_num)
@@ -190,10 +194,12 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
     )
     model_orig_stats = builder.get_model_stats(torch_wrapped_model, b_c_h_w)
 
-    ptdeco.wrap_in_place(
+    ptdeco.lockd.wrap_in_place(
         torch_wrapped_model, blacklisted_module_names=config_parsed.blacklisted_modules
     )
-    torch_model_trainable_params = ptdeco.get_parameters_trainable(torch_wrapped_model)
+    torch_model_trainable_params = ptdeco.lockd.get_parameters_trainable(
+        torch_wrapped_model
+    )
 
     model = ComposerWrappedModel(
         wrapped_model=torch_wrapped_model,
@@ -236,7 +242,7 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
     stage_zero_trainer.fit()
 
     # Decompose model
-    decompose_config = ptdeco.decompose_in_place(
+    decompose_config = ptdeco.lockd.decompose_in_place(
         torch_wrapped_model,
         proportion_threshold=config_parsed.proportion_threshold,
         blacklisted_module_names=config_parsed.blacklisted_modules,

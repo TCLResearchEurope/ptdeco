@@ -11,7 +11,7 @@ import composer.core
 import composer.devices
 import composer.optim
 import nvidia.dali.plugin.pytorch
-import ptdeco
+import ptdeco.utils
 import torch
 import torchmetrics
 
@@ -146,7 +146,7 @@ def filter_decompose_config(
     skipped_module_names = []
 
     for module_name, module_data in decompose_config.items():
-        meta = module_data[ptdeco.MODCONFIG_META_KEY]
+        meta = module_data[ptdeco.utils.MODCONFIG_META_KEY]
         proportion = meta["proportion"]
         if module_name in blacklisted_module_names:
             logger.info(f"Skippping decomposition - {module_name} module blacklisted")
@@ -197,7 +197,7 @@ def create_decomposed_model(
         decompose_config, proportion_threshold, blacklisted_module_names
     )
     decompose_state_dict = filter_state_dict(decompose_state_dict, skipped_module_names)
-    ptdeco.apply_decompose_config_in_place(model, decompose_config)
+    ptdeco.utils.apply_decompose_config_in_place(model, decompose_config)
     model.load_state_dict(decompose_state_dict, strict=False)
     return model
 

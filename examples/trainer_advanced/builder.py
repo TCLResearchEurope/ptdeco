@@ -2,7 +2,7 @@ import logging
 from typing import Any, Optional
 
 import fvcore.nn  # type: ignore
-import ptdeco.utils.common
+import ptdeco.utils
 import timm  # type: ignore
 import torch
 
@@ -17,7 +17,7 @@ def get_fpops(
     warnings_off: bool = False,
 ) -> float:
     if device is None:
-        device = ptdeco.utils.common.get_default_device(model)
+        device = ptdeco.utils.get_default_device(model)
     x = torch.rand(size=b_c_h_w, device=device)
     fca = fvcore.nn.FlopCountAnalysis(model, x)
 
@@ -50,7 +50,7 @@ def get_model_stats(
     device: Optional[torch.device] = None,
 ) -> dict[str, float]:
     if device is None:
-        device = ptdeco.utils.common.get_default_device(model)
+        device = ptdeco.utils.get_default_device(model)
     model.eval()
     return {
         "gflops": get_fpops(model, b_c_h_w=b_c_h_w, units="gflops", device=device),
