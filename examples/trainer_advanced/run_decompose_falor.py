@@ -20,7 +20,7 @@ def make_image_iterator(train_dataloader):
 
 
 def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
-    config_parsed = configurator.DecomposeFALConfig(**config)
+    config_parsed = configurator.DecomposeFALORConfig(**config)
     b_c_h_w = (1, 3, *config_parsed.input_h_w)
 
     train_pipeline, valid_pipeline = datasets_dali.make_imagenet_pipelines(

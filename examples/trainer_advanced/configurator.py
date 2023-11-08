@@ -35,8 +35,8 @@ class _TrainConfig(pydantic.BaseModel):
     compile_config: Optional[dict[str, Any]]
 
 
-class DecomposeTrainableConfig(_DataConfig, _TrainConfig):
-    task: Literal["decompose_trainable"]
+class DecomposeLOCKDConfig(_DataConfig, _TrainConfig):
+    task: Literal["decompose_lockd"]
     decompose_model_name: str
     proportion_threshold: float
     blacklisted_modules: list[str]
@@ -46,8 +46,8 @@ class DecomposeTrainableConfig(_DataConfig, _TrainConfig):
     model_config = pydantic.ConfigDict(extra="forbid")
 
 
-class DecomposeFALConfig(_VersionConfig, _DataConfig):
-    task: Literal["decompose_fal"]
+class DecomposeFALORConfig(_VersionConfig, _DataConfig):
+    task: Literal["decompose_falor"]
     decompose_model_name: str
     proportion_threshold: float
     blacklisted_modules: list[str]

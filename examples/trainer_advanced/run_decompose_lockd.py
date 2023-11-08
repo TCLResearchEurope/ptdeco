@@ -170,7 +170,7 @@ def get_callbacks(
 
 
 def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
-    config_parsed = configurator.DecomposeTrainableConfig(**config)
+    config_parsed = configurator.DecomposeLOCKDConfig(**config)
     b_c_h_w = (1, 3, *config_parsed.input_h_w)
 
     train_pipeline, _ = datasets_dali.make_imagenet_pipelines(

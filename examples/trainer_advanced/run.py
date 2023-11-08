@@ -8,8 +8,8 @@ from typing import Any
 import ptdeco
 import yaml
 
-import run_decompose_fal
-import run_decompose_trainable
+import examples.trainer_advanced.run_decompose_falor as run_decompose_falor
+import examples.trainer_advanced.run_decompose_lockd as run_decompose_lockd
 import run_finetune
 import version
 
@@ -124,10 +124,10 @@ def main(args: argparse.Namespace) -> None:
     logger.info(f"Using ptdeco trainer {version.__version__}")
     logger.info(f"Using ptdeco {ptdeco.__version__}")
 
-    if task == "decompose_trainable":
-        run_decompose_trainable.main(config=config, output_path=output_path)
-    elif task == "decompose_fal":
-        run_decompose_fal.main(config=config, output_path=output_path)
+    if task == "decompose_lockd":
+        run_decompose_lockd.main(config=config, output_path=output_path)
+    elif task == "decompose_falor":
+        run_decompose_falor.main(config=config, output_path=output_path)
     elif task == "finetune":
         run_finetune.main(config=config, output_path=output_path)
     else:
