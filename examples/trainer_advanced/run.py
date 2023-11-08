@@ -47,11 +47,11 @@ def setup_logging() -> None:
     module_names_verbose = [
         __name__,
         "ptdeco",
-        "models",
+        "builder",
         "configurator",
-        "run_decompose_trainable",
-        "run_decompose_fal",
-        "run_train_decomposed",
+        "run_decompose_lockd",
+        "run_decompose_falor",
+        "run_finetune",
     ]
     for module_name in module_names_verbose:
         logging.getLogger(module_name).setLevel(logging.INFO)
