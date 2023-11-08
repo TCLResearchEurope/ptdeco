@@ -179,15 +179,17 @@ def filter_state_dict(
     return filtered_sd
 
 
-def create_decomposed_model(config) -> torch.nn.Module:
-    model_name = config["model_name"]
+def create_decomposed_model(
+    config_parsed: configurator.FinetuneConfig,
+) -> torch.nn.Module:
+    model_name = config_parsed.decompose_model_name
     model = builder.create_model(model_name)
-    with open(config["decompose_config"], "rt") as f:
+    with open(config_parsed.decompose_config, "rt") as f:
         decompose_config = json.load(f)
 
-    decompose_state_dict = torch.load(config["decompose_state_dict"])
-    proportion_threshold = config["decompose_proportion_threshold"]
-    blacklisted_module_names = config.get("decompose_blaclisted_modules")
+    decompose_state_dict = torch.load(config_parsed.decompose_state_dict)
+    proportion_threshold = config_parsed.proportion_threshold
+    blacklisted_module_names = config_parsed.blacklisted_modules
 
     decompose_config, skipped_module_names = filter_decompose_config(
         decompose_config, proportion_threshold, blacklisted_module_names
@@ -199,15 +201,14 @@ def create_decomposed_model(config) -> torch.nn.Module:
 
 
 def create_student_teacher_models(
-    config: dict[str, Any]
+    config_parsed: configurator.FinetuneConfig,
 ) -> tuple[torch.nn.Module, torch.nn.Module]:
-    model_name = config["model_name"]
-    teacher_model = builder.create_model(model_name)
-    student_model = create_decomposed_model(config)
+    teacher_model = builder.create_model(config_parsed.decompose_model_name)
+    student_model = create_decomposed_model(config_parsed)
 
     # Compute statistics of teacher model
 
-    b_c_h_w = (1, 3, int(config["input_h_w"][0]), int(config["input_h_w"][1]))
+    b_c_h_w = (1, 3, int(config_parsed.input_h_w[0]), int(config_parsed.input_h_w[1]))
 
     teacher_model.eval()
 
@@ -252,16 +253,15 @@ def get_callbacks(
 
 
 def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
-    config_class = configurator.FinetuneConfig(**config)
-    print(config_class)
+    config_parsed = configurator.FinetuneConfig(**config)
 
     train_pipeline, valid_pipeline = datasets_dali.make_imagenet_pipelines(
-        imagenet_root_dir=config["imagenet_root_dir"],
-        trn_image_classes_fname=config["trn_imagenet_classes_fname"],
-        val_image_classes_fname=config["val_imagenet_classes_fname"],
-        batch_size=config["batch_size"],
-        normalization=config["normalization"],
-        h_w=(int(config["input_h_w"][0]), int(config["input_h_w"][1])),
+        imagenet_root_dir=config_parsed.imagenet_root_dir,
+        trn_image_classes_fname=config_parsed.trn_imagenet_classes_fname,
+        val_image_classes_fname=config_parsed.val_imagenet_classes_fname,
+        batch_size=config_parsed.batch_size,
+        normalization=config_parsed.normalization,
+        h_w=config_parsed.input_h_w,
     )
 
     train_dataloader = datasets_dali.DaliGenericIteratorWrapper(
@@ -276,7 +276,7 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
         )
     )
 
-    student_model, teacher_model = create_student_teacher_models(config)
+    student_model, teacher_model = create_student_teacher_models(config_parsed)
 
     model = KdClassificationModel(
         student_model=student_model,
@@ -286,12 +286,14 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
 
     device = composer.devices.DeviceGPU()
 
-    optimizers = configurator.get_optimizer(model.student_model.parameters(), config)
-    lr_schedulers = configurator.get_lr_scheduler(config)
-    algorithms = configurator.get_algorithms(config)
-    precision = configurator.get_precision(config)
-    compile_config = configurator.get_compile_config(config)
-    callbacks = get_callbacks(config, output_path)
+    optimizers = configurator.get_optimizer(
+        model.student_model.parameters(), config_parsed
+    )
+    lr_schedulers = configurator.get_lr_scheduler(config_parsed)
+    algorithms = configurator.get_algorithms(config_parsed)
+    precision = configurator.get_precision(config_parsed)
+    compile_config = configurator.get_compile_config(config_parsed)
+    callbacks = get_callbacks(config_parsed, output_path)
 
     evaluator = composer.Evaluator(
         dataloader=valid_dataloader,
@@ -304,7 +306,7 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
         model=model,
         train_dataloader=train_dataloader,
         eval_dataloader=evaluator,
-        max_duration=config["max_duration"],
+        max_duration=config_parsed.max_duration,
         optimizers=optimizers,
         schedulers=lr_schedulers,
         device=device,
