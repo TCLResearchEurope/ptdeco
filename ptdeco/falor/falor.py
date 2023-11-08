@@ -1,4 +1,4 @@
-"""Implementation of the FAL method (FAL = Features Are Low-rank)
+"""Implementation of the FALOR method (FAL = Features Are LOw-Rank)
 
 Compressing transformers: features are low-rank, but weights are not!,
 Hao Yu, Jianxin Wu, AAAI Conference on Artificial Intelligence (2023)
@@ -16,9 +16,11 @@ from typing import Any, Optional
 
 import torch
 
-from . import common, modconfig
+from .. import common, modconfig
 
 logger = logging.getLogger(__name__)
+
+__all__ = ["decompose_in_place"]
 
 
 class DirectWrappedModule(torch.nn.Module):
