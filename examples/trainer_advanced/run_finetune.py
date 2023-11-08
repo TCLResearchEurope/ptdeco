@@ -191,6 +191,8 @@ def create_decomposed_model(
     proportion_threshold = config_parsed.proportion_threshold
     blacklisted_module_names = config_parsed.blacklisted_modules
 
+    builder.validate_module_names(model, blacklisted_module_names)
+
     decompose_config, skipped_module_names = filter_decompose_config(
         decompose_config, proportion_threshold, blacklisted_module_names
     )
@@ -255,6 +257,8 @@ def get_callbacks(
 def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
     config_parsed = configurator.FinetuneConfig(**config)
 
+    student_model, teacher_model = create_student_teacher_models(config_parsed)
+
     train_pipeline, valid_pipeline = datasets_dali.make_imagenet_pipelines(
         imagenet_root_dir=config_parsed.imagenet_root_dir,
         trn_image_classes_fname=config_parsed.trn_imagenet_classes_fname,
@@ -275,8 +279,6 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
             [valid_pipeline], ["inputs", "targets"]
         )
     )
-
-    student_model, teacher_model = create_student_teacher_models(config_parsed)
 
     model = KdClassificationModel(
         student_model=student_model,

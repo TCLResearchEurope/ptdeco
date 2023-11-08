@@ -185,13 +185,17 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
     )
 
     torch_wrapped_model = builder.create_model(config_parsed.decompose_model_name)
-
+    builder.validate_module_names(
+        torch_wrapped_model, config_parsed.blacklisted_modules
+    )
     model_orig_stats = builder.get_model_stats(torch_wrapped_model, b_c_h_w)
 
-    ptdeco.wrap_in_place(torch_wrapped_model)
+    ptdeco.wrap_in_place(
+        torch_wrapped_model, blacklisted_module_names=config_parsed.blacklisted_modules
+    )
     torch_model_trainable_params = ptdeco.get_parameters_trainable(torch_wrapped_model)
 
-    model: ComposerWrappedModel = ComposerWrappedModel(
+    model = ComposerWrappedModel(
         wrapped_model=torch_wrapped_model,
         proportion_lambda=config_parsed.lmbda,
         nsr_threshold=config_parsed.nsr_threshold,
