@@ -15,7 +15,7 @@ __all__ = [
     "get_parameters_trainable",
     "wrap_in_place",
     "decompose_in_place",
-    "WrappedModule",
+    "WrappedLOCKDModule",
 ]
 
 
@@ -53,7 +53,7 @@ def sample_from_logits(logits: torch.Tensor) -> torch.Tensor:
     return torch.where(logits < 0.0, 0.0, gs_sample)
 
 
-class WrappedModule(torch.nn.Module):
+class WrappedLOCKDModule(torch.nn.Module):
     def __init__(self) -> None:
         super().__init__()
 
@@ -77,7 +77,7 @@ class WrappedModule(torch.nn.Module):
         raise NotImplementedError
 
 
-class WrappedConv2d(WrappedModule):
+class WrappedLOCKConv2d(WrappedLOCKDModule):
     def __init__(
         self,
         in_features: int,
@@ -180,7 +180,7 @@ class WrappedConv2d(WrappedModule):
     @classmethod
     def wrap(
         cls, module: torch.nn.Module, name: Optional[str] = None
-    ) -> "WrappedConv2d":
+    ) -> "WrappedLOCKConv2d":
         if not isinstance(module, torch.nn.Conv2d):
             raise ValueError(f"{cls.__name__} can wrap only Conv2d not {type(module)}")
 
@@ -202,7 +202,7 @@ class WrappedConv2d(WrappedModule):
         return new_module
 
 
-class WrappedLinear(WrappedModule):
+class WrappedLOCKDLinear(WrappedLOCKDModule):
     def __init__(
         self,
         in_features: int,
@@ -289,7 +289,7 @@ class WrappedLinear(WrappedModule):
     @classmethod
     def wrap(
         cls, module: torch.nn.Module, name: Optional[str] = None
-    ) -> "WrappedLinear":
+    ) -> "WrappedLOCKDLinear":
         if not isinstance(module, torch.nn.Linear):
             raise ValueError(f"{cls.__name__} can wrap only Linear not {type(module)}")
 
@@ -305,7 +305,7 @@ class WrappedLinear(WrappedModule):
         return new_module
 
 
-_WRAPPED_MODULE_TYPES = (torch.nn.Conv2d, torch.nn.Linear)
+_WRAPPED_LOCKD_MODULE_TYPES = (torch.nn.Conv2d, torch.nn.Linear)
 
 
 def calc_propotion_from_logits(logits: torch.Tensor) -> torch.Tensor:
@@ -313,10 +313,10 @@ def calc_propotion_from_logits(logits: torch.Tensor) -> torch.Tensor:
 
 
 def is_wrapped_module(m: torch.nn.Module) -> bool:
-    if isinstance(m, WrappedModule):
+    if isinstance(m, WrappedLOCKDModule):
         return True
     for m in m.modules():
-        if isinstance(m, WrappedModule):
+        if isinstance(m, WrappedLOCKDModule):
             return True
     return False
 
@@ -328,20 +328,20 @@ def _wrap(
     wrapped_counter: collections.Counter[str],
     blacklisted_module_names: set[str],
 ) -> None:
-    if isinstance(module, WrappedModule):
+    if isinstance(module, WrappedLOCKDModule):
         msg = f"{utils.get_type_name(module)} cannot be wrapped in place"
         raise ValueError(msg)
-    if isinstance(module, WrappedModule):
+    if isinstance(module, WrappedLOCKDModule):
         msg = f"Model already wrapped, root module type {utils.get_type_name(module)}"
         raise ValueError(msg)
 
     for child_name, child_module in module.named_children():
         full_child_name = ".".join((*module_path, child_name))
-        if isinstance(child_module, WrappedModule):
+        if isinstance(child_module, WrappedLOCKDModule):
             msg = "Model already wrapped, "
             msg += f"{full_child_name} type is {utils.get_type_name(child_module)}"
             raise ValueError(msg)
-        elif isinstance(child_module, _WRAPPED_MODULE_TYPES):
+        elif isinstance(child_module, _WRAPPED_LOCKD_MODULE_TYPES):
             child_module_type_name = utils.get_type_name(child_module)
 
             # Skip blacklisted modules
@@ -356,10 +356,14 @@ def _wrap(
             logger.debug(f"Wrapping {child_module_type_name} at {full_child_name}")
             if isinstance(child_module, torch.nn.Conv2d):
                 if child_module.groups == 1:
-                    new_module_conv = WrappedConv2d.wrap(child_module, full_child_name)
+                    new_module_conv = WrappedLOCKConv2d.wrap(
+                        child_module, full_child_name
+                    )
                     setattr(module, child_name, new_module_conv)
             elif isinstance(child_module, torch.nn.Linear):
-                new_module_linear = WrappedLinear.wrap(child_module, full_child_name)
+                new_module_linear = WrappedLOCKDLinear.wrap(
+                    child_module, full_child_name
+                )
                 setattr(module, child_name, new_module_linear)
             else:
                 assert False, f"Usupported type {type(child_module)}"
@@ -406,10 +410,10 @@ def _decompose_in_place(
     decompose_counter: collections.Counter[str],
     blacklisted_module_names: set[str],
 ) -> None:
-    if isinstance(module, WrappedModule):
+    if isinstance(module, WrappedLOCKDModule):
         msg = f"{utils.get_type_name(module)} cannot be wrapped in place"
         raise ValueError(msg)
-    if isinstance(module, WrappedModule):
+    if isinstance(module, WrappedLOCKDModule):
         msg = (
             f"Model already wrapped, root module type is {utils.get_type_name(module)}"
         )
@@ -417,7 +421,7 @@ def _decompose_in_place(
 
     for child_name, child_module in module.named_children():
         full_child_name = ".".join((*module_path, child_name))
-        if isinstance(child_module, WrappedModule):
+        if isinstance(child_module, WrappedLOCKDModule):
             child_module_type_name = utils.get_type_name(child_module)
             logger.debug(f"Wrapping {child_module_type_name} at {full_child_name}")
             with torch.no_grad():
@@ -485,7 +489,7 @@ def get_parameters_trainable(
     parameterts_trainable = []
 
     for child_module in module.children():
-        if isinstance(child_module, WrappedModule):
+        if isinstance(child_module, WrappedLOCKDModule):
             parameterts_trainable.extend(child_module.parameters_trainable())
         elif utils.is_compound_module(child_module):
             parameterts_trainable.extend(get_parameters_trainable(child_module))

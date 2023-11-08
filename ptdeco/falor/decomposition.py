@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 __all__ = ["decompose_in_place"]
 
 
-class DirectWrappedModule(torch.nn.Module):
+class WrappedFALORModule(torch.nn.Module):
     def __init__(self) -> None:
         super().__init__()
 
@@ -46,7 +46,7 @@ class DirectWrappedModule(torch.nn.Module):
         raise NotImplementedError()
 
 
-class DirectWrappedLinear(DirectWrappedModule):
+class WrappedFALORLinear(WrappedFALORModule):
     def __init__(
         self,
         lin_orig: torch.nn.Module,
@@ -93,7 +93,7 @@ class DirectWrappedLinear(DirectWrappedModule):
         return torch.nn.Sequential(lin_1, lin_2)
 
 
-class DirectWrappedConv2d1x1(DirectWrappedModule):
+class WrappedFALORConv2d1x1(WrappedFALORModule):
     def __init__(
         self,
         conv_orig: torch.nn.Module,
@@ -168,7 +168,7 @@ def _compute_decompositon_of_covariance_matrix(
 ) -> torch.Tensor:
     root_module.eval()
     decomposed_submodule = root_module.get_submodule(decomposed_submodule_name)
-    assert isinstance(decomposed_submodule, DirectWrappedModule)
+    assert isinstance(decomposed_submodule, WrappedFALORModule)
 
     Ey = torch.zeros(weight.shape[0]).to(device)
     Eyyt = torch.zeros((weight.shape[0], weight.shape[0])).to(device)
@@ -193,7 +193,7 @@ def _compute_metrics(
     orig_weight: torch.Tensor,
     deco_weight: torch.Tensor,
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    assert isinstance(decomposed_submodule, DirectWrappedModule)
+    assert isinstance(decomposed_submodule, WrappedFALORModule)
 
     root_module.eval()
 
@@ -215,7 +215,7 @@ def _wrap_in_place(
 ) -> None:
     decomposed_submodule = root_module.get_submodule(decomposed_submodule_name)
     if isinstance(decomposed_submodule, torch.nn.Linear):
-        wrapped_decomposed_submodule: DirectWrappedModule = DirectWrappedLinear(
+        wrapped_decomposed_submodule: WrappedFALORModule = WrappedFALORLinear(
             decomposed_submodule, decomposed_submodule_name
         )
     elif (
@@ -224,7 +224,7 @@ def _wrap_in_place(
         and decomposed_submodule.kernel_size[1] == 1
         and decomposed_submodule.groups == 1
     ):
-        wrapped_decomposed_submodule = DirectWrappedConv2d1x1(
+        wrapped_decomposed_submodule = WrappedFALORConv2d1x1(
             decomposed_submodule, decomposed_submodule_name
         )
     else:
@@ -240,7 +240,7 @@ def _unwrap_in_place(
     root_module: torch.nn.Module, decomposed_submodule_name: str
 ) -> None:
     decomposed_submodule = root_module.get_submodule(decomposed_submodule_name)
-    assert isinstance(decomposed_submodule, DirectWrappedModule)
+    assert isinstance(decomposed_submodule, WrappedFALORModule)
     orig_module = decomposed_submodule.get_orig_module()
     utils.replace_submodule_in_place(
         root_module, decomposed_submodule_name, orig_module
@@ -262,7 +262,7 @@ def _process_module(
     decomposed_type = utils.get_type_name(decomposed_submodule)
     _wrap_in_place(root_module, decomposed_submodule_name)
     decomposed_submodule = root_module.get_submodule(decomposed_submodule_name)
-    assert isinstance(decomposed_submodule, DirectWrappedModule)
+    assert isinstance(decomposed_submodule, WrappedFALORModule)
     orig_weight = decomposed_submodule.get_weight_copy()
     orig_device = orig_weight.device
     dim_out, dim_in = orig_weight.shape

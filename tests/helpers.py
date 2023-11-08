@@ -11,7 +11,7 @@ def set_min_logits(
     module: torch.nn.Module,
 ) -> None:
     for child_module in module.children():
-        if isinstance(child_module, ptdeco.lockd.WrappedModule):
+        if isinstance(child_module, ptdeco.lockd.WrappedLOCKDModule):
             with torch.no_grad():
                 logits = child_module.get_logits()
                 new_logits = -10 * torch.ones_like(logits)
@@ -25,7 +25,7 @@ def set_half_logits(
     module: torch.nn.Module,
 ) -> None:
     for child_module in module.children():
-        if isinstance(child_module, ptdeco.lockd.WrappedModule):
+        if isinstance(child_module, ptdeco.lockd.WrappedLOCKDModule):
             with torch.no_grad():
                 logits = child_module.get_logits()
                 new_logits = -10 * torch.ones_like(logits)

@@ -27,7 +27,7 @@ def get_entropy_dict(wrapped_module: torch.nn.Module) -> dict[str, torch.Tensor]
     entropy_dict = {}
 
     for submodule_name, submodule in wrapped_module.named_modules():
-        if isinstance(submodule, decomposition.WrappedModule):
+        if isinstance(submodule, decomposition.WrappedLOCKDModule):
             entropy_dict[submodule_name] = calc_entropy_from_logits(
                 submodule.get_logits()
             )
@@ -38,7 +38,7 @@ def get_entropy_loss(wrapped_module: torch.nn.Module) -> torch.Tensor:
     entropy_list = []
 
     for submodule in wrapped_module.modules():
-        if isinstance(submodule, decomposition.WrappedModule):
+        if isinstance(submodule, decomposition.WrappedLOCKDModule):
             entropy_list.append(calc_entropy_from_logits(submodule.get_logits()))
 
     return torch.stack(entropy_list).mean()
@@ -48,7 +48,7 @@ def get_nsr_dict(wrapped_module: torch.nn.Module) -> dict[str, torch.Tensor]:
     nsr_dict: dict[str, torch.Tensor] = {}
 
     for submodule_name, submodule in wrapped_module.named_modules():
-        if isinstance(submodule, decomposition.WrappedModule):
+        if isinstance(submodule, decomposition.WrappedLOCKDModule):
             nsr_dict[submodule_name] = submodule.get_nsr()
     return nsr_dict
 
@@ -58,7 +58,7 @@ def get_nsr_loss(
 ) -> torch.Tensor:
     nsr_list: list[torch.Tensor] = []
     for submodule in wrapped_module.modules():
-        if isinstance(submodule, decomposition.WrappedModule):
+        if isinstance(submodule, decomposition.WrappedLOCKDModule):
             nsr = submodule.get_nsr()
             nsr_list.append(torch.relu(nsr - nsr_threshold) / nsr_threshold)
     return torch.stack(nsr_list).mean()
@@ -68,7 +68,7 @@ def get_proportion_dict(wrapped_module: torch.nn.Module) -> dict[str, torch.Tens
     proportion_dict = {}
 
     for submodule_name, submodule in wrapped_module.named_modules():
-        if isinstance(submodule, decomposition.WrappedModule):
+        if isinstance(submodule, decomposition.WrappedLOCKDModule):
             proportion_dict[submodule_name] = decomposition.calc_propotion_from_logits(
                 submodule.get_logits()
             )
@@ -78,7 +78,7 @@ def get_proportion_dict(wrapped_module: torch.nn.Module) -> dict[str, torch.Tens
 def get_proportion_loss(wrapped_module: torch.nn.Module) -> torch.Tensor:
     proportion_list: list[torch.Tensor] = []
     for submodule in wrapped_module.modules():
-        if isinstance(submodule, decomposition.WrappedModule):
+        if isinstance(submodule, decomposition.WrappedLOCKDModule):
             proportion_list.append(
                 decomposition.calc_propotion_from_logits(submodule.get_logits())
             )
