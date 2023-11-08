@@ -4,7 +4,7 @@ import pathlib
 from typing import Any
 
 import nvidia.dali.plugin.pytorch
-import ptdeco.fal
+import ptdeco
 import torch
 
 import builder
@@ -52,7 +52,7 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
     model.to(device)
     model_orig_stats = builder.get_model_stats(model, b_c_h_w)
 
-    decompose_config = ptdeco.fal.decompose_in_place(
+    decompose_config = ptdeco.falor.decompose_in_place(
         module=model,
         device=device,
         data_iterator=data_iterator,
