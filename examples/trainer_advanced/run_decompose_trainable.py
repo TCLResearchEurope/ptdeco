@@ -166,17 +166,17 @@ def get_callbacks(
 
 
 def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
-    config_class = configurator.DecomposeTrainableConfig(**config)
-    print(config_class)
+    config_parsed = configurator.DecomposeTrainableConfig(**config)
 
-    h_w = (int(config["input_h_w"][0]), int(config["input_h_w"][1]))
+    h_w = (config_parsed.input_h_w[0], config_parsed.input_h_w[1])
     b_c_h_w = (1, 3, *h_w)
+
     train_pipeline, _ = datasets_dali.make_imagenet_pipelines(
-        imagenet_root_dir=config["imagenet_root_dir"],
-        trn_image_classes_fname=config["trn_imagenet_classes_fname"],
-        val_image_classes_fname=config["val_imagenet_classes_fname"],
-        batch_size=config["batch_size"],
-        normalization=config["normalization"],
+        imagenet_root_dir=config_parsed.imagenet_root_dir,
+        trn_image_classes_fname=config_parsed.trn_imagenet_classes_fname,
+        val_image_classes_fname=config_parsed.val_imagenet_classes_fname,
+        batch_size=config_parsed.batch_size,
+        normalization=config_parsed.normalization,
         h_w=h_w,
     )
 
@@ -186,7 +186,7 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
         )
     )
 
-    torch_wrapped_model = builder.create_model(config["model_name"])
+    torch_wrapped_model = builder.create_model(config_parsed.decompose_model_name)
 
     model_orig_stats = builder.get_model_stats(torch_wrapped_model, b_c_h_w)
 
@@ -195,24 +195,24 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
 
     model: ComposerWrappedModel = ComposerWrappedModel(
         wrapped_model=torch_wrapped_model,
-        proportion_lambda=config["lmbda"],
-        nsr_threshold=config["nsr_threshold"],
+        proportion_lambda=config_parsed.lmbda,
+        nsr_threshold=config_parsed.nsr_threshold,
         output_path=output_path,
     )
 
     device = composer.devices.DeviceGPU()
 
-    optimizers = configurator.get_optimizer(torch_model_trainable_params, config)
-    lr_schedulers = configurator.get_lr_scheduler(config)
-    algorithms = configurator.get_algorithms(config)
-    precision = configurator.get_precision(config)
-    compile_config = configurator.get_compile_config(config)
-    callbacks = get_callbacks(config, output_path)
+    optimizers = configurator.get_optimizer(torch_model_trainable_params, config_parsed)
+    lr_schedulers = configurator.get_lr_scheduler(config_parsed)
+    algorithms = configurator.get_algorithms(config_parsed)
+    precision = configurator.get_precision(config_parsed)
+    compile_config = configurator.get_compile_config(config_parsed)
+    callbacks = get_callbacks(config_parsed, output_path)
 
     stage_zero_trainer = composer.Trainer(
         model=model,
         train_dataloader=train_dataloader,
-        max_duration=config["max_duration"],
+        max_duration=config_parsed.max_duration,
         optimizers=optimizers,
         schedulers=lr_schedulers,
         device=device,
@@ -236,8 +236,8 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
     # Decompose model
     decompose_config = ptdeco.decompose_in_place(
         torch_wrapped_model,
-        proportion_threshold=config["proportion_threshold"],
-        blacklisted_module_names=config["blacklisted_modules"],
+        proportion_threshold=config_parsed.proportion_threshold,
+        blacklisted_module_names=config_parsed.blacklisted_modules,
     )
     model_deco_stats = builder.get_model_stats(torch_wrapped_model, b_c_h_w)
 

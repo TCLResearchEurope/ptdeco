@@ -29,6 +29,9 @@ class _TrainConfig(pydantic.BaseModel):
     max_duration: str
     optimizer: Literal["Adam", "SGD"]
     precision: Optional[Literal["fp32", "amp_fp16", "amp_bf16", "amp_fp8"]]
+    alg_channel_last: bool
+    alg_gradient_clipping_type: Optional[Literal["norm", "value", "adaptive"]]
+    alg_gradient_clipping_threshold: Optional[float] = None
     compile_config: dict[str, Any]
 
 
@@ -67,16 +70,17 @@ class FinetuneConfig(_VersionConfig, _DataConfig, _TrainConfig):
     model_config = pydantic.ConfigDict(extra="forbid")
 
 
-def get_precision(config: dict[str, Any]) -> Optional[composer.core.Precision]:
-    precision = config.get("precision")
-    if precision is not None:
-        precision = composer.core.Precision(config["precision"])
-    logger.info(f"Using {precision=}")
+def get_precision(config: _TrainConfig) -> Optional[composer.core.Precision]:
+    if config.precision is not None:
+        precision = composer.core.Precision(config.precision)
+    else:
+        precision = None
+    logger.info(f"Using precision={config.precision}")
     return precision
 
 
-def get_lr_scheduler(config: dict[str, Any]) -> composer.optim.ComposerScheduler:
-    lr_t_warmup = config.get("lr_t_warmup", "0ba")
+def get_lr_scheduler(config: _TrainConfig) -> composer.optim.ComposerScheduler:
+    lr_t_warmup = config.lr_t_warmup
     logger.info(f"Using CosineAnnealingWithWarmupScheduler, {lr_t_warmup=}")
     lr_scheduler = composer.optim.CosineAnnealingWithWarmupScheduler(
         t_warmup=lr_t_warmup
@@ -84,48 +88,46 @@ def get_lr_scheduler(config: dict[str, Any]) -> composer.optim.ComposerScheduler
     return lr_scheduler
 
 
-def get_algorithms(config: dict[str, Any]) -> list[composer.Algorithm]:
+def get_algorithms(config: _TrainConfig) -> list[composer.Algorithm]:
     algorithms: list[composer.Algorithm] = []
     pfx = "Algorithms -"
-    channels_last = config.get("alg_channels_last", True)
 
-    if channels_last:
+    if config.alg_channel_last:
         algorithms.append(composer.algorithms.ChannelsLast())
         logger.info(f"{pfx} using channels last")
     else:
         logger.info(f"{pfx} NOT USING channels last")
 
-    clipping_type = config.get("alg_gradient_clipping_type", "None")
-    if clipping_type is not None and clipping_type != "None":
-        clipping_threshold = config.get("alg_gradient_clipping_threshold")
-        if not isinstance(clipping_threshold, (float, int)):
-            raise ValueError(f"{clipping_threshold=} not float")
+    if config.alg_gradient_clipping_type is not None:
+        if config.alg_gradient_clipping_threshold is None:
+            raise ValueError("clipping_threshold not specified")
         gradient_clipping = composer.algorithms.GradientClipping(
-            clipping_type=clipping_type, clipping_threshold=clipping_threshold
+            clipping_type=config.alg_gradient_clipping_type,
+            clipping_threshold=config.alg_gradient_clipping_threshold,
         )
         algorithms.append(gradient_clipping)
-        logger.info(
-            f"{pfx} using gradient clipping {clipping_type=} {clipping_threshold=}"
-        )
+        msg_type = f"clipping_type={config.alg_gradient_clipping_type}"
+        msg_threshold = f"clipping_threshold={config.alg_gradient_clipping_threshold}"
+        logger.info(f"{pfx} using gradient clipping {msg_type} {msg_threshold}")
     else:
         logger.info(f"{pfx} NOT USING gradient clipping")
     return algorithms
 
 
 def get_optimizer(
-    params: Iterable[torch.nn.parameter.Parameter], config: dict[str, Any]
+    params: Iterable[torch.nn.parameter.Parameter], config: _TrainConfig
 ) -> torch.optim.Optimizer:
-    optimizer_name = config.get("optimizer", "Adam")
+    optimizer_name = config.optimizer
     logger.info(f"Using optimizer {optimizer_name}")
     if optimizer_name == "Adam":
-        return torch.optim.Adam(params=params, lr=config["lr"])
+        return torch.optim.Adam(params=params, lr=config.lr)
     elif optimizer_name == "SGD":
-        return torch.optim.SGD(params=params, lr=config["lr"])
+        return torch.optim.SGD(params=params, lr=config.lr)
     else:
         raise ValueError(f"Unknown optimizer {optimizer_name}")
 
 
-def get_compile_config(config: dict[str, Any]) -> Optional[dict[str, Any]]:
-    compile_config = config.get("compile_config")
+def get_compile_config(config: _TrainConfig) -> Optional[dict[str, Any]]:
+    compile_config = config.compile_config
     logger.info(f"Using {compile_config=}")
     return compile_config
