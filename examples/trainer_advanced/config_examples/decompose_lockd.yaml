@@ -1,4 +1,4 @@
-task: decompose_trainable
+task: decompose_lockd
 
 # Dataset setup
 
