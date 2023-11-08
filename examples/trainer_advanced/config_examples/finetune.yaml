@@ -12,22 +12,23 @@ input_h_w: [224, 224]
 
 # Model setup
 
-decompose_model_name: timm.efficientformerv2_s2.snap_dist_in1k
-decompose_config: tmp/decompose_config.json
-decompose_state_dict: tmp/decompose_state_dict.pt
+decompose_model_name: timm.swinv2_cr_tiny_ns_224.sw_in1k
+decompose_config: tmp_inp/decompose_config.json
+decompose_state_dict: tmp_inp/decompose_state_dict.pt
 proportion_threshold: 0.8
 blacklisted_modules:
   - stem.conv1.conv
   - head
   - head_dist
-
 # Training setup
 
 lr: 0.0015
 lr_t_warmup: 5ep
 max_duration: 200ep
-input_h_w: [224, 224]
 optimizer: SGD
-precision: null
+precision: amp_fp16
+alg_channel_last: True
+alg_gradient_clipping_type: Null
+
 compile_config:
     mode: default
