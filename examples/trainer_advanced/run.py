@@ -8,8 +8,8 @@ from typing import Any
 import ptdeco
 import yaml
 
-import examples.trainer_advanced.run_decompose_falor as run_decompose_falor
-import examples.trainer_advanced.run_decompose_lockd as run_decompose_lockd
+import run_decompose_falor
+import run_decompose_lockd
 import run_finetune
 import version
 
