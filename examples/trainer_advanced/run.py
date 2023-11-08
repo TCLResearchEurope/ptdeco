@@ -127,7 +127,7 @@ def main(args: argparse.Namespace) -> None:
     if task == "decompose_trainable":
         run_decompose_trainable.main(config=config, output_path=output_path)
     elif task == "decompose_fal":
-        run_decompose_fal.main(config=config, output_path=output_path)
+        run_decompose_fal.main(config_dict=config, output_path=output_path)
     elif task == "finetune":
         run_finetune.main(config=config, output_path=output_path)
     else:

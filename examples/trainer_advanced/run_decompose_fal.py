@@ -19,17 +19,17 @@ def make_image_iterator(train_dataloader):
         yield d["inputs"].permute(0, 3, 1, 2)
 
 
-def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
-    config_class = configurator.DecomposeFALConfig(**config)
-    print(config_class)
-    h_w = (int(config["input_h_w"][0]), int(config["input_h_w"][1]))
+def main(config_dict: dict[str, Any], output_path: pathlib.Path) -> None:
+    config = configurator.DecomposeFALConfig(**config_dict)
+
+    h_w = (config.input_h_w[0], config.input_h_w[1])
     b_c_h_w = (1, 3, *h_w)
     train_pipeline, valid_pipeline = datasets_dali.make_imagenet_pipelines(
-        imagenet_root_dir=config["imagenet_root_dir"],
-        trn_image_classes_fname=config["trn_imagenet_classes_fname"],
-        val_image_classes_fname=config["val_imagenet_classes_fname"],
-        batch_size=config["batch_size"],
-        normalization=config["normalization"],
+        imagenet_root_dir=config.imagenet_root_dir,
+        trn_image_classes_fname=config.trn_imagenet_classes_fname,
+        val_image_classes_fname=config.val_imagenet_classes_fname,
+        batch_size=config.batch_size,
+        normalization=config.normalization,
         h_w=h_w,
     )
     del valid_pipeline
@@ -47,20 +47,20 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
 
     data_iterator = make_image_iterator(train_dataloader)
 
-    model = builder.create_model(config["model_name"])
+    model = builder.create_model(config.decompose_model_name)
     model.to(device)
-    model_orig_stats = model.get_model_stats(model, b_c_h_w)
+    model_orig_stats = builder.get_model_stats(model, b_c_h_w)
 
     decompose_config = ptdeco.fal.decompose_in_place(
         module=model,
         device=device,
         data_iterator=data_iterator,
-        proportion_threshold=config["proportion_threshold"],
-        kl_final_threshold=config["kl_final_threshold"],
-        nsr_final_threshold=config["nsr_final_threshold"],
-        num_data_steps=config["num_data_steps"],
-        num_metric_steps=config["num_metric_steps"],
-        blacklisted_module_names=config["blacklisted_modules"],
+        proportion_threshold=config.proportion_threshold,
+        kl_final_threshold=config.kl_final_threshold,
+        nsr_final_threshold=config.nsr_final_threshold,
+        num_data_steps=config.num_data_steps,
+        num_metric_steps=config.num_metric_steps,
+        blacklisted_module_names=config.blacklisted_modules,
     )
     model_deco_stats = model.get_model_stats(model, b_c_h_w)
 
@@ -70,5 +70,5 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
     out_decompose_state_dict_path = output_path / "decompose_state_dict.pt"
     torch.save(model.state_dict(), out_decompose_state_dict_path)
 
-    model.log_model_stats(logger, "Original model  :", model_orig_stats)
-    model.log_model_stats(logger, "Decomposed model:", model_deco_stats)
+    builder.log_model_stats(logger, "Original model  :", model_orig_stats)
+    builder.log_model_stats(logger, "Decomposed model:", model_deco_stats)
