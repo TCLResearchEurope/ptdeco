@@ -4,7 +4,7 @@ MODULE_NAME=ptdeco
 VER_FILE=version.py
 
 PYTHON_LIB_FILES= configurator.py datasets_dali.py builder.py version.py \
-			      run_decompose_fal.py run_decompose_trainable.py run_finetune.py
+			      run_decompose_falor.py run_decompose_lockd.py run_finetune.py
 
 PYTHON_RUN_FILE=run.py
 
