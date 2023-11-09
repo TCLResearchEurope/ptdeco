@@ -113,7 +113,6 @@ def apply_decompose_config_in_place(
     module: torch.nn.Module,
     decompose_config: dict[str, Any],
 ) -> None:
-
     for submodule_name, new_submodule_config in decompose_config.items():
         submodule = module.get_submodule(submodule_name)
         new_submodule = build_module_from_config(new_submodule_config)
