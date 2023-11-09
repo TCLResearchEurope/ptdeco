@@ -124,7 +124,6 @@ class WrappedLOCKConv2d(WrappedLOCKDModule):
         self.name = name
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # print(self.name)  # TODO Remove this debug prints
         y0 = self.conv_orig(x)
         mask = sample_from_logits(self.logits)
         z = self.conv_1(x)
@@ -215,7 +214,6 @@ class WrappedLOCKDLinear(WrappedLOCKDModule):
         self.name = name
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # print(self.name)  # TODO Remove this debug prints
         y = self.lin_orig(x)
         hidden = self.lin_0(x)
         mask = sample_from_logits(self.logits)
