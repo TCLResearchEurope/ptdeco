@@ -63,7 +63,7 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
         num_metric_steps=config_parsed.num_metric_steps,
         blacklisted_module_names=config_parsed.blacklisted_modules,
     )
-    model_deco_stats = model.get_model_stats(model, b_c_h_w)
+    model_deco_stats = builder.get_model_stats(model, b_c_h_w)
 
     out_decompose_config_path = output_path / "decompose_config.json"
     with open(out_decompose_config_path, "wt") as f:

@@ -160,7 +160,7 @@ class SaveStageResult(composer.Callback):
 
 
 def get_callbacks(
-    config: dict[str, Any], output_path: pathlib.Path
+    config: configurator.DecomposeLOCKDConfig, output_path: pathlib.Path
 ) -> list[composer.Callback]:
     lr_monitor = composer.callbacks.LRMonitor()
     speed_monitor = composer.callbacks.SpeedMonitor(window_size=50)
