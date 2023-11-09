@@ -208,44 +208,21 @@ def create_student_teacher_models(
     teacher_model = builder.create_model(config_parsed.decompose_model_name)
     student_model = create_decomposed_model(config_parsed)
 
-    # Compute statistics of teacher model
-
     b_c_h_w = (1, 3, int(config_parsed.input_h_w[0]), int(config_parsed.input_h_w[1]))
 
-    teacher_model.eval()
+    teacher_model_stats = builder.get_model_stats(teacher_model, b_c_h_w)
 
-    teacher_model_gflops = builder.get_fpops(
-        teacher_model, b_c_h_w=b_c_h_w, units="gflops"
-    )
-    teacher_model_kmapps = builder.get_fpops(
-        teacher_model, b_c_h_w=b_c_h_w, units="kmapps"
-    )
-    teacher_model_params = builder.get_params(teacher_model) / 1.0e6
-    msg_ops = f"gflops={teacher_model_gflops:.2f} kmapps={teacher_model_kmapps:.2f}"
-    msg_par = f"params={teacher_model_params:.2f}"
-
-    # Compute statistics of student model model
-
-    student_model.eval()
-    student_model_gflops = builder.get_fpops(
-        student_model, b_c_h_w=b_c_h_w, units="gflops"
-    )
-    student_model_kmapps = builder.get_fpops(
-        student_model, b_c_h_w=b_c_h_w, units="kmapps"
-    )
-    student_model_params = builder.get_params(student_model) / 1.0e6
+    student_model_stats = builder.get_model_stats(student_model, b_c_h_w)
     student_model.train()
 
-    logger.info(f"Teacher model {msg_ops} {msg_par}")
-    msg_ops = f"gflops={student_model_gflops:.2f} kmapps={student_model_kmapps:.2f}"
-    msg_par = f"params={student_model_params:.2f}"
-    logger.info(f"Student model {msg_ops} {msg_par}")
+    builder.log_model_stats(logger, "Original model  :", teacher_model_stats)
+    builder.log_model_stats(logger, "Decomposed model:", student_model_stats)
 
     return student_model, teacher_model
 
 
 def get_callbacks(
-    config: dict[str, Any], output_path: pathlib.Path
+    config: configurator.FinetuneConfig, output_path: pathlib.Path
 ) -> list[composer.Callback]:
     speed_monitor = composer.callbacks.SpeedMonitor(window_size=50)
     lr_monitor = composer.callbacks.LRMonitor()
