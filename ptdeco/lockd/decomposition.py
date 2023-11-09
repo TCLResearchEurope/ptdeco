@@ -16,6 +16,7 @@ __all__ = [
     "wrap_in_place",
     "decompose_in_place",
     "WrappedLOCKDModule",
+    "calc_propotion_from_logits",
 ]
 
 
@@ -73,33 +74,31 @@ class WrappedLOCKDModule(torch.nn.Module):
         raise NotImplementedError
 
     @classmethod
-    def wrap(cls, m: torch.nn.Module, name: Optional[str] = None) -> torch.nn.Module:
+    def wrap(
+        cls, module_orig: torch.nn.Module, name: Optional[str] = None
+    ) -> torch.nn.Module:
         raise NotImplementedError
 
 
 class WrappedLOCKConv2d(WrappedLOCKDModule):
     def __init__(
         self,
-        in_features: int,
-        out_features: int,
-        ks: int,
-        padding: Union[str, Union[int, tuple[int, int]]],
-        stride: Union[int, tuple[int, int]],
-        bias: bool,
-        groups: int,
+        orig_module: torch.nn.Conv2d,
         name: Optional[str] = None,
     ):
         super().__init__()
+
+        in_features = orig_module.in_channels
+        out_features = orig_module.out_channels
+        ks = orig_module.kernel_size[0]
+        padding = _to_str_int_tuple_int_int(orig_module.padding)
+        stride = _to_int_tuple_int_int(orig_module.stride)
+        bias = orig_module.bias is not None
+        groups = orig_module.groups
+
         self.middle_features = min(out_features, in_features)
-        self.conv_orig = torch.nn.Conv2d(
-            in_channels=in_features,
-            out_channels=out_features,
-            kernel_size=ks,
-            padding=padding,
-            stride=stride,
-            bias=bias,
-            groups=groups,
-        )
+        self.conv_orig = orig_module
+
         self.conv_1 = torch.nn.Conv2d(
             in_channels=in_features,
             out_channels=self.middle_features,
@@ -179,42 +178,30 @@ class WrappedLOCKConv2d(WrappedLOCKDModule):
 
     @classmethod
     def wrap(
-        cls, module: torch.nn.Module, name: Optional[str] = None
+        cls, module_orig: torch.nn.Module, name: Optional[str] = None
     ) -> "WrappedLOCKConv2d":
-        if not isinstance(module, torch.nn.Conv2d):
-            raise ValueError(f"{cls.__name__} can wrap only Conv2d not {type(module)}")
+        if not isinstance(module_orig, torch.nn.Conv2d):
+            msg = f"{cls.__name__} can wrap only Conv2d not {type(module_orig)}"
+            raise ValueError(msg)
 
-        new_module = cls(
-            in_features=module.in_channels,
-            out_features=module.out_channels,
-            ks=module.kernel_size[0],
-            padding=_to_str_int_tuple_int_int(module.padding),
-            stride=_to_int_tuple_int_int(module.stride),
-            bias=module.bias is not None,
-            groups=module.groups,
-            name=name,
-        )
-        new_module.conv_orig.weight.data = module.weight
-        if module.bias is not None:
-            assert isinstance(new_module.conv_orig.bias, torch.Tensor)
-            new_module.conv_orig.bias.data = module.bias
-        new_module.to(module.weight.device)
+        new_module = cls(module_orig, name=name)
+        new_module.to(module_orig.weight.device)
         return new_module
 
 
 class WrappedLOCKDLinear(WrappedLOCKDModule):
     def __init__(
         self,
-        in_features: int,
-        out_features: int,
-        bias: bool,
+        module_orig: torch.nn.Linear,
         name: Optional[str] = None,
     ) -> None:
         super().__init__()
+        in_features = module_orig.in_features
+        out_features = module_orig.out_features
+        bias = module_orig.bias is not None
+
         self.hidden_features = min(in_features, out_features)
-        self.lin_orig = torch.nn.Linear(
-            in_features=in_features, out_features=out_features, bias=bias
-        )
+        self.lin_orig = module_orig
         self.lin_0 = torch.nn.Linear(
             in_features=in_features, out_features=self.hidden_features, bias=False
         )
@@ -288,20 +275,15 @@ class WrappedLOCKDLinear(WrappedLOCKDModule):
 
     @classmethod
     def wrap(
-        cls, module: torch.nn.Module, name: Optional[str] = None
+        cls, module_orig: torch.nn.Module, name: Optional[str] = None
     ) -> "WrappedLOCKDLinear":
-        if not isinstance(module, torch.nn.Linear):
-            raise ValueError(f"{cls.__name__} can wrap only Linear not {type(module)}")
+        if not isinstance(module_orig, torch.nn.Linear):
+            raise ValueError(
+                f"{cls.__name__} can wrap only Linear not {type(module_orig)}"
+            )
 
-        new_module = cls(
-            in_features=module.in_features,
-            out_features=module.out_features,
-            bias=module.bias is not None,
-        )
-        new_module.lin_orig.weight.data = module.weight
-        if module.bias is not None:
-            new_module.lin_orig.bias.data = module.bias
-        new_module.to(module.weight.device)
+        new_module = cls(module_orig, name)
+        new_module.to(module_orig.weight.device)
         return new_module
 
 
