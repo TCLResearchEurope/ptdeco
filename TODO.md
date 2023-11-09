@@ -1,18 +1,20 @@
 ## TODO
 + **[falor]** Add tests
 + **[general]** Implement and test building a wheel package
-+ **[lockd]** Make wrapping true wrapping (instead of copying)
 + **[lockd]** Idea - add some options to customize decomposition process (e.g, type of deconvolution decomposition)
-+ **[lockd]** Implement or remove uwrap_in_place
 + **[trainer]** Add requirements.txt
 + **[trainer]** Check device switching handling (cpu decomposition, gpu trainining etc.)
 + **[trainer]** Specify device via config
 
 ## DONE
-+ **[general]** Refactor wrapping class names
-+ **[lockd]** Refactor - split ptdeco.py into multiple modules
-+ **[trainer]** Refactor compile config to Optional in trainer
+
+## ptdeco 0.3.0, ptdeco trainer 0.6.0
 + **[falor]** Refactor `fal` -> `falor` and move module to separate directory
++ **[general]** Refactor wrapping class names
++ **[lockd]** Get rid of needless module copies in lockd wrapping
++ **[lockd]** Refactor - split ptdeco.py into multiple modules
++ **[lockd]** Remove `uwrap_in_place`
++ **[trainer]** Refactor compile config to Optional in trainer
 
 ## ptdeco 0.2.0, ptdeco trainer 0.5.0
 + **[falor]** Add decomposition params handling through config
