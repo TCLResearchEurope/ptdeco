@@ -379,10 +379,6 @@ def wrap_in_place(
         logger.info(f"Wrapped {count} instances of {module_type_name}")
 
 
-def unwrap_in_place(wrapped_module: torch.nn.Module) -> None:
-    raise NotImplementedError("Unrapping not implemented")  # TODO
-
-
 def _decompose_in_place(
     *,
     module: torch.nn.Module,
