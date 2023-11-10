@@ -1,3 +1,4 @@
+import collections
 import logging
 from typing import Any, Optional
 
@@ -60,13 +61,13 @@ def get_model_stats(
 
 
 def log_model_stats(
-    logger: logging.Logger, log_prefix: str, model_stats: dict[str, Any]
+    stats_logger: logging.Logger, log_prefix: str, model_stats: dict[str, Any]
 ) -> None:
     gflops = model_stats["gflops"]
     kmapps = model_stats["kmapps"]
     mparams = model_stats["mparams"]
     msg = f"{log_prefix} gflops={gflops:.2f} kmapps={kmapps:.2f} Mparams={mparams:.2f}"
-    logger.info(msg)
+    stats_logger.info(msg)
 
 
 def create_model(model_name: str) -> torch.nn.Module:
@@ -86,3 +87,20 @@ def validate_module_names(model: torch.nn.Module, module_names: list[str]) -> No
     if unknown_modules:
         msg = ", ".join(unknown_modules)
         raise ValueError(f"Unknown module names specified: {msg}")
+
+
+def log_state_dict_keys_stats(
+    stats_logger: logging.Logger,
+    log_prefix: str,
+    model: torch.nn.Module,
+    state_dict: collections.OrderedDict[str, torch.Tensor],
+) -> int:
+    model_state_dict_keys = set(model.state_dict().keys())
+    loaded_state_dict_keys = set(state_dict.keys())
+    common_state_dict_keys = model_state_dict_keys & loaded_state_dict_keys
+    n_common_state_dict_keys = len(common_state_dict_keys)
+    msg_model = f"num_model_sd_keys={len(model_state_dict_keys)}"
+    msg_sd = f"num_loaded_sd_keys={len(loaded_state_dict_keys)}"
+    msg_common = f"num_common_sd_keys={n_common_state_dict_keys}"
+    stats_logger.info(f"{log_prefix} {msg_model}, {msg_sd}, {msg_common}")
+    return n_common_state_dict_keys
