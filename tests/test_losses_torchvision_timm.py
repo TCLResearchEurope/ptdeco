@@ -37,8 +37,8 @@ def check_losses(model: torch.nn.Module, x: torch.Tensor) -> None:
 
     d_nsr = ptdeco.lockd.get_nsr_dict(model)
     assert isinstance(d_nsr, dict)
-    l_nsr_threshold = torch.tensor(0.01)
-    l_nsr = ptdeco.lockd.get_nsr_loss(model, l_nsr_threshold)
+
+    l_nsr = ptdeco.lockd.get_nsr_loss(model, 0.01)
     assert isinstance(l_nsr, torch.Tensor) and l_nsr.device == x.device
 
     d_proportion = ptdeco.lockd.get_proportion_dict(model)

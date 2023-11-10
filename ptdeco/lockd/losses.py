@@ -53,9 +53,7 @@ def get_nsr_dict(wrapped_module: torch.nn.Module) -> dict[str, torch.Tensor]:
     return nsr_dict
 
 
-def get_nsr_loss(
-    wrapped_module: torch.nn.Module, nsr_threshold: torch.Tensor
-) -> torch.Tensor:
+def get_nsr_loss(wrapped_module: torch.nn.Module, nsr_threshold: float) -> torch.Tensor:
     nsr_list: list[torch.Tensor] = []
     for submodule in wrapped_module.modules():
         if isinstance(submodule, decomposition.WrappedLOCKDModule):
