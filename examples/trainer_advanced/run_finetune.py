@@ -175,7 +175,7 @@ def filter_state_dict(
 
 def create_decomposed_model(
     config_parsed: configurator.FinetuneConfig,
-) -> torch.nn.Module:
+) -> tuple[torch.nn.Module, dict[str, Any]]:
     model_name = config_parsed.decompose_model_name
     model = builder.create_model(model_name)
     with open(config_parsed.decompose_config, "rt") as f:
@@ -205,14 +205,14 @@ def create_decomposed_model(
         raise ValueError("No common keys between model and loaded statedict")
 
     model.load_state_dict(decompose_state_dict, strict=False)
-    return model
+    return model, decompose_config
 
 
-def create_student_teacher_models(
+def create_teacher_student_models(
     config_parsed: configurator.FinetuneConfig,
-) -> tuple[torch.nn.Module, torch.nn.Module]:
+) -> tuple[torch.nn.Module, torch.nn.Module, dict[str, Any]]:
     teacher_model = builder.create_model(config_parsed.decompose_model_name)
-    student_model = create_decomposed_model(config_parsed)
+    student_model, student_decompose_config = create_decomposed_model(config_parsed)
 
     b_c_h_w = (1, 3, int(config_parsed.input_h_w[0]), int(config_parsed.input_h_w[1]))
 
@@ -224,7 +224,7 @@ def create_student_teacher_models(
     builder.log_model_stats(logger, "Original model  :", teacher_model_stats)
     builder.log_model_stats(logger, "Decomposed model:", student_model_stats)
 
-    return student_model, teacher_model
+    return teacher_model, student_model, student_decompose_config
 
 
 def get_callbacks(
@@ -240,7 +240,15 @@ def get_callbacks(
 def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
     config_parsed = configurator.FinetuneConfig(**config)
 
-    student_model, teacher_model = create_student_teacher_models(config_parsed)
+    (
+        teacher_model,
+        student_model,
+        student_decompose_config,
+    ) = create_teacher_student_models(config_parsed)
+
+    out_decompose_config_path = output_path / "decompose_config.json"
+    with open(out_decompose_config_path, "wt") as f:
+        json.dump(student_decompose_config, f)
 
     train_pipeline, valid_pipeline = datasets_dali.make_imagenet_pipelines(
         imagenet_root_dir=config_parsed.imagenet_root_dir,
@@ -312,3 +320,5 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
         console_log_interval="1000ba",
     )
     trainer.fit()
+    out_decompose_state_dict_path = output_path / "decompose_state_dict.pt"
+    torch.save(student_model.state_dict(), out_decompose_state_dict_path)
