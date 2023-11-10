@@ -1,5 +1,5 @@
 # This is parsed by setup.py, so we need to stick to str -> int parsing
-__version__ = "0.6.4"
+__version__ = "0.6.5"
 
 _ver_major = int(__version__.split(".")[0])
 _ver_minor = int(__version__.split(".")[1])

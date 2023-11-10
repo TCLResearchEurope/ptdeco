@@ -196,6 +196,8 @@ def create_decomposed_model(
     decompose_config, skipped_module_names = filter_decompose_config(
         decompose_config, proportion_threshold, blacklisted_module_names
     )
+    ptdeco.utils.apply_decompose_config_in_place(model, decompose_config)
+
     n_common = builder.log_state_dict_keys_stats(
         logger, "Before sd filtering:", model, decompose_state_dict
     )
@@ -208,7 +210,7 @@ def create_decomposed_model(
     if n_common == 0:
         raise ValueError("No common keys between model and loaded statedict")
 
-    ptdeco.utils.apply_decompose_config_in_place(model, decompose_config)
+
     model.load_state_dict(decompose_state_dict, strict=False)
     return model
 
