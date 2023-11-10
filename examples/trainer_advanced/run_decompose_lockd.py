@@ -3,6 +3,7 @@
 import json
 import logging
 import pathlib
+import typing
 from typing import Any
 
 import composer
@@ -12,7 +13,7 @@ import composer.core
 import composer.devices
 import composer.optim
 import composer.optim.scheduler
-import nvidia.dali.plugin.pytorch
+import nvidia.dali.plugin.pytorch  # type:ignore
 import ptdeco
 import torch
 import torch.utils.tensorboard
@@ -55,7 +56,7 @@ class ComposerWrappedModel(composer.ComposerModel):
         return self.wrapped_model.forward(inputs)
 
     def loss(
-        self, outputs: Any, batch: composer.core.Batch, *args, **kwargs
+        self, outputs: Any, batch: composer.core.Batch, *args: Any, **kwargs: Any
     ) -> torch.Tensor:
         model_size_loss = ptdeco.lockd.get_proportion_loss(self.wrapped_model)
         nsr_loss = ptdeco.lockd.get_nsr_loss(self.wrapped_model, self.nsr_threshold)
@@ -68,16 +69,9 @@ class ComposerWrappedModel(composer.ComposerModel):
                 "accuracy": self.accuracy,
             }
         else:
-            metrics = self.accuracy
+            metrics = {self.aaccuracy.__class__.__name__: self.accuracy}
 
-        if isinstance(metrics, torchmetrics.Metric):
-            metrics_dict = {metrics.__class__.__name__: metrics}
-        else:
-            metrics_dict = {}
-            for name, metric in metrics.items():
-                assert isinstance(metric, torchmetrics.Metric)
-                metrics_dict[name] = metric
-        return metrics_dict
+        return metrics
 
     def update_metric(
         self, batch: Any, outputs: Any, metric: torchmetrics.Metric
@@ -94,56 +88,47 @@ class TensorboardCallBack(composer.Callback):
 
     def batch_end(self, state: composer.State, logger: composer.Logger) -> None:
         batch_num = state.timestamp.batch.value
+        model = typing.cast(ComposerWrappedModel, state.model)
         if batch_num % self.interval == 0:
             # LOSSES
 
-            state.model.writer.add_scalar("train/loss", state.loss, batch_num)
+            model.writer.add_scalar("train/loss", state.loss, batch_num)
             with torch.no_grad():
                 loss_nsr = ptdeco.lockd.get_nsr_loss(
-                    state.model.wrapped_model, state.model.nsr_threshold
+                    model.wrapped_model, model.nsr_threshold
                 )
-            state.model.writer.add_scalar("train/loss_nsr", loss_nsr, batch_num)
+            model.writer.add_scalar("train/loss_nsr", loss_nsr, batch_num)
             with torch.no_grad():
-                loss_proportion = ptdeco.lockd.get_proportion_loss(
-                    state.model.wrapped_model
-                )
-            state.model.writer.add_scalar(
-                "train/loss_proportion", loss_proportion, batch_num
-            )
+                loss_proportion = ptdeco.lockd.get_proportion_loss(model.wrapped_model)
+            model.writer.add_scalar("train/loss_proportion", loss_proportion, batch_num)
             with torch.no_grad():
-                loss_entropy = ptdeco.lockd.get_entropy_loss(state.model.wrapped_model)
-            state.model.writer.add_scalar("train/loss_entropy", loss_entropy, batch_num)
+                loss_entropy = ptdeco.lockd.get_entropy_loss(model.wrapped_model)
+            model.writer.add_scalar("train/loss_entropy", loss_entropy, batch_num)
 
             # METRICS
 
             train_accuracy = state.train_metric_values["accuracy"]
-            state.model.writer.add_scalar(
-                "train/student_acc", train_accuracy, batch_num
-            )
+            model.writer.add_scalar("train/student_acc", train_accuracy, batch_num)
 
             # LEARNING RATE
 
-            state.model.writer.add_scalar(
+            model.writer.add_scalar(
                 "train/lr", state.schedulers[0].get_last_lr()[0], batch_num
             )
 
             # LOSSES - PARTIAL
 
             with torch.no_grad():
-                nsr_dict = ptdeco.lockd.get_nsr_dict(state.model.wrapped_model)
+                nsr_dict = ptdeco.lockd.get_nsr_dict(model.wrapped_model)
             for key, nsr in nsr_dict.items():
                 key_tb = key.replace(".", "_")
-                state.model.writer.add_scalar(
-                    f"stage_zero/{key_tb}_nsr", nsr, batch_num
-                )
+                model.writer.add_scalar(f"stage_zero/{key_tb}_nsr", nsr, batch_num)
 
             with torch.no_grad():
-                proportion_dict = ptdeco.lockd.get_proportion_dict(
-                    state.model.wrapped_model
-                )
+                proportion_dict = ptdeco.lockd.get_proportion_dict(model.wrapped_model)
             for key, prop in proportion_dict.items():
                 key_tb = key.replace(".", "_")
-                state.model.writer.add_scalar(f"stage_zero/{key_tb}_p", prop, batch_num)
+                model.writer.add_scalar(f"stage_zero/{key_tb}_p", prop, batch_num)
 
 
 class SaveStageResult(composer.Callback):
@@ -156,7 +141,8 @@ class SaveStageResult(composer.Callback):
         fname = self.suffix + "_final_sd.pt"
         saving_path = self.output_path / fname
         print(f"Saving stage zero result to: {saving_path}")
-        torch.save(state.model.wrapped_model.state_dict(), saving_path)
+        model = typing.cast(ComposerWrappedModel, state.model)
+        torch.save(model.wrapped_model.state_dict(), saving_path)
 
 
 def get_callbacks(
