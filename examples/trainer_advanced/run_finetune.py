@@ -2,6 +2,7 @@ import collections
 import json
 import logging
 import pathlib
+import typing
 from typing import Any
 
 import composer
@@ -10,7 +11,7 @@ import composer.callbacks
 import composer.core
 import composer.devices
 import composer.optim
-import nvidia.dali.plugin.pytorch
+import nvidia.dali.plugin.pytorch  # type:ignore
 import ptdeco.utils
 import torch
 import torchmetrics
@@ -75,7 +76,9 @@ class KdClassificationModel(composer.ComposerModel):
 
         return y_student, y_teacher
 
-    def loss(self, outputs: Any, batch: torch.Tensor, *args, **kwargs) -> torch.Tensor:
+    def loss(
+        self, outputs: Any, batch: torch.Tensor, *args: Any, **kwargs: Any
+    ) -> torch.Tensor:
         y_student = outputs[0]
         y_teacher = outputs[1]
         loss = kl_loss(student_logits=y_student, teacher_logits=y_teacher)
@@ -83,20 +86,13 @@ class KdClassificationModel(composer.ComposerModel):
 
     def get_metrics(self, is_train: bool = False) -> dict[str, torchmetrics.Metric]:
         if is_train:
-            metrics = {
+            metrics: dict[str, torchmetrics.Metric] = {
                 "accuracy": self.accuracy,
             }
         else:
-            metrics = self.accuracy
-        metrics_dict: dict[str, torchmetrics.Metric] = {}
-        if isinstance(metrics, torchmetrics.Metric):
-            metrics_dict[metrics.__class__.__name__] = metrics
-        else:
-            for name, metric in metrics.items():
-                assert isinstance(metric, torchmetrics.Metric)
-                metrics_dict[name] = metric
+            metrics = {self.aaccuracy.__class__.__name__: self.accuracy}
 
-        return metrics_dict
+        return metrics
 
     def update_metric(
         self, batch: Any, outputs: Any, metric: torchmetrics.Metric
@@ -120,21 +116,19 @@ class TensorboardCallBack(composer.Callback):
             teacher_accuracy = (predicted_teacher == target).to(torch.float32).mean()
             # log eval metrics
             train_accuracy = state.train_metric_values["accuracy"]
-            state.model.writer.add_scalar(
-                "train/teacher_acc", teacher_accuracy, batch_num
-            )
-            state.model.writer.add_scalar(
-                "train/student_acc", train_accuracy, batch_num
-            )
-            state.model.writer.add_scalar("train/loss", state.loss, batch_num)
-            state.model.writer.add_scalar(
+            model = typing.cast(KdClassificationModel, state.model)
+            model.writer.add_scalar("train/teacher_acc", teacher_accuracy, batch_num)
+            model.writer.add_scalar("train/student_acc", train_accuracy, batch_num)
+            model.writer.add_scalar("train/loss", state.loss, batch_num)
+            model.writer.add_scalar(
                 "train/lr", state.schedulers[0].get_last_lr()[0], batch_num
             )
 
     def eval_end(self, state: composer.State, logger: composer.Logger) -> None:
         epoch = state.timestamp.epoch.value
         eval_accuracy = list(state.eval_metric_values.values())[0]
-        state.model.writer.add_scalar("valid/accuracy", eval_accuracy, epoch)
+        model = typing.cast(KdClassificationModel, state.model)
+        model.writer.add_scalar("valid/accuracy", eval_accuracy, epoch)
 
 
 def filter_decompose_config(
@@ -209,7 +203,6 @@ def create_decomposed_model(
     )
     if n_common == 0:
         raise ValueError("No common keys between model and loaded statedict")
-
 
     model.load_state_dict(decompose_state_dict, strict=False)
     return model
