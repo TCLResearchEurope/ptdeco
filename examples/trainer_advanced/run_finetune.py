@@ -90,7 +90,7 @@ class KdClassificationModel(composer.ComposerModel):
                 "accuracy": self.accuracy,
             }
         else:
-            metrics = {self.aaccuracy.__class__.__name__: self.accuracy}
+            metrics = {self.accuracy.__class__.__name__: self.accuracy}
 
         return metrics
 
