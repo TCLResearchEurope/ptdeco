@@ -41,7 +41,9 @@ build:
 	@mkdir -p build
 	@cp -rp ../../ptdeco .
 	@cp $(PYTHON_RUN_FILE)  __main__.py
-		ZIP_NAME="build/ptdeco-$$(git rev-list --count HEAD)-$$(git rev-parse --short HEAD).zip"; \
+		ZIP_SUFFIX="-mod"; \
+		git diff --exit-code && ZIP_SUFFIX=""; \
+		ZIP_NAME="build/ptdeco-$$(git rev-list --count HEAD)-$$(git rev-parse --short HEAD)$${ZIP_SUFFIX}.zip"; \
 		zip -r $${ZIP_NAME} $(PYTHON_LIB_FILES) __main__.py ptdeco; \
 		rm -rf ptdeco __main__.py; \
 		echo "Build - created $${ZIP_NAME}"
