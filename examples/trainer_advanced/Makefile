@@ -15,10 +15,7 @@ check:
 	-isort --check --profile=black $(PYTHON_FILES)
 	-black --check  $(PYTHON_FILES)
 	-flake8 --max-line-length 88  $(PYTHON_FILES)
-
-mypy:
 	-mypy --color-output --disallow-incomplete-defs --disallow-untyped-defs  $(PYTHON_FILES)
-
 
 commit:
 	git commit -m "[trainer] " -e
