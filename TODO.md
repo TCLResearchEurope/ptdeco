@@ -1,12 +1,20 @@
 ## TODO
+
 + **[falor]** Add tests
 + **[general]** Implement and test building a wheel package
++ **[general]** Add logging decomposed module statistics by type in apply decompose config
 + **[lockd]** Idea - add some options to customize decomposition process (e.g, type of deconvolution decomposition)
 + **[trainer]** Add requirements.txt
 + **[trainer]** Check device switching handling (cpu decomposition, gpu trainining etc.)
 + **[trainer]** Specify device via config
++ **[trainer]** Move aux notebooks to a sepearte dir
 
 ## DONE
+
+## ptdeco trainer 0.7.0
++ **[tranier]** Add logging state dict stats
++ **[trainer]** Fix state dict bug
++ **[trainer]** Unify logged stats of decomposed models in lockd/falor/finetune
 
 ## ptdeco 0.3.0, ptdeco trainer 0.6.0
 + **[falor]** Refactor `fal` -> `falor` and move module to separate directory
