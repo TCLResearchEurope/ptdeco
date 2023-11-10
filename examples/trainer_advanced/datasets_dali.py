@@ -1,7 +1,8 @@
+import collections.abc
 import logging
 import os
 from dataclasses import dataclass
-from typing import Optional, Tuple, Union
+from typing import Any, Optional, Tuple, Union
 
 import numpy as np
 import nvidia.dali.fn  # type:ignore
@@ -9,6 +10,7 @@ import nvidia.dali.ops  # type:ignore
 import nvidia.dali.pipeline  # type:ignore
 import nvidia.dali.plugin.pytorch  # type:ignore
 import nvidia.dali.types  # type:ignore
+import torch
 
 logger = logging.getLogger(__name__)
 
@@ -43,8 +45,14 @@ class DaliDevices:
             device_id=0,
         )
 
-
-"cubic"
+    @classmethod
+    def create_cpu(cls) -> "DaliDevices":
+        return cls(
+            cpu_device=CPU_DEVICE,
+            gpu_device=CPU_DEVICE,
+            cpu_to_gpu=CPU_DEVICE,
+            device_id=None,
+        )
 
 
 @dataclass
@@ -85,7 +93,11 @@ def define_bool_ops() -> nvidia.dali.ops.Cast:
 
 class ImagenetPipeline(nvidia.dali.pipeline.Pipeline):
     @staticmethod
-    def mux(condition, true_case, false_case) -> bool:
+    def mux(
+        condition: nvidia.dali.pipeline.DataNode,
+        true_case: nvidia.dali.pipeline.DataNode,
+        false_case: nvidia.dali.pipeline.DataNode,
+    ) -> nvidia.dali.pipeline.DataNode:
         neg_condition = condition ^ True
         return condition * true_case + neg_condition * false_case
 
@@ -119,12 +131,12 @@ class ImagenetPipeline(nvidia.dali.pipeline.Pipeline):
         self.shuffle = shuffle
 
         logger.info(f"Using {normalization=}")
-        self.normalization_params = NORMALIZATION.get(normalization)
 
-        if self.normalization_params is None:
+        if normalization not in NORMALIZATION:
             msg_norms = ", ".join(NORMALIZATION.keys())
             msg = f"{normalization=} not supported, use {msg_norms}"
             raise ValueError(msg)
+        self.normalization_params = NORMALIZATION[normalization]
 
         self.image_filenames_and_classes_txt_filepath = image_classes_fname
         self.images_list, self.classes_list = self.get_image_paths_and_classes(
@@ -147,11 +159,11 @@ class ImagenetPipeline(nvidia.dali.pipeline.Pipeline):
             device=self.dali_devices.cpu_to_gpu,
             output_type=nvidia.dali.types.RGB,
         )
-        self.resize_interp = INTERPOLATION.get(resize_interp)
-        if resize_interp is None:
+        if resize_interp not in INTERPOLATION:
             msg_interp = ", ".join(NORMALIZATION.keys())
             msg = f"{resize_interp=} not supported, use {msg_interp}"
             raise ValueError(msg)
+        self.resize_interp = INTERPOLATION[resize_interp]
 
         self.resize_subpixel_scale = resize_subpixel_scale
         self.resize_image_op = nvidia.dali.ops.Resize(
@@ -165,17 +177,17 @@ class ImagenetPipeline(nvidia.dali.pipeline.Pipeline):
         self.random_crop_in_training = random_crop_in_training
 
     @property
-    def epoch_size(self):
+    def epoch_size(self) -> int:
         return len(self.images_list) // self.max_batch_size
 
     @property
-    def num_examples(self):
+    def num_examples(self) -> int:
         return len(self.classes_list)
 
     def get_image_paths_and_classes(
         self,
         shuffle: Optional[bool] = True,
-    ):
+    ) -> tuple[list[str], list[int]]:
         with open(self.image_filenames_and_classes_txt_filepath, "r") as f:
             lines = [line.rstrip() for line in f]
         if shuffle:
@@ -187,7 +199,7 @@ class ImagenetPipeline(nvidia.dali.pipeline.Pipeline):
         ]
         return image_paths, image_classes
 
-    def define_graph(self):
+    def define_graph(self) -> list[nvidia.dali.pipeline.DataNode]:
         images, classes = nvidia.dali.fn.readers.file(
             seed=DEFAULT_READER_SEED,
             files=self.images_list,
@@ -310,20 +322,20 @@ class DaliGenericIteratorWrapper:
     def __init__(self, pt_dali_iter: nvidia.dali.plugin.pytorch.DALIGenericIterator):
         self.pt_dali_iter = pt_dali_iter
 
-    def __len__(self):
+    def __len__(self) -> int:
         return self.pt_dali_iter._pipes[0].epoch_size
 
-    def __next__(self):
+    def __next__(self) -> dict[str, torch.Tensor]:
         return next(self.pt_dali_iter)[0]
 
-    def __iter__(self):
+    def __iter__(self) -> collections.abc.Iterator[dict[str, torch.Tensor]]:
         while True:
             try:
                 yield self.__next__()
             except StopIteration:
                 return
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         try:
             return getattr(self.pt_dali_iter, name)
         except AttributeError:
