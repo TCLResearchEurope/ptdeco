@@ -1,7 +1,10 @@
 import collections
+import logging
 from typing import Any
 
 import torch
+
+from . import common
 
 __all__ = [
     "get_module_config",
@@ -10,8 +13,7 @@ __all__ = [
     "MODCONFIG_META_KEY",
 ]
 
-
-from . import common
+logger = logging.getLogger(__name__)
 
 MODCONFIG_META_KEY = "__meta__"
 
@@ -113,10 +115,16 @@ def apply_decompose_config_in_place(
     module: torch.nn.Module,
     decompose_config: dict[str, Any],
 ) -> None:
+    decomposed_counter: collections.Counter[str] = collections.Counter()
     for submodule_name, new_submodule_config in decompose_config.items():
         submodule = module.get_submodule(submodule_name)
         new_submodule = build_module_from_config(new_submodule_config)
         device = common.get_default_device(submodule)
         new_submodule.to(device)
         common.replace_submodule_in_place(module, submodule_name, new_submodule)
+        submodule_type_name = common.get_type_name(submodule)
+        decomposed_counter[submodule_type_name] += 1
         del submodule
+
+    for submodule_type_name, count in decomposed_counter.items():
+        logger.info(f"Decomposed {count} instances of {submodule_type_name}")
