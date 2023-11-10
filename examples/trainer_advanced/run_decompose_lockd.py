@@ -254,7 +254,7 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
     with open(out_decompose_config_path, "wt") as f:
         json.dump(decompose_config, f)
     out_decompose_state_dict_path = output_path / "decompose_state_dict.pt"
-    torch.save(model.state_dict(), out_decompose_state_dict_path)
+    torch.save(torch_wrapped_model.state_dict(), out_decompose_state_dict_path)
 
     # Log statistics
     builder.log_model_stats(logger, "Original model  :", model_orig_stats)
