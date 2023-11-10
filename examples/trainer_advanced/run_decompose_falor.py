@@ -1,9 +1,10 @@
+import collections
 import json
 import logging
 import pathlib
 from typing import Any
 
-import nvidia.dali.plugin.pytorch
+import nvidia.dali.plugin.pytorch  # type:ignore
 import ptdeco.falor
 import torch
 
@@ -14,7 +15,9 @@ import datasets_dali
 logger = logging.getLogger(__name__)
 
 
-def make_image_iterator(train_dataloader):
+def make_image_iterator(
+    train_dataloader: collections.abc.Iterator[dict[str, torch.Tensor]],
+) -> collections.abc.Iterator[torch.Tensor]:
     for d in train_dataloader:
         yield d["inputs"].permute(0, 3, 1, 2)
 
