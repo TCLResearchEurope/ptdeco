@@ -198,15 +198,15 @@ def _compute_metrics(
     root_module.eval()
 
     decomposed_submodule.set_weight(deco_weight)
-    out1 = root_module(x)
+    y_deco = root_module(x)
 
     decomposed_submodule.set_weight(orig_weight)
-    out2 = root_module(x)
+    y_orig = root_module(x)
 
     nsr_final = utils.calc_per_channel_noise_to_signal_ratio(
-        y=out1, x=out2, non_channel_dim=(0,)
+        y=y_orig, x=y_deco, non_channel_dim=(0,)
     ).mean()
-    kl_final = utils.calc_kl_loss(out1, out2)
+    kl_final = utils.calc_kl_loss(y_deco, y_orig)
     return nsr_final, kl_final
 
 

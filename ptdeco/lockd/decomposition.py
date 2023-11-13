@@ -214,11 +214,11 @@ class WrappedLOCKDLinear(WrappedLOCKDModule):
         self.name = name
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        y = self.lin_orig(x)
+        y_orig = self.lin_orig(x)
         hidden = self.lin_0(x)
         mask = sample_from_logits(self.logits)
         hidden_masked = mask * hidden
-        y0 = self.lin_1(hidden_masked)
+        y_deco = self.lin_1(hidden_masked)
         if len(x.shape) == 2:
             non_channel_dim: tuple[int, ...] = (0,)
         elif len(x.shape) == 3:
@@ -229,9 +229,9 @@ class WrappedLOCKDLinear(WrappedLOCKDModule):
             msg = f"WrappedLinear: {x.shape=} not of length 2 or 3"
             raise NotImplementedError(msg)
         self.nsr = utils.calc_per_channel_noise_to_signal_ratio(
-            y=y, x=y0, non_channel_dim=non_channel_dim
+            y=y_orig, x=y_deco, non_channel_dim=non_channel_dim
         )
-        return y
+        return y_orig
 
     def get_nsr(self) -> torch.Tensor:
         return self.nsr
