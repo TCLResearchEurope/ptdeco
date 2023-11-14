@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ptdeco"
+authors = [
+  { name="TCL Research Europe" },
+]
+description = "ptdeco is a library implementing decomposition algorithms for model optimization."
+readme = "README.md"
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3",
+]
+dynamic = ["version", "dependencies"]
+
+[tool.setuptools.packages.find]
+include = ["ptdeco*"]
+exclude = ["tests"]
+
+[tool.setuptools.package-data]
+"pkgname" = ["py.typed"]
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}

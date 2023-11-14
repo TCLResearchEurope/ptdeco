@@ -1,4 +1,5 @@
 .vscode
+dist
 examples/.ipynb_checkpoints/
 make.black.log
 make.flake8.log
