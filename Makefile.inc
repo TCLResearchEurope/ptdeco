@@ -1,9 +1,13 @@
 
-VER_FILE=$(MODULE_NAME)/_version.py
+VER_FILE=src/$(MODULE_NAME)/_version.py
 
 F=set_it_to_reformated_file_from_cli
 
-all: check test
+all: build
+
+build:
+	python3 -mbuild
+
 
 check:
 	@-black --color --check $(PY_DIRS) > make.black.log 2>&1 && \
@@ -40,8 +44,8 @@ vercommit:
 	git checkout $(VER_FILE)
 	./aux/update_version.py --version-segment=2 --version-file=$(VER_FILE)
 	git add $(VER_FILE)
-	VER=$$(./aux/get_version.py --version-file=$(VER_FILE)) && git commit -m "$${VER}" -e
-
+	-VER=$$(./aux/get_version.py --version-file=$(VER_FILE)) && git commit -m "$${VER}" -e
+	git restore --staged  $(VER_FILE) && git checkout $(VER_FILE) # In case of failed commit
 
 manualvercommit:
 	git add $(VER_FILE)
