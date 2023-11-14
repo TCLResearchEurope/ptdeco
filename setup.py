@@ -4,7 +4,7 @@ PACKAGE_NAME = "ptdeco"
 
 
 def read_version() -> str:
-    with open(f"{PACKAGE_NAME}/_version.py", "rt") as f:
+    with open(f"src/{PACKAGE_NAME}/_version.py", "rt") as f:
         for line in f:
             line = line.strip()
             if line.startswith("__version__ = "):

@@ -16,7 +16,7 @@ classifiers = [
 dynamic = ["version", "dependencies"]
 
 [tool.setuptools.packages.find]
-include = ["ptdeco*"]
+where = ["src"]
 exclude = ["tests"]
 
 [tool.setuptools.package-data]
