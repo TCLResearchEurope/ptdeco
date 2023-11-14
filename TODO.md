@@ -1,15 +1,16 @@
 ## TODO
-
 + **[falor]** Add tests
-+ **[general]** Implement and test building a wheel package
 + **[lockd]** Idea - add some options to customize decomposition process (e.g, type of deconvolution decomposition)
 + **[trainer]** Add requirements.txt
 + **[trainer]** Check device switching handling (cpu decomposition, gpu trainining etc.)
 + **[trainer]** Specify device via config
 
-
 ## DONE
+
++ **[general]** Implement and test building a wheel package
++ **[general]** Move to src project layout
 + **[utils]** Add logging num of decomposed modules of each type in apply_decompose_config_in_place
++ **[falor]** Fix nsr loss bug
 + **[lockd]** Minor type
 + **[trainer]** Add saving final decompose config and state dict of finetuned model
 + **[trainer]** Fix typing
