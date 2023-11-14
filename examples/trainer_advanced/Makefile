@@ -10,6 +10,7 @@ PYTHON_RUN_FILE=run.py
 
 PYTHON_FILES=$(PYTHON_LIB_FILES) $(PYTHON_RUN_FILE)
 
+BUILD_DIR=dist
 
 check:
 	-isort --check --profile=black $(PYTHON_FILES)
@@ -35,15 +36,17 @@ manualvercommit:
 
 build:
 	@echo "Build - started"
-	@mkdir -p build
-	@cp -rp ../../ptdeco .
+	@mkdir -p $(BUILD_DIR)
+	@cp -rp ../../src/ptdeco .
 	@cp $(PYTHON_RUN_FILE)  __main__.py
 		ZIP_SUFFIX="-mod"; \
 		git diff --exit-code && ZIP_SUFFIX=""; \
-		ZIP_NAME="build/ptdeco-$$(git rev-list --count HEAD)-$$(git rev-parse --short HEAD)$${ZIP_SUFFIX}.zip"; \
+		ZIP_NAME="$(BUILD_DIR)/ptdeco-$$(git rev-list --count HEAD)-$$(git rev-parse --short HEAD)$${ZIP_SUFFIX}.zip"; \
 		zip -r $${ZIP_NAME} $(PYTHON_LIB_FILES) __main__.py ptdeco; \
 		rm -rf ptdeco __main__.py; \
 		echo "Build - created $${ZIP_NAME}"
 
+clean:
+	rm -rf $(BUILD_DIR)
 
 .PHONY: check build
