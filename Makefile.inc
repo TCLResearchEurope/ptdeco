@@ -9,18 +9,27 @@ build:
 	python3 -mbuild
 
 
-check:
-	@-black --color --check $(PY_DIRS) > make.black.log 2>&1 && \
-        	echo "PASSED black" || \
-        	(echo "FAILED black"; cat make.black.log)
-	@-isort --check --profile=black $(ISORT_FLAGS) $(PY_DIRS) && echo "PASSED isort"
-	@-(flake8  --color=always --ignore=E203,W503 --max-line-length 88 $(PY_MYPY_FLAKE8) > make.flake8.log 2>&1) && \
-        	echo "PASSED flake8" || \
-        	(echo "FAILED flake8"; cat make.flake8.log)
-	@-MYPY_FORCE_COLOR=1 mypy --color-output --disallow-incomplete-defs --disallow-untyped-defs $(PY_MYPY_FLAKE8) > make.mypy.log 2>&1 && \
-        	echo "PASSED mypy" || \
-        	(echo "FAILED mypy"; cat make.mypy.log)
+check: -check_black -check_isort -check_flake -check_mypy
 
+
+check_black:
+	@black --color --check $(PY_DIRS) > make.black.log 2>&1 && \
+		echo "PASSED black" || \
+		(echo "FAILED black"; cat make.black.log; exit 1)
+
+check_isort:
+	@isort --check --profile=black $(ISORT_FLAGS) $(PY_DIRS) && echo "PASSED isort"
+
+
+check_flake:
+	@(flake8  --color=always --ignore=E203,W503 --max-line-length 88 $(PY_MYPY_FLAKE8) > make.flake8.log 2>&1) && \
+		echo "PASSED flake8" || \
+		(echo "FAILED flake8"; cat make.flake8.log; exit 1)
+
+check_mypy:
+	@MYPY_FORCE_COLOR=1 mypy --color-output --disallow-incomplete-defs --disallow-untyped-defs $(PY_MYPY_FLAKE8) > make.mypy.log 2>&1 && \
+		echo "PASSED mypy" || \
+		(echo "FAILED mypy"; cat make.mypy.log; exit 1)
 
 test:
 	pytest -vv
@@ -51,5 +60,10 @@ manualvercommit:
 	git add $(VER_FILE)
 	VER=$$(./aux/get_version.py --version-file=$(VER_FILE)) && git commit -m "$${VER}" -e
 
+-%:
+	-@$(MAKE) --no-print-directory $*
 
-.PHONY: all check test clean fix fixall
+.PHONY: all build test clean fix fixall \
+        check  check_black check_isort check_flake check_mypy \
+	commit vercommit manualvercommit
+
