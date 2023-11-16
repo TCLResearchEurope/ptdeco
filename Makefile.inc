@@ -9,7 +9,7 @@ build:
 	python3 -mbuild
 
 
-check: -check_black -check_isort -check_flake -check_mypy
+check: -check_black -check_isort -check_flake8 -check_mypy
 
 
 check_black:
@@ -21,7 +21,7 @@ check_isort:
 	@isort --check --profile=black $(ISORT_FLAGS) $(PY_DIRS) && echo "PASSED isort"
 
 
-check_flake:
+check_flake8:
 	@(flake8  --color=always --ignore=E203,W503 --max-line-length 88 $(PY_MYPY_FLAKE8) > make.flake8.log 2>&1) && \
 		echo "PASSED flake8" || \
 		(echo "FAILED flake8"; cat make.flake8.log; exit 1)
@@ -64,6 +64,6 @@ manualvercommit:
 	-@$(MAKE) --no-print-directory $*
 
 .PHONY: all build test clean fix fixall \
-        check  check_black check_isort check_flake check_mypy \
+	check  check_black check_isort check_flake8 check_mypy \
 	commit vercommit manualvercommit
 
