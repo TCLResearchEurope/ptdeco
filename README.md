@@ -1,22 +1,48 @@
-# ptdeco
+## ptdeco
 
-## Table of contents
+`ptdeco` is a library for model optimization by decomposition built on top of PyTorch.
+
+<details>
+
+<summary>Table of contents</summary>
+
+* [Introduction](#introduction)
 * [Sample results](#sample-results)
-   * [convnext_femto.d1_in1k](#convnext_femtod1_in1k)
-   * [convnextv2_nano.fcmae_ft_in22k_in1k](#convnextv2_nanofcmae_ft_in22k_in1k)
-   * [rexnetr_200.sw_in12k_ft_in1k](#rexnetr_200sw_in12k_ft_in1k)
-   * [efficientformerv2_s2.snap_dist_in1k](#efficientformerv2_s2snap_dist_in1k)
-   * [mobilevitv2_200.cvnets_in22k_ft_in1k](#mobilevitv2_200cvnets_in22k_ft_in1k)
-   * [swinv2_cr_tiny_ns_224.sw_in1k](#swinv2_cr_tiny_ns_224sw_in1k)
-   * [resnet18.a2_in1k](#resnet18a2_in1k)
-   * [resnet50d.a1_in1k](#resnet50da1_in1k)
+  * [convnext_femto.d1_in1k](#convnext_femtod1_in1k)
+  * [convnextv2_nano.fcmae_ft_in22k_in1k](#convnextv2_nanofcmae_ft_in22k_in1k)
+  * [rexnetr_200.sw_in12k_ft_in1k](#rexnetr_200sw_in12k_ft_in1k)
+  * [efficientformerv2_s2.snap_dist_in1k](#efficientformerv2_s2snap_dist_in1k)
+  * [mobilevitv2_200.cvnets_in22k_ft_in1k](#mobilevitv2_200cvnets_in22k_ft_in1k)
+  * [swinv2_cr_tiny_ns_224.sw_in1k](#swinv2_cr_tiny_ns_224sw_in1k)
+  * [resnet18.a2_in1k](#resnet18a2_in1k)
+  * [resnet50d.a1_in1k](#resnet50da1_in1k)
+
+</details>
+
+## Introduction
+
+Currently, `ptdeco` implements two methods:
+
+* **lockd** - our custom method based on local knowledge distillation
+  (lockd = **LOC**al **K**nowledge **D**istillation)
+
+* **falor** - described in [Compressing Transformers: Features Are Low-Rank, but Weights Are Not! by Yu Hao, Wu Jianxin (2023)](https://doi.org/10.1609/aaai.v37i9.26304)
+  (falor = **F**eatures **Are** **LO**w **R**ank)
+
+**lockd** method requires short (~ 10 ImageNet epochs) knowledge distillation
+pretraining before decomposition is made. It can decompose linear layers and
+convolutions.
+
+**falor** method does not require pretraining. Model decomposition lasts < 1
+GPU hour (depending on model size and parameters). It can decompose linear
+layers and 1x1 convolutions.
+
 
 ## Sample results
 
-This is work in progress.
-
-
 ### convnext_femto.d1_in1k
+
+Method: lockd
 
 Resolution: 224 x 224
 
@@ -27,6 +53,8 @@ Resolution: 224 x 224
 
 
 ### convnextv2_nano.fcmae_ft_in22k_in1k
+
+Method: lockd
 
 Resolution: 224 x 224
 
@@ -62,6 +90,11 @@ On device timing results:
 
 ### rexnetr_200.sw_in12k_ft_in1k
 
+Method: lockd
+
+Resolution: 224 x 224
+
+
 | name             |   nsr_thr |   params |   kmapps |   acc |   epochs_ft |
 |------------------|-----------|----------|----------|-------|-------------|
 | baseline         |           |    16.52 |       62 | 82.41 |             |
@@ -70,9 +103,13 @@ On device timing results:
 
 ### efficientformerv2_s2.snap_dist_in1k
 
-Remark: training in progress
+Method: lockd
 
 Resolution: 224 x 224
+
+Remarks:
+* training in progress
+
 
 | name             |   nsr_thr |   params |   kmapps |   acc |   epochs_ft |
 |------------------|-----------|----------|----------|-------|-------------|
@@ -82,11 +119,15 @@ Resolution: 224 x 224
 
 ### mobilevitv2_200.cvnets_in22k_ft_in1k
 
+Method: lockd
+
+Resolution: 256 x 256
+
 Remarks:
 * normalization zero to one
 * training in progress
 
-Resolution: 256 x 256
+
 
 | name             |   nsr_thr |   params |   kmapps |   acc |   epochs_ft |
 |------------------|-----------|----------|----------|-------|-------------|
@@ -95,7 +136,9 @@ Resolution: 256 x 256
 
 ### swinv2_cr_tiny_ns_224.sw_in1k
 
-Resoulution: 224 x 224
+Method: lockd
+
+Resolution: 224 x 224
 
 | name             |   nsr_thr |   params |   kmapps |   acc |   epochs_ft |   epohchs_ft |
 |------------------|-----------|----------|----------|-------|-------------|--------------|
@@ -103,8 +146,9 @@ Resoulution: 224 x 224
 | decomposed_nt010 |      0.10 |    15.73 |      103 | 81.28 |             |          200 |
 
 
-
 ### resnet18.a2_in1k
+
+Method: lockd
 
 Resolution: 224 x 224
 
@@ -117,6 +161,8 @@ Resolution: 224 x 224
 
 
 ### resnet50d.a1_in1k
+
+Method: lockd
 
 Resolution: 224 x 224
 
