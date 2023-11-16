@@ -47,6 +47,8 @@ fixall:
 commit:
 	git commit -e
 
+show_version:
+	@./aux/get_version.py --version-file=$(VER_FILE)
 
 vercommit:
 	git restore --staged $(VER_FILE)
@@ -63,7 +65,7 @@ manualvercommit:
 -%:
 	-@$(MAKE) --no-print-directory $*
 
-.PHONY: all build test clean fix fixall \
+.PHONY: all build test clean fix fixall show_version\
 	check  check_black check_isort check_flake8 check_mypy \
 	commit vercommit manualvercommit
 
