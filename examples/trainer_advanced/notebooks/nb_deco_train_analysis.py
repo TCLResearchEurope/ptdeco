@@ -33,11 +33,13 @@
 #
 # * [Main - mobilevitv2_200.cvnets_in22k_ft_in1k](#id_8)
 #
-# * [Main - timm.swinv2_cr_tiny_ns_224.sw_in1k](#id_9)
+# * [Main - swinv2_cr_tiny_ns_224.sw_in1k](#id_9)
 #
-# * [Main - resnet18.a2_in1k (to refactor)](#id_10)
+# * [Main - deit3_small_patch16_224.fb_in1k](#id_10)
 #
-# * [Main - resnet50d.a1_in1k (to refactor)](#id_11)
+# * [Main - resnet18.a2_in1k (to refactor)](#id_11)
+#
+# * [Main - resnet50d.a1_in1k (to refactor)](#id_12)
 # <!-- TOC -->
 
 # %% [markdown]
@@ -48,7 +50,7 @@
 # type: ignoresave_cache(cache_file, d)
 
 # %%
-# #! rm nb_deco_train_analysis.py; nbtoc.py -i nb_deco_train_analysis.ipynb
+# # ! rm nb_deco_train_analysis.py; nbtoc.py -i nb_deco_train_analysis.ipynb
 
 # %%
 # #! black nb_deco_train_analysis.py
@@ -348,7 +350,7 @@ def add_val_data(
         dc = json.loads(pathlib.Path(deco_path).read_text())
 
         m = timm.create_model(model_name, pretrained=False)
-        ptdeco.apply_decompose_config_in_place(m, dc)
+        ptdeco.utils.apply_decompose_config_in_place(m, dc)
         m.load_state_dict(sd)
     else:
         m = timm.create_model(model_name, pretrained=True)
@@ -386,7 +388,6 @@ def save_cache(cache_path: pathlib.Path, d: dict[str, Any]) -> None:
 def create_table(model_name, configs, force=False, tablefmt="github"):
     VAL_FIELDS = [
         "name",
-        "nsr_thr",
         "h_w",
         "n_batches",
         "batch_size",
@@ -405,8 +406,6 @@ def create_table(model_name, configs, force=False, tablefmt="github"):
     for c in configs:
         config_name = c["name"]
         if config_name not in d:
-            nsr_thr = c.get("nsr_thr", float("nan"))
-
             # Validation params
             h_w = c.get("h_w", (224, 224))
             n_batches = c.get("n_batches")
@@ -417,7 +416,6 @@ def create_table(model_name, configs, force=False, tablefmt="github"):
 
             d_new = {
                 "name": config_name,
-                "nsr_thr": nsr_thr,
             }
             add_val_data(
                 d_new,
@@ -444,7 +442,7 @@ def create_table(model_name, configs, force=False, tablefmt="github"):
     d_md = tabulate.tabulate(
         d_list,
         headers="keys",
-        floatfmt=("", ".2f", ".2f", ".0f", ".2f", ".0f"),
+        floatfmt=("", ".2f", ".2f", ".2f", ".0f", "", ""),
         tablefmt=tablefmt,
     )
     return d, d_md
@@ -454,7 +452,7 @@ def create_table(model_name, configs, force=False, tablefmt="github"):
 # ## Main - convnextv2_nano.fcmae_ft_in22k_in1k <a class="anchor" id="id_4"></a>
 
 # %%
-with NoGlobals():
+with Timing("Evaluation"), NoGlobals():
     FORCE = False
     TABLEFMT = "github"
 
@@ -471,10 +469,10 @@ with NoGlobals():
             "batch_size": batch_size,
             "epochs_ft": float("nan"),
             "method": "",
+            "settings": "",
         },
         {
-            "name": "decomposed_nt005",
-            "nsr_thr": 0.05,
+            "name": "lockd_nt005",
             "n_batches": n_batches,
             "h_w": (224, 224),
             "batch_size": batch_size,
@@ -488,10 +486,10 @@ with NoGlobals():
             ),
             "epochs_ft": 200,
             "method": "lockd",
+            "settings": "nsr_threshold=0.05",
         },
         {
-            "name": "decomposed_nt010",
-            "nsr_thr": 0.10,
+            "name": "lockd_nt010",
             "n_batches": n_batches,
             "h_w": (224, 224),
             "batch_size": batch_size,
@@ -505,6 +503,7 @@ with NoGlobals():
             ),
             "epochs_ft": 200,
             "method": "lockd",
+            "settings": "nsr_threshold=0.10",
         },
     ]
     d, d_md = create_table(model_name, configs, force=FORCE, tablefmt=TABLEFMT)
@@ -515,7 +514,7 @@ with NoGlobals():
 # ## Main - convnext_femto.d1_in1k <a class="anchor" id="id_5"></a>
 
 # %%
-with NoGlobals():
+with Timing("Evaluation"), NoGlobals():
     FORCE = False
     TABLEFMT = "github"
 
@@ -532,15 +531,24 @@ with NoGlobals():
             "batch_size": batch_size,
             "epochs_ft": float("nan"),
             "method": "",
+            "settings": "",
         },
         {
-            "name": "decomposed_nt010",
-            "nsr_thr": 0.10,
+            "name": "lockd_nt010",
             "n_batches": n_batches,
             "h_w": (224, 224),
             "batch_size": batch_size,
+            "deco_path": (
+                root_path
+                / "2023-11-10_deco2-cn1femto-nt010/out-finet_2023-11-10-21.11.36/decompose_config.json"
+            ),
+            "ckpt_path": (
+                root_path
+                / "2023-11-10_deco2-cn1femto-nt010/out-finet_2023-11-10-21.11.36/checkpoints/ep200-ba1901600-rank0.pt"
+            ),
             "epochs_ft": 200,
             "method": "lockd",
+            "settings": "nsr_threshold=0.10",
         },
     ]
     d, d_md = create_table(model_name, configs, force=FORCE, tablefmt=TABLEFMT)
@@ -551,7 +559,7 @@ with NoGlobals():
 # ## Main - rexnetr_200.sw_in12k_ft_in1k <a class="anchor" id="id_6"></a>
 
 # %%
-with NoGlobals():
+with Timing("Evaluation"), NoGlobals():
     FORCE = False
     TABLEFMT = "github"
     root_path = pathlib.Path("/nas/people/michal_lopuszynski/JOBS/")
@@ -567,10 +575,10 @@ with NoGlobals():
             "batch_size": batch_size,
             "epochs_ft": float("nan"),
             "mehtod": "",
+            "settings": "",
         },
         {
-            "name": "decomposed_nt010",
-            "nsr_thr": 0.10,
+            "name": "lockd_nt010",
             "n_batches": n_batches,
             "h_w": (224, 224),
             "batch_size": batch_size,
@@ -584,6 +592,7 @@ with NoGlobals():
             ),
             "epochs_ft": 200,
             "mehtod": "lockd",
+            "settings": "nsr_threshold=0.10",
         },
     ]
     d, d_md = create_table(model_name, configs, force=FORCE, tablefmt=TABLEFMT)
@@ -594,7 +603,7 @@ with NoGlobals():
 # ## Main - efficientformerv2_s2.snap_dist_in1k <a class="anchor" id="id_7"></a>
 
 # %%
-with NoGlobals():
+with Timing("Evaluation"), NoGlobals():
     FORCE = False
     TABLEFMT = "github"
 
@@ -611,27 +620,27 @@ with NoGlobals():
             "batch_size": batch_size,
             "epochs_ft": float("nan"),
             "method": "",
+            "settings": "",
         },
         {
-            "name": "decomposed_nt010",
-            "nsr_thr": 0.10,
+            "name": "lockd_nt010",
             "n_batches": n_batches,
             "h_w": (224, 224),
             "batch_size": batch_size,
             "deco_path": (
                 root_path
-                / "2023-10-15_deco-eformer2s2-nt010/output_decomposed_2023-10-17-18.10.13/decompose_config.json"
+                / "2023-10-15_deco-eformer2s2-nt010/output_decomposed_2023-10-29-20.10.48/decompose_config.json"
             ),
             "ckpt_path": (
                 root_path
-                / "2023-10-15_deco-eformer2s2-nt010/output_decomposed_2023-10-17-18.10.13/checkpoints/ep96-ba912768-rank0.pt"
+                / "2023-10-15_deco-eformer2s2-nt010/output_decomposed_2023-10-29-20.10.48/checkpoints/ep200-ba4346800-rank0.pt"
             ),
-            "epochs_ft": 96,
+            "epochs_ft": 200,
             "method": "lockd",
+            "settings": "nsr_threshold=0.10",
         },
         {
-            "name": "decomposed_nt015",
-            "nsr_thr": 0.15,
+            "name": "lockd_nt015",
             "n_batches": n_batches,
             "h_w": (224, 224),
             "batch_size": batch_size,
@@ -641,10 +650,11 @@ with NoGlobals():
             ),
             "ckpt_path": (
                 root_path
-                / "2023-10-16_deco-eformer2s2-nt015/output_decomposed_2023-10-19-20.10.19/checkpoints/ep145-ba1378660-rank0.pt"
+                / "2023-10-16_deco-eformer2s2-nt015/output_decomposed_2023-10-19-20.10.19/checkpoints/ep200-ba1901600-rank0.pt"
             ),
-            "epochs_ft": 145,
+            "epochs_ft": 200,
             "method": "lockd",
+            "settings": "nsr_threshold=0.15",
         },
     ]
     d, d_md = create_table(model_name, configs, force=FORCE, tablefmt=TABLEFMT)
@@ -655,7 +665,7 @@ with NoGlobals():
 # ## Main - mobilevitv2_200.cvnets_in22k_ft_in1k <a class="anchor" id="id_8"></a>
 
 # %%
-with NoGlobals():
+with Timing("Evaluation"), NoGlobals():
     FORCE = False
     TABLEFMT = "github"
 
@@ -673,10 +683,10 @@ with NoGlobals():
             "batch_size": batch_size,
             "epochs_ft": float("nan"),
             "method": "",
+            "settings": "",
         },
         {
-            "name": "decomposed_nt010",
-            "nsr_thr": 0.10,
+            "name": "lockd_nt010",
             "n_batches": n_batches,
             "h_w": (256, 256),
             "normalization": "zero_to_one",
@@ -687,10 +697,11 @@ with NoGlobals():
             ),
             "ckpt_path": (
                 root_path
-                / "2023-10-24_deco-mobilevitv2-200-nt010/output_decomposed_2023-10-26-18.10.00/checkpoints/ep105-ba3993570-rank0.pt"
+                / "2023-10-24_deco-mobilevitv2-200-nt010/output_decomposed_2023-10-26-18.10.00/checkpoints/ep200-ba7606800-rank0.pt"
             ),
-            "epochs_ft": 105,
+            "epochs_ft": 200,
             "method": "lockd",
+            "settings": "nsr_threshold=0.10",
         },
     ]
     d, d_md = create_table(model_name, configs, force=FORCE, tablefmt=TABLEFMT)
@@ -698,11 +709,11 @@ with NoGlobals():
     display(Markdown(d_md))
 
 # %% [markdown]
-# ## Main - timm.swinv2_cr_tiny_ns_224.sw_in1k <a class="anchor" id="id_9"></a>
+# ## Main - swinv2_cr_tiny_ns_224.sw_in1k <a class="anchor" id="id_9"></a>
 
 
 # %%
-with NoGlobals():
+with Timing("Evaluation"), NoGlobals():
     FORCE = False
     TABLEFMT = "github"
 
@@ -718,19 +729,33 @@ with NoGlobals():
             "batch_size": 50,
             "epochs_ft": float("nan"),
             "method": "",
+            "settings": "",
         },
         {
-            "name": "decomposed_nt010",
-            "nsr_thr": 0.10,
+            "name": "lockd_nt010",
             "n_batches": n_batches,
             "h_w": (224, 224),
             "batch_size": 50,
             "deco_path": root_path
-            / "2023-10-17_deco-swinv20-tiny-nt010/output_decomposed_2023-10-24-08.10.23/decompose_config.json",
+            / "2023-11-10_deco2-swinv20-tiny-nt010/out-finet_2023-11-11-13.11.40/decompose_config.json",
             "ckpt_path": root_path
-            / "2023-10-17_deco-swinv20-tiny-nt010/output_decomposed_2023-10-24-08.10.23/checkpoints/ep200-ba3042600-rank0.pt",
-            "epohchs_ft": 200.0,
+            / "2023-11-10_deco2-swinv20-tiny-nt010/out-finet_2023-11-11-13.11.40/checkpoints/ep200-ba3042600-rank0.pt",
+            "epochs_ft": 200.0,
             "method": "lockd",
+            "settings": "nsr_threshold=0.10",
+        },
+        {
+            "name": "falor_nft005",
+            "n_batches": n_batches,
+            "h_w": (224, 224),
+            "batch_size": 50,
+            "deco_path": root_path
+            / "2023-11-13_deco2-swinv20-tiny-falor/out-finet_2023-11-13-21.11.59/decompose_config.json",
+            "ckpt_path": root_path
+            / "2023-11-13_deco2-swinv20-tiny-falor/out-finet_2023-11-13-21.11.59/checkpoints/ep200-ba3042600-rank0.pt",
+            "epochs_ft": 200.0,
+            "method": "falor",
+            "settings": "nsr_final_threshold=0.0455",
         },
     ]
     d, d_md = create_table(model_name, configs, force=FORCE, tablefmt=TABLEFMT)
@@ -738,7 +763,60 @@ with NoGlobals():
     display(Markdown(d_md))
 
 # %% [markdown]
-# ## Main - resnet18.a2_in1k (to refactor) <a class="anchor" id="id_10"></a>
+# ## Main - deit3_small_patch16_224.fb_in1k <a class="anchor" id="id_10"></a>
+
+# %%
+with Timing("Evaluation"), NoGlobals():
+    FORCE = False
+    TABLEFMT = "github"
+
+    root_path = pathlib.Path("/nas/people/michal_lopuszynski/JOBS/")
+    model_name = "deit3_small_patch16_224"
+
+    n_batches = None
+    configs = [
+        {
+            "name": "baseline",
+            "n_batches": n_batches,
+            "h_w": (224, 224),
+            "batch_size": 50,
+            "epochs_ft": float("nan"),
+            "method": "",
+            "settings": "",
+        },
+        {
+            "name": "lockd_nt010",
+            "n_batches": n_batches,
+            "h_w": (224, 224),
+            "batch_size": 50,
+            "deco_path": root_path
+            / "2023-11-10_deco2-deit3-small-nt010/out-finet_2023-11-11-12.11.07/decompose_config.json",
+            "ckpt_path": root_path
+            / "2023-11-10_deco2-deit3-small-nt010/out-finet_2023-11-11-12.11.07/checkpoints/ep200-ba1901600-rank0.pt",
+            "epochs_ft": 200.0,
+            "method": "lockd",
+            "settings": "nsr_threshold=0.10",
+        },
+        {
+            "name": "falor_nft005",
+            "n_batches": n_batches,
+            "h_w": (224, 224),
+            "batch_size": 50,
+            "deco_path": root_path
+            / "2023-11-12_deco2-deit3-small-falor/out-finet_2023-11-13-11.11.47/decompose_config.json",
+            "ckpt_path": root_path
+            / "2023-11-12_deco2-deit3-small-falor/out-finet_2023-11-13-11.11.47/checkpoints/ep200-ba1901600-rank0.pt",
+            "epochs_ft": 200.0,
+            "method": "falor",
+            "settings": "nsr_final_threshold=0.045",
+        },
+    ]
+    d, d_md = create_table(model_name, configs, force=FORCE, tablefmt=TABLEFMT)
+    print(d_md.replace(" nan", "    "))
+    display(Markdown(d_md))
+
+# %% [markdown]
+# ## Main - resnet18.a2_in1k (to refactor) <a class="anchor" id="id_11"></a>
 
 # %%
 # TO REFACTOR
@@ -873,7 +951,7 @@ with NoGlobals():
 #
 
 # %% [markdown]
-# ## Main - resnet50d.a1_in1k (to refactor) <a class="anchor" id="id_11"></a>
+# ## Main - resnet50d.a1_in1k (to refactor) <a class="anchor" id="id_12"></a>
 
 # %%
 # TO REFACTOR
@@ -949,5 +1027,3 @@ with NoGlobals():
 # #         ckpt_path = root_path / "2023-10-05_deco-cn2nano-nt010/output_decomposed_2023-10-06-10.10.30/checkpoints/ep200-ba7606800-rank0.pt"
 # #         add_val_data(d_new, model_name, ckpt_path, deco_path)
 # #         d.append(d_new)
-
-# %%
