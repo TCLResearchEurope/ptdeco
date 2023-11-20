@@ -63,6 +63,12 @@ from IPython.core.display import display, HTML, Markdown
 display(HTML("<style>.container { width:80% !important; }</style>"))
 
 # %%
+import sys
+
+# %%
+sys.path.append("..")
+
+# %%
 import collections
 import json
 import logging
@@ -129,7 +135,7 @@ TRN_IMAGENET_CLASSES_FNAME = (
 )
 VAL_IMAGENET_CLASSES_FNAME = "/home/lopusz/Datasets/datahub/vision/imagenet-alt/val.txt"
 
-OUT_PATH = pathlib.Path("out")
+OUT_PATH = pathlib.Path("../out")
 OUT_PATH.mkdir(exist_ok=True, parents=True)
 
 device = torch.device("cuda")
@@ -450,6 +456,7 @@ def create_table(model_name, configs, force=False, tablefmt="github"):
 # %%
 with NoGlobals():
     FORCE = False
+    TABLEFMT = "github"
 
     root_path = pathlib.Path("/nas/people/michal_lopuszynski/JOBS/")
     model_name = "convnextv2_nano.fcmae_ft_in22k_in1k"
@@ -463,6 +470,7 @@ with NoGlobals():
             "h_w": (224, 224),
             "batch_size": batch_size,
             "epochs_ft": float("nan"),
+            "method": "",
         },
         {
             "name": "decomposed_nt005",
@@ -479,6 +487,7 @@ with NoGlobals():
                 / "2023-10-05_deco-cn2nano-nt005/output_decomposed_2023-10-06-10.10.17/checkpoints/ep200-ba7606800-rank0.pt"
             ),
             "epochs_ft": 200,
+            "method": "lockd",
         },
         {
             "name": "decomposed_nt010",
@@ -495,9 +504,10 @@ with NoGlobals():
                 / "2023-10-05_deco-cn2nano-nt010/output_decomposed_2023-10-06-10.10.30/checkpoints/ep200-ba7606800-rank0.pt"
             ),
             "epochs_ft": 200,
+            "method": "lockd",
         },
     ]
-    d, d_md = create_table(model_name, configs, force=FORCE, tablefmt="latex")
+    d, d_md = create_table(model_name, configs, force=FORCE, tablefmt=TABLEFMT)
     print(d_md.replace(" nan", "    "))
     display(Markdown(d_md))
 
@@ -507,6 +517,7 @@ with NoGlobals():
 # %%
 with NoGlobals():
     FORCE = False
+    TABLEFMT = "github"
 
     root_path = pathlib.Path("/nas/people/michal_lopuszynski/JOBS/")
     model_name = "convnext_femto.d1_in1k"
@@ -520,6 +531,7 @@ with NoGlobals():
             "h_w": (224, 224),
             "batch_size": batch_size,
             "epochs_ft": float("nan"),
+            "method": "",
         },
         {
             "name": "decomposed_nt010",
@@ -528,9 +540,10 @@ with NoGlobals():
             "h_w": (224, 224),
             "batch_size": batch_size,
             "epochs_ft": 200,
+            "method": "lockd",
         },
     ]
-    d, d_md = create_table(model_name, configs, force=FORCE, tablefmt="latex")
+    d, d_md = create_table(model_name, configs, force=FORCE, tablefmt=TABLEFMT)
     print(d_md.replace(" nan", "    "))
     display(Markdown(d_md))
 
@@ -540,7 +553,7 @@ with NoGlobals():
 # %%
 with NoGlobals():
     FORCE = False
-    tablefmt = "github"
+    TABLEFMT = "github"
     root_path = pathlib.Path("/nas/people/michal_lopuszynski/JOBS/")
     model_name = "rexnetr_200.sw_in12k_ft_in1k"
 
@@ -553,6 +566,7 @@ with NoGlobals():
             "h_w": (224, 224),
             "batch_size": batch_size,
             "epochs_ft": float("nan"),
+            "mehtod": "",
         },
         {
             "name": "decomposed_nt010",
@@ -569,9 +583,10 @@ with NoGlobals():
                 / "2023-10-16_deco-rexnetr200-nt010/output_decomposed_2023-10-17-19.10.58/checkpoints/ep200-ba2535600-rank0.pt"
             ),
             "epochs_ft": 200,
+            "mehtod": "lockd",
         },
     ]
-    d, d_md = create_table(model_name, configs, force=FORCE, tablefmt=tablefmt)
+    d, d_md = create_table(model_name, configs, force=FORCE, tablefmt=TABLEFMT)
     print(d_md.replace(" nan", "    "))
     display(Markdown(d_md))
 
@@ -581,8 +596,8 @@ with NoGlobals():
 # %%
 with NoGlobals():
     FORCE = False
-    tablefmt = "github"
-    
+    TABLEFMT = "github"
+
     root_path = pathlib.Path("/nas/people/michal_lopuszynski/JOBS/")
     model_name = "efficientformerv2_s2.snap_dist_in1k"
 
@@ -595,6 +610,7 @@ with NoGlobals():
             "h_w": (224, 224),
             "batch_size": batch_size,
             "epochs_ft": float("nan"),
+            "method": "",
         },
         {
             "name": "decomposed_nt010",
@@ -611,6 +627,7 @@ with NoGlobals():
                 / "2023-10-15_deco-eformer2s2-nt010/output_decomposed_2023-10-17-18.10.13/checkpoints/ep96-ba912768-rank0.pt"
             ),
             "epochs_ft": 96,
+            "method": "lockd",
         },
         {
             "name": "decomposed_nt015",
@@ -627,9 +644,10 @@ with NoGlobals():
                 / "2023-10-16_deco-eformer2s2-nt015/output_decomposed_2023-10-19-20.10.19/checkpoints/ep145-ba1378660-rank0.pt"
             ),
             "epochs_ft": 145,
+            "method": "lockd",
         },
     ]
-    d, d_md = create_table(model_name, configs, force=FORCE, tablefmt=tablefmt)
+    d, d_md = create_table(model_name, configs, force=FORCE, tablefmt=TABLEFMT)
     print(d_md.replace(" nan", "    "))
     display(Markdown(d_md))
 
@@ -639,8 +657,8 @@ with NoGlobals():
 # %%
 with NoGlobals():
     FORCE = False
-    tablefmt = "github"
-    
+    TABLEFMT = "github"
+
     root_path = pathlib.Path("/nas/people/michal_lopuszynski/JOBS/")
     model_name = "mobilevitv2_200.cvnets_in22k_ft_in1k"
 
@@ -654,6 +672,7 @@ with NoGlobals():
             "normalization": "zero_to_one",
             "batch_size": batch_size,
             "epochs_ft": float("nan"),
+            "method": "",
         },
         {
             "name": "decomposed_nt010",
@@ -671,9 +690,10 @@ with NoGlobals():
                 / "2023-10-24_deco-mobilevitv2-200-nt010/output_decomposed_2023-10-26-18.10.00/checkpoints/ep105-ba3993570-rank0.pt"
             ),
             "epochs_ft": 105,
+            "method": "lockd",
         },
     ]
-    d, d_md = create_table(model_name, configs, force=FORCE, tablefmt=tablefmt)
+    d, d_md = create_table(model_name, configs, force=FORCE, tablefmt=TABLEFMT)
     print(d_md.replace(" nan", "    "))
     display(Markdown(d_md))
 
@@ -684,8 +704,8 @@ with NoGlobals():
 # %%
 with NoGlobals():
     FORCE = False
-    tablefmt = "github"
-    
+    TABLEFMT = "github"
+
     root_path = pathlib.Path("/nas/people/michal_lopuszynski/JOBS/")
     model_name = "swinv2_cr_tiny_ns_224.sw_in1k"
 
@@ -697,6 +717,7 @@ with NoGlobals():
             "h_w": (224, 224),
             "batch_size": 50,
             "epochs_ft": float("nan"),
+            "method": "",
         },
         {
             "name": "decomposed_nt010",
@@ -709,9 +730,10 @@ with NoGlobals():
             "ckpt_path": root_path
             / "2023-10-17_deco-swinv20-tiny-nt010/output_decomposed_2023-10-24-08.10.23/checkpoints/ep200-ba3042600-rank0.pt",
             "epohchs_ft": 200.0,
+            "method": "lockd",
         },
     ]
-    d, d_md = create_table(model_name, configs, force=FORCE, tablefmt=tablefmt)
+    d, d_md = create_table(model_name, configs, force=FORCE, tablefmt=TABLEFMT)
     print(d_md.replace(" nan", "    "))
     display(Markdown(d_md))
 
