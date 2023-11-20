@@ -3,6 +3,7 @@ import logging
 import pathlib
 import subprocess
 import sys
+import time
 from typing import Any
 
 import ptdeco
@@ -55,6 +56,15 @@ def setup_logging() -> None:
     ]
     for module_name in module_names_verbose:
         logging.getLogger(module_name).setLevel(logging.INFO)
+
+
+def seconds_to_hh_mm_ss_str(seconds: float) -> str:
+    # NOTE: it assumes that seconds are float
+    # This is because time.perf_timer() returns float
+    # Frequently you want to parse time difference
+    m, s = divmod(seconds, 60)
+    h, m = divmod(m, 60)
+    return f"{h:.0f}:{m:02.0f}:{s:02.2f}"
 
 
 def read_config(fname: str) -> dict[str, Any]:
@@ -111,6 +121,7 @@ def save_requirements(
 
 
 def main(args: argparse.Namespace) -> None:
+    start = time.perf_counter()
     setup_logging()
     output_path = pathlib.Path(args.output_path)
     output_path.mkdir(exist_ok=True, parents=True)
@@ -136,6 +147,8 @@ def main(args: argparse.Namespace) -> None:
         else:
             msg = f"Unknown config.train_mode={task}"
         raise ValueError(msg)
+    duration = time.perf_counter() - start
+    logger.info(f"Run took: {seconds_to_hh_mm_ss_str(duration)}")
 
 
 if __name__ == "__main__":
