@@ -1,21 +1,21 @@
-## ptdeco
+# ptdeco
 
 `ptdeco` is a library for model optimization by decomposition built on top of PyTorch.
 
 <details>
 
 <summary>Table of contents</summary>
-
 * [Introduction](#introduction)
 * [Sample results](#sample-results)
-  * [convnext_femto.d1_in1k](#convnext_femtod1_in1k)
-  * [convnextv2_nano.fcmae_ft_in22k_in1k](#convnextv2_nanofcmae_ft_in22k_in1k)
-  * [rexnetr_200.sw_in12k_ft_in1k](#rexnetr_200sw_in12k_ft_in1k)
-  * [efficientformerv2_s2.snap_dist_in1k](#efficientformerv2_s2snap_dist_in1k)
-  * [mobilevitv2_200.cvnets_in22k_ft_in1k](#mobilevitv2_200cvnets_in22k_ft_in1k)
-  * [swinv2_cr_tiny_ns_224.sw_in1k](#swinv2_cr_tiny_ns_224sw_in1k)
-  * [resnet18.a2_in1k](#resnet18a2_in1k)
-  * [resnet50d.a1_in1k](#resnet50da1_in1k)
+   * [convnext_femto.d1_in1k](#convnext_femtod1_in1k)
+   * [convnextv2_nano.fcmae_ft_in22k_in1k](#convnextv2_nanofcmae_ft_in22k_in1k)
+   * [rexnetr_200.sw_in12k_ft_in1k](#rexnetr_200sw_in12k_ft_in1k)
+   * [efficientformerv2_s2.snap_dist_in1k](#efficientformerv2_s2snap_dist_in1k)
+   * [mobilevitv2_200.cvnets_in22k_ft_in1k](#mobilevitv2_200cvnets_in22k_ft_in1k)
+   * [swinv2_cr_tiny_ns_224.sw_in1k](#swinv2_cr_tiny_ns_224sw_in1k)
+   * [deit3_small_patch16_224.fb_in1k](#deit3_small_patch16_224fb_in1k)
+   * [resnet18.a2_in1k](#resnet18a2_in1k)
+   * [resnet50d.a1_in1k](#resnet50da1_in1k)
 
 </details>
 
@@ -42,27 +42,12 @@ layers and 1x1 convolutions.
 
 ### convnext_femto.d1_in1k
 
-Method: lockd
-
 Resolution: 224 x 224
 
-| name             |   nsr_thr |   params |   kmapps |   acc |   epochs_ft |
-|------------------|-----------|----------|----------|-------|-------------|
-| baseline         |           |     5.22 |       31 | 77.56 |             |
-| decomposed_nt010 |      0.10 |     4.14 |       23 | 76.53 |         200 |
-
-
-### convnextv2_nano.fcmae_ft_in22k_in1k
-
-Method: lockd
-
-Resolution: 224 x 224
-
-| name             |   nsr_thr |   params |   kmapps |   acc |   epochs_ft |
-|------------------|-----------|----------|----------|-------|-------------|
-| baseline         |           |    15.62 |       96 | 81.97 |             |
-| decomposed_nt005 |      0.05 |    13.33 |       79 | 82.08 |         200 |
-| decomposed_nt010 |      0.10 |    10.78 |       64 | 81.60 |         200 |
+| name        |   params |   kmapps |   acc |   epochs_ft | method   | settings           |
+|-------------|----------|----------|-------|-------------|----------|--------------------|
+| baseline    |     5.22 |    30.57 | 77.56 |             |          |                    |
+| lockd_nt010 |     4.13 |    22.82 | 76.48 |         200 | lockd    | nsr_threshold=0.10 |
 
 On device timing results:
 
@@ -71,14 +56,14 @@ On device timing results:
   | name             |   latency |   latency_std |   speedup [%] |
   |------------------|-----------|---------------|---------------|
   | baseline         |      81.6 |           1.5 |               |
-  | decomposed_nt010 |      67.3 |           1.6 |          17.5 |
+  | lockd_nt010      |      67.3 |           1.6 |          17.5 |
 
 * convnext_femto.d1_in1k - t1_pro_cpu1
 
   | name             |   latency |   latency_std |   speedup [%] |
   |------------------|-----------|---------------|---------------|
   | baseline         |     123.0 |           0.3 |               |
-  | decomposed_nt010 |     112.0 |           0.5 |           8.9 |
+  | lockd_nt010      |     112.0 |           0.5 |           8.9 |
 
 * convnext_femto.d1_in1k - t1_pro_cpu4
 
@@ -88,62 +73,72 @@ On device timing results:
   | decomposed_nt010 |      63.6 |           4.4 |           7.4 |
 
 
-### rexnetr_200.sw_in12k_ft_in1k
-
-Method: lockd
+### convnextv2_nano.fcmae_ft_in22k_in1k
 
 Resolution: 224 x 224
 
+| name        |   params |   kmapps |   acc |   epochs_ft | method   | settings           |
+|-------------|----------|----------|-------|-------------|----------|--------------------|
+| baseline    |    15.62 |    95.59 | 81.97 |             |          |                    |
+| lockd_nt005 |    13.33 |    78.86 | 82.09 |         200 | lockd    | nsr_threshold=0.05 |
+| lockd_nt010 |    10.78 |    63.61 | 81.60 |         200 | lockd    | nsr_threshold=0.10 |
 
-| name             |   nsr_thr |   params |   kmapps |   acc |   epochs_ft |
-|------------------|-----------|----------|----------|-------|-------------|
-| baseline         |           |    16.52 |       62 | 82.41 |             |
-| decomposed_nt010 |      0.10 |    13.59 |       46 | 81.78 |         200 |
+
+### rexnetr_200.sw_in12k_ft_in1k
+
+Resolution: 224 x 224
+
+| name        |   params |   kmapps |   acc |   epochs_ft | mehtod   | settings           |
+|-------------|----------|----------|-------|-------------|----------|--------------------|
+| baseline    |    16.52 |    61.88 | 82.41 |             |          |                    |
+| lockd_nt010 |    13.59 |    45.81 | 81.78 |         200 | lockd    | nsr_threshold=0.10 |
 
 
 ### efficientformerv2_s2.snap_dist_in1k
 
-Method: lockd
-
 Resolution: 224 x 224
 
-Remarks:
-* training in progress
+| name        |   params |   kmapps |   acc |   epochs_ft | method   | settings           |
+|-------------|----------|----------|-------|-------------|----------|--------------------|
+| baseline    |    12.71 |    49.50 | 82.20 |             |          |                    |
+| lockd_nt010 |    11.64 |    42.84 | 80.54 |         200 | lockd    | nsr_threshold=0.10 |
+| lockd_nt015 |     9.74 |    35.45 | 75.37 |         200 | lockd    | nsr_threshold=0.15 |
 
-
-| name             |   nsr_thr |   params |   kmapps |   acc |   epochs_ft |
-|------------------|-----------|----------|----------|-------|-------------|
-| baseline         |           |    12.71 |       50 | 82.21 |             |
-| decomposed_nt010 |      0.10 |    11.64 |       43 | 78.92 |          96 |
-| decomposed_nt015 |      0.15 |     9.74 |       35 | 75.28 |         145 |
 
 ### mobilevitv2_200.cvnets_in22k_ft_in1k
-
-Method: lockd
 
 Resolution: 256 x 256
 
 Remarks:
 * normalization zero to one
-* training in progress
 
+| name        |   params |   kmapps |   acc |   epochs_ft | method   | settings           |
+|-------------|----------|----------|-------|-------------|----------|--------------------|
+| baseline    |    18.45 |   215.15 | 82.28 |             |          |                    |
+| lockd_nt010 |    11.14 |    99.28 | 81.71 |         200 | lockd    | nsr_threshold=0.10 |
 
-
-| name             |   nsr_thr |   params |   kmapps |   acc |   epochs_ft |
-|------------------|-----------|----------|----------|-------|-------------|
-| baseline         |           |    18.45 |      215 | 82.28 |             |
-| decomposed_nt010 |      0.10 |    11.14 |       99 | 80.74 |         105 |
 
 ### swinv2_cr_tiny_ns_224.sw_in1k
 
-Method: lockd
+Resolution: 224 x 224
+
+| name         |   params |   kmapps |   acc |   epochs_ft | method   | settings                   |
+|--------------|----------|----------|-------|-------------|----------|----------------------------|
+| baseline     |    28.33 |   181.44 | 81.53 |             |          |                            |
+| lockd_nt010  |    15.62 |   102.82 | 81.26 |         200 | lockd    | nsr_threshold=0.10         |
+| falor_nft005 |    17.22 |   103.43 | 80.99 |         200 | falor    | nsr_final_threshold=0.0455 |
+
+
+### deit3_small_patch16_224.fb_in1k
 
 Resolution: 224 x 224
 
-| name             |   nsr_thr |   params |   kmapps |   acc |   epochs_ft |   epohchs_ft |
-|------------------|-----------|----------|----------|-------|-------------|--------------|
-| baseline         |           |    28.33 |      181 | 81.53 |             |              |
-| decomposed_nt010 |      0.10 |    15.73 |      103 | 81.28 |             |          200 |
+
+| name         |   params |   kmapps |   acc |   epochs_ft | method   | settings                  |
+|--------------|----------|----------|-------|-------------|----------|---------------------------|
+| baseline     |    22.06 |   165.46 | 81.30 |             |          |                           |
+| lockd_nt010  |    14.53 |   107.75 | 81.30 |         200 | lockd    | nsr_threshold=0.10        |
+| falor_nft005 |    14.51 |   107.56 | 81.31 |         200 | falor    | nsr_final_threshold=0.045 |
 
 
 ### resnet18.a2_in1k
