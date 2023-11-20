@@ -7,11 +7,13 @@
 
 ## DONE
 
+## ptdeco 0.4.0, ptdeco trainer 0.8.0
 + **[general]** Implement and test building a wheel package
 + **[general]** Move to src project layout
 + **[utils]** Add logging num of decomposed modules of each type in apply_decompose_config_in_place
 + **[falor]** Fix nsr loss bug
-+ **[lockd]** Minor type
++ **[lockd]** Improve typing in losses
++ **[trainer]** Add timming to every run
 + **[trainer]** Add saving final decompose config and state dict of finetuned model
 + **[trainer]** Fix typing
 + **[trainer]** Move notebooks to a sepearte dir
