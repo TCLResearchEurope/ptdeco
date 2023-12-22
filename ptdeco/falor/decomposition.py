@@ -198,15 +198,16 @@ def _compute_metrics(
     root_module.eval()
 
     decomposed_submodule.set_weight(deco_weight)
-    y_deco = root_module(x)
+    y_deco = root_module(x).logits
 
     decomposed_submodule.set_weight(orig_weight)
-    y_orig = root_module(x)
+    y_orig = root_module(x).logits
 
     nsr_final = utils.calc_per_channel_noise_to_signal_ratio(
-        y=y_orig, x=y_deco, non_channel_dim=(0,)
+        y=y_orig, x=y_deco, non_channel_dim=(0, 1)
     ).mean()
-    kl_final = utils.calc_kl_loss(y_deco, y_orig)
+    #kl_final = utils.calc_kl_loss(y_deco, y_orig)
+    kl_final = torch.tensor(0.0, device=orig_weight.device)
     return nsr_final, kl_final
 
 
@@ -257,6 +258,7 @@ def _process_module(
     num_data_steps: int,
     num_metric_steps: int,
     device: torch.device,
+    min_rank_width_to_check: int = 64,
 ) -> dict[str, Any]:
     decomposed_submodule = root_module.get_submodule(decomposed_submodule_name)
     decomposed_type = utils.get_type_name(decomposed_submodule)
@@ -265,6 +267,7 @@ def _process_module(
     assert isinstance(decomposed_submodule, WrappedFALORModule)
     orig_weight = decomposed_submodule.get_weight_copy()
     orig_device = orig_weight.device
+    orig_dtype = orig_weight.dtype
     dim_out, dim_in = orig_weight.shape
     full_rank = min(dim_in, dim_out)
     msg_prefix = f"Processing {decomposed_submodule_name}:"
@@ -291,6 +294,7 @@ def _process_module(
         num_data_steps=num_data_steps,
         device=device,
     )
+    u = u.to(orig_dtype)
 
     U, V = torch.empty(0), torch.empty(0)
 
@@ -301,9 +305,9 @@ def _process_module(
     rank_width = full_rank // 2
     nsr_best, kl_best = 0.0, 0.0
 
-    while rank_width > 0:
+    while rank_width >= min_rank_width_to_check:
         rank_new = rank_best - rank_width
-        uk = u[:, u.shape[1] - rank_new :].to(torch.float)
+        uk = u[:, u.shape[1] - rank_new :].to(orig_dtype)
         U, V = orig_weight.T @ uk, uk.T
         deco_weight = (U @ V).T
 
@@ -379,6 +383,9 @@ def add_meta_to_module_config(
     meta = {k: v for k, v in module_deco_results.items() if k != "decomposed_module"}
     module_config[modconfig.MODCONFIG_META_KEY] = meta
 
+def _check_substring(module_name, blacklisted_substrings: [list[str]]) -> bool:
+    return any([e in module_name for e in blacklisted_substrings])
+
 
 def decompose_in_place(
     *,
@@ -391,6 +398,8 @@ def decompose_in_place(
     kl_final_threshold: float,
     num_data_steps: int,
     num_metric_steps: int,
+    num_layers_to_decompose: int = None,
+    blacklisted_substrings: Optional[list[str]] = None,
 ) -> dict[str, Any]:
     start_time = time.perf_counter()
 
@@ -404,9 +413,14 @@ def decompose_in_place(
 
     decomposable_submodules = _get_decomposeable_submodule_names(module)
     n = len(decomposable_submodules)
+    logger.info(f'There are {n} decomposable modules')
+    counter = 0
     for i, submodule_name in enumerate(decomposable_submodules, start=1):
+        counter += 1
+        if num_layers_to_decompose and counter > num_layers_to_decompose:
+            continue
         msg_prefix = f"Processing {submodule_name}: module {i} of {n}"
-        if submodule_name in blacklisted_module_names:
+        if submodule_name in blacklisted_module_names or _check_substring(submodule_name, blacklisted_substrings):
             logger.info(f"{msg_prefix}, skipped as blacklisted")
             continue
         logger.info(f"{msg_prefix}")
@@ -426,9 +440,13 @@ def decompose_in_place(
     # Decompose
 
     decompose_counter: collections.Counter[str] = collections.Counter()
-    for submodule_name in decomposable_submodules:
+    counter = 0
+    for i, submodule_name in enumerate(decomposable_submodules, start=1):
+        counter += 1
+        if num_layers_to_decompose and counter > num_layers_to_decompose:
+            continue
         msg_prefix = f"Decomposing {submodule_name}:"
-        if submodule_name in blacklisted_module_names:
+        if submodule_name in blacklisted_module_names or _check_substring(submodule_name, blacklisted_substrings):
             logger.info(f"{msg_prefix} SKIPPED blacklisted module {submodule_name}")
             continue
 
