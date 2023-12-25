@@ -22,7 +22,7 @@ from ..utils import modconfig
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["decompose_in_place"]
+__all__ = ["decompose_in_place", "decompose_in_place_sequentially"]
 
 
 class WrappedFALORModule(torch.nn.Module):
@@ -508,6 +508,92 @@ def decompose_in_place(
     for module_type_name, count in decompose_counter.items():
         logger.info(f"Decomposed {count} instances of {module_type_name}")
     logger.info(f"Total decomposable modules {len(decomposable_submodules)}")
+    stop_time = time.perf_counter()
+
+    logger.info(f"Decomposition took {stop_time - start_time:.1f} seconds")
+    return decompose_config
+
+
+def decompose_in_place_sequentially(
+        *,
+        module: torch.nn.Module,
+        device: torch.device,
+        data_iterator: collections.abc.Iterator[torch.Tensor],
+        blacklisted_module_names: Optional[list[str]] = None,
+        proportion_threshold: float,
+        nsr_final_threshold: float,
+        ppl_diff_threshold: float,
+        num_data_steps: int,
+        num_metric_steps: int,
+        blacklisted_substrings: Optional[list[str]] = None,
+        min_proportion: float = 0.2,
+        dtype: torch.dtype,
+) -> dict[str, Any]:
+    start_time = time.perf_counter()
+
+    # 1. Get all the names of modules to be decomposed
+    if blacklisted_module_names is None:
+        blacklisted_module_names = []
+    decomposable_submodules_names = _get_decomposeable_submodule_names(module)
+    n = len(decomposable_submodules_names)
+    logger.info(f'There are {n} modules that can be decomposed')
+    modules_to_decompose = []
+    start_layer_num = 0
+
+    for k, submodule_name in enumerate(tqdm(decomposable_submodules_names)):
+        try:
+            layer_num = int(submodule_name.split('.')[2])
+            if start_layer_num and layer_num < start_layer_num:
+                continue
+        except:
+            pass
+        if submodule_name in blacklisted_module_names or _check_substring(submodule_name, blacklisted_substrings):
+            logger.info(f"{submodule_name}, skipped as blacklisted")
+            continue
+        modules_to_decompose.append(submodule_name)
+
+    # 2.
+
+    results_all = {}
+    decompose_config = {}
+    decomposed_submodules = []
+
+    for k, submodule_name in enumerate(tqdm(modules_to_decompose)):
+        logger.info(f'Processing submodule: {submodule_name}')
+
+        with torch.no_grad():
+            result = _process_module(
+                root_module=module,
+                decomposed_submodule_name=submodule_name,
+                data_iterator=data_iterator,
+                nsr_final_threshold=nsr_final_threshold,
+                ppl_diff_threshold=ppl_diff_threshold,
+                num_data_steps=num_data_steps,
+                num_metric_steps=num_metric_steps,
+                device=device,
+                min_proportion=min_proportion,
+                proportion_threshold=proportion_threshold,
+            )
+        results_all[submodule_name] = result
+        result = results_all[submodule_name]
+        new_module = result["decomposed_module"]
+
+        if new_module is None:
+            logger.info(f"Skipped decomposing {submodule_name} -> decomposed to full rank")
+            continue
+
+        proportion = result["proportion"]
+        if proportion < proportion_threshold:
+            decomposed_submodules.append(submodule_name)
+            old_module = module.get_submodule(submodule_name)
+            utils.replace_submodule_in_place(module, submodule_name, new_module)
+            module_config = modconfig.get_module_config(new_module)
+            add_meta_to_module_config(module_config, result)
+            decompose_config[submodule_name] = module_config
+            logger.info(f'Decomposed {submodule_name}, with rank proportion: {proportion}')
+
+            module.to(dtype)
+
     stop_time = time.perf_counter()
 
     logger.info(f"Decomposition took {stop_time - start_time:.1f} seconds")
