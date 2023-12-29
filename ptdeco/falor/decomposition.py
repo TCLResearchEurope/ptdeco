@@ -166,6 +166,7 @@ def _compute_decompositon_of_covariance_matrix(
         weight: torch.Tensor,
         num_data_steps: int,
         device: torch.device,
+        use_mean: bool = True,
 ) -> torch.Tensor:
     root_module.eval()
     decomposed_submodule = root_module.get_submodule(decomposed_submodule_name)
@@ -181,7 +182,14 @@ def _compute_decompositon_of_covariance_matrix(
         Ey, Eyyt = _accumulate_Ey_and_Eyyt(Ey=Ey, Eyyt=Eyyt, weight=weight, x=x)
     Ey /= num_data_steps
     Eyyt /= num_data_steps
-    cov = Eyyt - torch.outer(Ey, Ey)
+    if use_mean:
+        cov = Eyyt - torch.outer(Ey, Ey)
+    else:
+        cov = Eyyt
+    del Ey
+    del Eyyt
+    del x
+    torch.cuda.empty_cache()
     _, u = torch.linalg.eigh(cov)
     return u
 
@@ -209,8 +217,8 @@ def _compute_metrics(
     loss_orig = orig_output.loss
 
     nsr_final = utils.calc_per_channel_noise_to_signal_ratio(
-        y=y_orig, x=y_deco, non_channel_dim=(0, 1)
-    ).mean()
+        y=y_orig, x=y_deco, non_channel_dim=(0, 1), mode='mean'
+    )
     ppl_deco = torch.exp(loss_deco).mean()
     ppl_orig = torch.exp(loss_orig).mean()
     return nsr_final, ppl_deco, ppl_orig
@@ -263,7 +271,7 @@ def _process_module(
         num_data_steps: int,
         num_metric_steps: int,
         device: torch.device,
-        min_rank_width_to_check: int = 64,
+        min_rank_width_to_check: int = 128,
         min_proportion: float = 0.2,
         proportion_threshold: float = 0.8,
 ) -> dict[str, Any]:
@@ -293,6 +301,7 @@ def _process_module(
     logger.info(msg)
     logger.info(f"{msg_prefix} {nsr_final_threshold=:.6f} {ppl_diff_threshold=:.6f}")
 
+    use_mean = 'Wqkv' not in decomposed_submodule_name and 'fc1' not in decomposed_submodule_name
     u = _compute_decompositon_of_covariance_matrix(
         root_module=root_module,
         decomposed_submodule_name=decomposed_submodule_name,
@@ -300,6 +309,7 @@ def _process_module(
         weight=orig_weight,
         num_data_steps=num_data_steps,
         device=device,
+        use_mean=use_mean,
     )
     u = u.to(orig_dtype)
 
@@ -558,7 +568,7 @@ def decompose_in_place_sequentially(
     decompose_config = {}
     decomposed_submodules = []
 
-    for k, submodule_name in enumerate(tqdm(modules_to_decompose)):
+    for k, submodule_name in enumerate(tqdm(reversed(modules_to_decompose))):
         logger.info(f'Processing submodule: {submodule_name}')
 
         with torch.no_grad():

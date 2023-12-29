@@ -12,13 +12,19 @@ def calc_per_channel_noise_to_signal_ratio(
     y: torch.Tensor,
     non_channel_dim: tuple[int, ...] = (0, 2, 3),
     epsilon: float = 1e-3,
+    mode: str = 'mean'
 ) -> torch.Tensor:
     y_per_channel_variance = torch.square(torch.std(y, dim=non_channel_dim))
     per_channel_squared_difference = torch.square((x - y)).mean(dim=non_channel_dim)
-
-    return torch.divide(
+    result = torch.divide(
         per_channel_squared_difference, y_per_channel_variance + epsilon
-    ).mean()
+    )
+    if mode == 'mean':
+        return result.mean()
+    elif mode == 'max':
+        return result.max()
+    else:
+        raise NotImplemented
 
 
 def calc_kl_divergence(
