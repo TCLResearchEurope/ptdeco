@@ -539,6 +539,7 @@ def decompose_in_place_sequentially(
         blacklisted_substrings: Optional[list[str]] = None,
         min_proportion: float = 0.2,
         dtype: torch.dtype,
+        start_layer_num: int = 0,
 ) -> dict[str, Any]:
     start_time = time.perf_counter()
 
@@ -549,7 +550,6 @@ def decompose_in_place_sequentially(
     n = len(decomposable_submodules_names)
     logger.info(f'There are {n} modules that can be decomposed')
     modules_to_decompose = []
-    start_layer_num = 0
 
     for k, submodule_name in enumerate(tqdm(decomposable_submodules_names)):
         try:
