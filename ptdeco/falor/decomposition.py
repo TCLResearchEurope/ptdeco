@@ -735,14 +735,14 @@ def decompose_in_place_sequentially_with_finetuning(
             logger.info(f'Decomposed {submodule_name}, with rank proportion: {proportion}')
             module.to(dtype)
 
-            if 'Wqkv' in submodule_name or 'out_proj' in submodule_name:
-                # fine-tune
-                module = finetune_decomposed_layers(
-                    model=module,
-                    ft_iterator=ft_iterator,
-                    num_steps=num_ft_steps,
-                    blacklisted_module_names=blacklisted_module_names,
-                )
+            # if 'Wqkv' in submodule_name or 'out_proj' in submodule_name:
+            #     # fine-tune
+            module = finetune_decomposed_layers(
+                model=module,
+                ft_iterator=ft_iterator,
+                num_steps=num_ft_steps,
+                blacklisted_module_names=blacklisted_module_names,
+            )
 
     stop_time = time.perf_counter()
 
