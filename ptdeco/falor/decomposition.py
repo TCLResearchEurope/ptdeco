@@ -15,8 +15,7 @@ import time
 from typing import Any, Optional
 
 import torch
-from peft import LoraConfig, get_peft_model
-from tqdm import tqdm
+from tqdm import tqdm, trange
 from transformers import get_linear_schedule_with_warmup
 
 from .. import utils
@@ -613,25 +612,13 @@ def decompose_in_place_sequentially(
     return decompose_config
 
 
-def lora_finetune_decomposed_layers(
+def finetune_decomposed_layers(
         model: torch.nn.Module,
-        submodule_name: str,
         ft_iterator: collections.abc.Iterator[torch.Tensor],
-        dtype: torch.dtype,
-        rank: int,
         num_steps: int = 100,
         lr: float = 0.0001,
 
 ):
-    decomposed_module_names = [f'{submodule_name}.0', f'{submodule_name}.1']
-    lora_config = LoraConfig(
-        r=int (0.05 * rank),
-        target_modules=decomposed_module_names,
-        lora_alpha=8,
-        lora_dropout=0.05,
-        bias="none",
-        task_type="CAUSAL_LM",
-    )
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
 
     # lr scheduler
@@ -640,17 +627,16 @@ def lora_finetune_decomposed_layers(
         num_warmup_steps=10,
         num_training_steps=num_steps,
     )
-    peft_model = get_peft_model(model, lora_config)
-    peft_model.to(dtype)
     counter = 0
-    peft_model.train()
+    model.train()
     total_loss = 0.0
-    for step, batch in enumerate(tqdm(ft_iterator)):
+    for step in trange(num_steps):
+        batch = next(ft_iterator)
         counter += 1
         if step > num_steps:
             break
         optimizer.zero_grad()
-        outputs = peft_model(batch, labels=batch.clone())
+        outputs = model(batch, labels=batch.clone())
         loss = outputs.loss
         total_loss += loss.detach().float()
         loss.backward()
@@ -659,7 +645,6 @@ def lora_finetune_decomposed_layers(
 
         if step % 10 == 0:
             logger.info(f'Step: {step}/{num_steps}, loss: {total_loss / counter}')
-    model = peft_model.merge_and_unload()
     model.eval()
     return model
 
@@ -747,12 +732,9 @@ def decompose_in_place_sequentially_with_finetuning(
             module.to(dtype)
 
             # fine-tune
-            module = lora_finetune_decomposed_layers(
+            module = finetune_decomposed_layers(
                 model=module,
-                submodule_name=submodule_name,
                 ft_iterator=ft_iterator,
-                dtype=dtype,
-                rank=rank,
                 num_steps=num_ft_steps,
             )
 
