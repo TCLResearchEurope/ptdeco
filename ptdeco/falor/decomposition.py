@@ -615,10 +615,14 @@ def decompose_in_place_sequentially(
 def finetune_decomposed_layers(
         model: torch.nn.Module,
         ft_iterator: collections.abc.Iterator[torch.Tensor],
+        blacklisted_module_names: list[str],
         num_steps: int = 100,
         lr: float = 0.0001,
 
 ):
+    for name, param in model.named_parameters():
+        if name in blacklisted_module_names:
+            param.requires_grad = False
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
 
     # lr scheduler
@@ -731,12 +735,14 @@ def decompose_in_place_sequentially_with_finetuning(
             logger.info(f'Decomposed {submodule_name}, with rank proportion: {proportion}')
             module.to(dtype)
 
-            # fine-tune
-            module = finetune_decomposed_layers(
-                model=module,
-                ft_iterator=ft_iterator,
-                num_steps=num_ft_steps,
-            )
+            if 'Wqkv' in submodule_name or 'out_proj' in submodule_name:
+                # fine-tune
+                module = finetune_decomposed_layers(
+                    model=module,
+                    ft_iterator=ft_iterator,
+                    num_steps=num_ft_steps,
+                    blacklisted_module_names=blacklisted_module_names,
+                )
 
     stop_time = time.perf_counter()
 
