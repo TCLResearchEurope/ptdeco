@@ -612,17 +612,80 @@ def decompose_in_place_sequentially(
     return decompose_config
 
 
+def finetune_decomposed_layer(
+        model: torch.nn.Module,
+        ft_iterator: collections.abc.Iterator[torch.Tensor],
+        old_module: torch.nn.Module,
+        new_module: torch.nn.Module,
+        num_ft_steps: int = 100,
+        lr: float = 0.0001
+):
+    with torch.no_grad():
+        U_, V_ = [e for k, e in new_module.named_parameters()][:2]
+        U = torch.nn.Parameter(U_.data.clone())
+        V = torch.nn.Parameter(V_.data.clone())
+
+    optimizer = torch.optim.AdamW([U, V], lr=lr)
+
+    # lr scheduler
+    lr_scheduler = get_linear_schedule_with_warmup(
+        optimizer=optimizer,
+        num_warmup_steps=num_ft_steps // 10,
+        num_training_steps=num_ft_steps,
+    )
+
+    # get inputs
+    inputs = {}
+
+    def hook(module, input, output):
+        inputs[0] = input
+
+
+
+    hook_handle = old_module.register_forward_hook(hook)
+
+    total_loss = 0.0
+    for step in trange(1, num_ft_steps + 1):
+        batch = next(ft_iterator)
+        optimizer.zero_grad()
+        with torch.no_grad():
+            _ = model(batch, labels=batch.clone())
+            x_ = inputs[0][0]
+            x = torch.reshape(x_, (-1, x_.shape[-1]))
+            y0 = old_module(x)
+        y1 = x @ U.T @ V.T
+        if old_module.bias is not None:
+            y1 += old_module.bias.data
+        loss = utils.calc_per_channel_noise_to_signal_ratio(y=y0, x=y1, non_channel_dim=(0,))
+        total_loss += loss.detach().float()
+        loss.backward()
+        optimizer.step()
+        lr_scheduler.step()
+
+        if step % 10 == 0:
+            logger.info(f'Step: {step}/{num_ft_steps}, local nsr: {total_loss / step}')
+
+    U_.data = U.data
+    V_.data = V.data
+
+    hook_handle.remove()
+
+
 def finetune_decomposed_layers(
         model: torch.nn.Module,
         ft_iterator: collections.abc.Iterator[torch.Tensor],
         blacklisted_module_names: list[str],
+        decomposed_submodules: list[str],
         num_steps: int = 100,
         lr: float = 0.0001,
-
 ):
     for name, param in model.named_parameters():
-        if name in blacklisted_module_names:
+        if not any([e in name for e in decomposed_submodules]):
+            logger.info(f'Skipping parameter updates for name: {name}')
             param.requires_grad = False
+        else:
+            logger.info(f'Using param: {name} for gradient updates')
+
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
 
     # lr scheduler
@@ -727,24 +790,26 @@ def decompose_in_place_sequentially_with_finetuning(
         if proportion < proportion_threshold:
             decomposed_submodules.append(submodule_name)
             old_module = module.get_submodule(submodule_name)
+            finetune_decomposed_layer(
+                model=module,
+                ft_iterator=ft_iterator,
+                old_module=old_module,
+                new_module=new_module,
+                num_ft_steps=num_ft_steps,
+                lr=0.001
+            )
             utils.replace_submodule_in_place(module, submodule_name, new_module)
-            module_config = modconfig.get_module_config(old_module)
-            rank = min([module_config['in_features'], module_config['out_features']])
+            module_config = modconfig.get_module_config(new_module)
             add_meta_to_module_config(module_config, result)
             decompose_config[submodule_name] = module_config
             logger.info(f'Decomposed {submodule_name}, with rank proportion: {proportion}')
+
             module.to(dtype)
 
-            # if 'Wqkv' in submodule_name or 'out_proj' in submodule_name:
-            #     # fine-tune
-            module = finetune_decomposed_layers(
-                model=module,
-                ft_iterator=ft_iterator,
-                num_steps=num_ft_steps,
-                blacklisted_module_names=blacklisted_module_names,
-            )
 
     stop_time = time.perf_counter()
 
     logger.info(f"Decomposition took {stop_time - start_time:.1f} seconds")
     return decompose_config
+
+
