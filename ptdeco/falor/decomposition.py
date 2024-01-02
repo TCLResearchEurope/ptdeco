@@ -640,8 +640,6 @@ def finetune_decomposed_layer(
     def hook(module, input, output):
         inputs[0] = input
 
-
-
     hook_handle = old_module.register_forward_hook(hook)
 
     total_loss = 0.0
@@ -674,17 +672,21 @@ def finetune_decomposed_layer(
 def finetune_decomposed_layers(
         model: torch.nn.Module,
         ft_iterator: collections.abc.Iterator[torch.Tensor],
-        blacklisted_module_names: list[str],
         decomposed_submodules: list[str],
         num_steps: int = 100,
         lr: float = 0.0001,
 ):
     for name, param in model.named_parameters():
-        if not any([e in name for e in decomposed_submodules]):
-            logger.info(f'Skipping parameter updates for name: {name}')
-            param.requires_grad = False
+        # if not any([e in name for e in decomposed_submodules]):
+        #     # logger.info(f'Skipping parameter updates for name: {name}')
+        #     param.requires_grad = False
+        # else:
+        #     logger.info(f'Using param: {name} for gradient updates')
+        if any([e in name for e in decomposed_submodules]):  # and ('Wqkv' in name or 'out_proj' in name):
+            pass
+            # logger.info(f'Using param: {name} for gradient updates')
         else:
-            logger.info(f'Using param: {name} for gradient updates')
+            param.requires_grad = False
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
 
@@ -729,6 +731,7 @@ def decompose_in_place_sequentially_with_finetuning(
         num_data_steps: int,
         num_metric_steps: int,
         num_ft_steps: int,
+        ft_lr: float = 0.0001,
         blacklisted_substrings: Optional[list[str]] = None,
         min_proportion: float = 0.2,
         dtype: torch.dtype,
@@ -790,13 +793,21 @@ def decompose_in_place_sequentially_with_finetuning(
         if proportion < proportion_threshold:
             decomposed_submodules.append(submodule_name)
             old_module = module.get_submodule(submodule_name)
-            finetune_decomposed_layer(
+            # finetune_decomposed_layer(
+            #     model=module,
+            #     ft_iterator=ft_iterator,
+            #     old_module=old_module,
+            #     new_module=new_module,
+            #     num_ft_steps=num_ft_steps,
+            #     lr=ft_lr
+            # )
+            # if 'Wqkv' in submodule_name or 'out_proj' in submodule_name:
+            finetune_decomposed_layers(
                 model=module,
                 ft_iterator=ft_iterator,
-                old_module=old_module,
-                new_module=new_module,
-                num_ft_steps=num_ft_steps,
-                lr=0.001
+                decomposed_submodules=decomposed_submodules,
+                lr=ft_lr,
+                num_steps=num_ft_steps,
             )
             utils.replace_submodule_in_place(module, submodule_name, new_module)
             module_config = modconfig.get_module_config(new_module)
@@ -806,10 +817,7 @@ def decompose_in_place_sequentially_with_finetuning(
 
             module.to(dtype)
 
-
     stop_time = time.perf_counter()
 
     logger.info(f"Decomposition took {stop_time - start_time:.1f} seconds")
     return decompose_config
-
-
