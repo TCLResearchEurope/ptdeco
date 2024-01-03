@@ -736,6 +736,7 @@ def decompose_in_place_sequentially_with_finetuning(
         min_proportion: float = 0.2,
         dtype: torch.dtype,
         start_layer_num: int = 0,
+        run_finetuning: bool = False,
 ) -> dict[str, Any]:
     start_time = time.perf_counter()
 
@@ -802,13 +803,14 @@ def decompose_in_place_sequentially_with_finetuning(
             #     lr=ft_lr
             # )
             # if 'Wqkv' in submodule_name or 'out_proj' in submodule_name:
-            finetune_decomposed_layers(
-                model=module,
-                ft_iterator=ft_iterator,
-                decomposed_submodules=decomposed_submodules,
-                lr=ft_lr,
-                num_steps=num_ft_steps,
-            )
+            if run_finetuning:
+                finetune_decomposed_layers(
+                    model=module,
+                    ft_iterator=ft_iterator,
+                    decomposed_submodules=decomposed_submodules,
+                    lr=ft_lr,
+                    num_steps=num_ft_steps,
+                )
             utils.replace_submodule_in_place(module, submodule_name, new_module)
             module_config = modconfig.get_module_config(new_module)
             add_meta_to_module_config(module_config, result)
