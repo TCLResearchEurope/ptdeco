@@ -12,6 +12,7 @@ import collections
 import collections.abc
 import logging
 import time
+from peft import LoraConfig, get_peft_model
 from typing import Any, Optional
 
 import torch
@@ -719,6 +720,68 @@ def finetune_decomposed_layers(
     model.eval()
     return model
 
+def lora_finetune_decomposed_layers(
+        model: torch.nn.Module,
+        ft_iterator: collections.abc.Iterator[torch.Tensor],
+        decomposed_submodules: list[str],
+        num_steps: int = 100,
+        lr: float = 0.0001,
+):
+    for name, param in model.named_parameters():
+        # if not any([e in name for e in decomposed_submodules]):
+        #     # logger.info(f'Skipping parameter updates for name: {name}')
+        #     param.requires_grad = False
+        # else:
+        #     logger.info(f'Using param: {name} for gradient updates')
+        if any([e in name for e in decomposed_submodules]):  # and ('Wqkv' in name or 'out_proj' in name):
+            pass
+            # logger.info(f'Using param: {name} for gradient updates')
+        else:
+            param.requires_grad = False
+
+    target_modules = [e + '.0' for e in decomposed_submodules] + [e + '.1' for e in
+                                                                              decomposed_submodules]
+
+    lora_config = LoraConfig(
+        r=16,
+        target_modules=target_modules,
+        lora_alpha=8,
+        lora_dropout=0.05,
+        bias="none",
+        task_type="CAUSAL_LM",
+    )
+    peft_model = get_peft_model(model, lora_config)
+
+    optimizer = torch.optim.AdamW(peft_model.parameters(), lr=lr)
+
+    # lr scheduler
+    lr_scheduler = get_linear_schedule_with_warmup(
+        optimizer=optimizer,
+        num_warmup_steps=10,
+        num_training_steps=num_steps,
+    )
+    counter = 0
+    peft_model.train()
+    total_loss = 0.0
+    for step in trange(num_steps):
+        batch = next(ft_iterator)
+        counter += 1
+        if step > num_steps:
+            break
+        optimizer.zero_grad()
+        outputs = peft_model(batch, labels=batch.clone())
+        loss = outputs.loss
+        total_loss += loss.detach().float()
+        loss.backward()
+        optimizer.step()
+        lr_scheduler.step()
+
+        if step % 10 == 0:
+            logger.info(f'Step: {step}/{num_steps}, loss: {total_loss / counter}')
+    peft_model.eval()
+    model = peft_model.merge_and_unload()
+    return model
+
 
 def decompose_in_place_sequentially_with_finetuning(
         *,
@@ -805,15 +868,15 @@ def decompose_in_place_sequentially_with_finetuning(
             #     lr=ft_lr
             # )
             # if 'Wqkv' in submodule_name or 'out_proj' in submodule_name:
+            utils.replace_submodule_in_place(module, submodule_name, new_module)
             if run_finetuning:
-                finetune_decomposed_layers(
+                lora_finetune_decomposed_layers(
                     model=module,
                     ft_iterator=ft_iterator,
                     decomposed_submodules=decomposed_submodules,
                     lr=ft_lr,
                     num_steps=num_ft_steps,
                 )
-            utils.replace_submodule_in_place(module, submodule_name, new_module)
             module_config = modconfig.get_module_config(new_module)
             add_meta_to_module_config(module_config, result)
             decompose_config[submodule_name] = module_config
