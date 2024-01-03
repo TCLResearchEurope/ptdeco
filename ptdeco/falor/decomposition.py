@@ -870,13 +870,14 @@ def decompose_in_place_sequentially_with_finetuning(
             # if 'Wqkv' in submodule_name or 'out_proj' in submodule_name:
             utils.replace_submodule_in_place(module, submodule_name, new_module)
             if run_finetuning:
-                lora_finetune_decomposed_layers(
+                module = lora_finetune_decomposed_layers(
                     model=module,
                     ft_iterator=ft_iterator,
                     decomposed_submodules=decomposed_submodules,
                     lr=ft_lr,
                     num_steps=num_ft_steps,
                 )
+                module.to(dtype)
             module_config = modconfig.get_module_config(new_module)
             add_meta_to_module_config(module_config, result)
             decompose_config[submodule_name] = module_config
