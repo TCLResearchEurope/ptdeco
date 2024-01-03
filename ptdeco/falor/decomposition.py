@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 __all__ = ["decompose_in_place", "decompose_in_place_sequentially", "decompose_in_place_sequentially_with_finetuning"]
 
 
+NO_MEAN_NAMES = ['Wqkv', 'fc1', 'out_proj', 'self_attn', 'mlp.up_proj']
 class WrappedFALORModule(torch.nn.Module):
     def __init__(self) -> None:
         super().__init__()
@@ -302,8 +303,9 @@ def _process_module(
     logger.info(msg)
     logger.info(f"{msg_prefix} {nsr_final_threshold=:.6f} {ppl_diff_threshold=:.6f}")
 
-    use_mean = 'Wqkv' not in decomposed_submodule_name and 'fc1' not in decomposed_submodule_name \
-               and 'self_attn' not in decomposed_submodule_name and 'mlp.up_proj' not in decomposed_submodule_name
+    use_mean = not any([e in decomposed_submodule_name for e in NO_MEAN_NAMES])
+    if not use_mean:
+        logger.info(f'Not using mean for {decomposed_submodule_name} decomposition.')
     u = _compute_decompositon_of_covariance_matrix(
         root_module=root_module,
         decomposed_submodule_name=decomposed_submodule_name,
