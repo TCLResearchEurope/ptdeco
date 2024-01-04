@@ -12,10 +12,10 @@ import collections
 import collections.abc
 import logging
 import time
-from peft import LoraConfig, get_peft_model
 from typing import Any, Optional
 
 import torch
+from peft import LoraConfig, get_peft_model
 from tqdm import tqdm, trange
 from transformers import get_linear_schedule_with_warmup
 
@@ -26,8 +26,9 @@ logger = logging.getLogger(__name__)
 
 __all__ = ["decompose_in_place", "decompose_in_place_sequentially", "decompose_in_place_sequentially_with_finetuning"]
 
-
 NO_MEAN_NAMES = ['Wqkv', 'fc1', 'out_proj', 'self_attn', 'mlp.up_proj']
+
+
 class WrappedFALORModule(torch.nn.Module):
     def __init__(self) -> None:
         super().__init__()
@@ -724,6 +725,7 @@ def finetune_decomposed_layers(
     model.eval()
     return model
 
+
 def lora_finetune_decomposed_layers(
         model: torch.nn.Module,
         ft_iterator: collections.abc.Iterator[torch.Tensor],
@@ -745,7 +747,7 @@ def lora_finetune_decomposed_layers(
             param.requires_grad = False
 
     target_modules = [e + '.0' for e in decomposed_submodules] + [e + '.1' for e in
-                                                                              decomposed_submodules]
+                                                                  decomposed_submodules]
 
     lora_config = LoraConfig(
         r=16,
@@ -832,8 +834,6 @@ def decompose_in_place_sequentially_with_finetuning(
         modules_to_decompose.append(submodule_name)
 
     # 2.
-
-    results_all = {}
     decompose_config = {}
     decomposed_submodules = []
 
@@ -854,8 +854,6 @@ def decompose_in_place_sequentially_with_finetuning(
                 min_proportion=min_proportion,
                 proportion_threshold=proportion_threshold,
             )
-        results_all[submodule_name] = result
-        result = results_all[submodule_name]
         new_module = result["decomposed_module"]
 
         if new_module is None:
@@ -890,7 +888,6 @@ def decompose_in_place_sequentially_with_finetuning(
             decompose_config[submodule_name] = module_config
             logger.info(f'Decomposed {submodule_name}, with rank proportion: {proportion}')
             del old_module
-
 
     stop_time = time.perf_counter()
 
