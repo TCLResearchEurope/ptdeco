@@ -727,7 +727,7 @@ def lora_finetune_decomposed_layers(
         num_steps: int = 100,
         lr: float = 0.0001,
 ):
-    decomposed_submodules = decomposed_submodules[-1:]
+    decomposed_submodules = decomposed_submodules[-5:]
     for name, param in model.named_parameters():
         # if not any([e in name for e in decomposed_submodules]):
         #     # logger.info(f'Skipping parameter updates for name: {name}')
