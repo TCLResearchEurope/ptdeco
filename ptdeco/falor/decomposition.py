@@ -884,13 +884,13 @@ def decompose_in_place_sequentially_with_finetuning(
                     lr=ft_lr,
                     num_steps=num_ft_steps,
                 )
-                module.to(dtype)
+            module.to(dtype)
             module_config = modconfig.get_module_config(new_module)
             add_meta_to_module_config(module_config, result)
             decompose_config[submodule_name] = module_config
             logger.info(f'Decomposed {submodule_name}, with rank proportion: {proportion}')
+            del old_module
 
-            module.to(dtype)
 
     stop_time = time.perf_counter()
 
