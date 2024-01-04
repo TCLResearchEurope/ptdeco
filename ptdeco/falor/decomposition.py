@@ -274,10 +274,14 @@ def _process_module(
         num_data_steps: int,
         num_metric_steps: int,
         device: torch.device,
+        metric_iterator: collections.abc.Iterator[torch.Tensor] = None,
         min_rank_width_to_check: int = 128,
         min_proportion: float = 0.2,
         proportion_threshold: float = 0.8,
 ) -> dict[str, Any]:
+    if metric_iterator is None:
+        metric_iterator = data_iterator
+        logger.warning(f'Using the same iterator to compute metrics and decompose layers.')
     decomposed_submodule = root_module.get_submodule(decomposed_submodule_name)
     decomposed_type = utils.get_type_name(decomposed_submodule)
     _wrap_in_place(root_module, decomposed_submodule_name)
@@ -342,7 +346,7 @@ def _process_module(
         ppl_new = 0.0
 
         for _ in range(num_metric_steps):
-            x = next(data_iterator).to(device)
+            x = next(metric_iterator).to(device)
             nsr_sample, ppl_deco, ppl_orig = _compute_metrics(
                 x=x,
                 root_module=root_module,
@@ -790,6 +794,7 @@ def decompose_in_place_sequentially_with_finetuning(
         device: torch.device,
         data_iterator: collections.abc.Iterator[torch.Tensor],
         ft_iterator: collections.abc.Iterator[torch.Tensor],
+        metric_iterator: Optional[collections.abc.Iterator[torch.Tensor]] = None,
         blacklisted_module_names: Optional[list[str]] = None,
         proportion_threshold: float,
         nsr_final_threshold: float,
@@ -840,6 +845,7 @@ def decompose_in_place_sequentially_with_finetuning(
                 root_module=module,
                 decomposed_submodule_name=submodule_name,
                 data_iterator=data_iterator,
+                metric_iterator=metric_iterator,
                 nsr_final_threshold=nsr_final_threshold,
                 ppl_diff_threshold=ppl_diff_threshold,
                 num_data_steps=num_data_steps,
