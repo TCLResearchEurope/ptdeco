@@ -1,3 +1,8 @@
+[![license](https://img.shields.io/github/license/TCLResearchEurope/ptdeco)](https://opensource.org/license/apache-2-0/)
+[![check](https://github.com/TCLResearchEurope/ptdeco/actions/workflows/check.yml/badge.svg)](https://github.com/TCLResearchEurope/ptdeco/actions/workflows/check.yml)
+[![test](https://github.com/TCLResearchEurope/ptdeco/actions/workflows/test.yml/badge.svg)](https://github.com/TCLResearchEurope/ptdeco/actions/workflows/test.yml)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg?style=flat-square)](https://github.com/ambv/black)
+
 # ptdeco
 
 `ptdeco` is a library for model optimization by decomposition built on top of PyTorch.
