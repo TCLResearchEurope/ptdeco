@@ -9,6 +9,7 @@ authors = [
 ]
 description = "ptdeco is a library implementing decomposition algorithms for model optimization."
 readme = "README.md"
+license = {file = "LICENSE"}
 requires-python = ">=3.10"
 classifiers = [
     "Programming Language :: Python :: 3",
