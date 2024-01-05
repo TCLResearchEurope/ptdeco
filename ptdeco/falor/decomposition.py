@@ -1022,11 +1022,12 @@ def finalize_step_by_step(
         proportion: float,
         data_iterator: collections.abc.Iterator[torch.Tensor],
         num_data_steps: int,
-        num_metric_steps: int,
         device: torch.device,
-        metric_iterator: collections.abc.Iterator[torch.Tensor] = None,
 ) -> dict[str, Any]:
     decomposed_submodule = root_module.get_submodule(decomposed_submodule_name)
+    _wrap_in_place(root_module, decomposed_submodule_name)
+    decomposed_submodule = root_module.get_submodule(decomposed_submodule_name)
+    assert isinstance(decomposed_submodule, WrappedFALORModule)
     orig_weight = decomposed_submodule.get_weight_copy()
     orig_device = orig_weight.device
     orig_dtype = orig_weight.dtype
@@ -1039,13 +1040,6 @@ def finalize_step_by_step(
             "ppl_final":         0.0,
             "decomposed_module": None,
         }
-    if metric_iterator is None:
-        metric_iterator = data_iterator
-        logger.warning(f'Using the same iterator to compute metrics and decompose layers.')
-
-    _wrap_in_place(root_module, decomposed_submodule_name)
-    assert isinstance(decomposed_submodule, WrappedFALORModule)
-
 
     logger.info(f'Final processing of: {decomposed_submodule_name}, with proportion: {proportion}')
 
@@ -1066,43 +1060,18 @@ def finalize_step_by_step(
     new_rank = int(proportion * full_rank)
     uk = u[:, u.shape[1] - new_rank:]
     U, V = orig_weight.T @ uk, uk.T
-    deco_weight = (U @ V).T
 
-    nsr_new = 0.0
-    ppl_new = 0.0
-
-    for _ in range(num_metric_steps):
-        x = next(metric_iterator).to(device)
-        nsr_sample, ppl_deco, ppl_orig = _compute_metrics(
-            x=x,
-            root_module=root_module,
-            decomposed_submodule=decomposed_submodule,
-            orig_weight=orig_weight,
-            deco_weight=deco_weight,
-        )
-        ppl_diff_sample = (ppl_deco - ppl_orig) / ppl_orig
-        nsr_new += nsr_sample.item()
-        ppl_new += ppl_diff_sample.item()
-    nsr_new /= num_metric_steps
-    ppl_new /= num_metric_steps
-
-    logger.info(f'nsr: {nsr_new}, ppl_diff: {ppl_new}')
-    logger.info(f'deco ppl: {ppl_deco}, orig ppl: {ppl_orig}')
-
-    if proportion < 0.5:
-        new_decomposed_submodule = decomposed_submodule.get_decomposed_module(
-            u=U.T, v=V.T
-        )
-        new_decomposed_submodule.to(orig_device)
-        new_decomposed_submodule.to(orig_dtype)
-    else:
-        new_decomposed_submodule = None
-
+    new_decomposed_submodule = decomposed_submodule.get_decomposed_module(
+        u=U.T, v=V.T
+    )
+    new_decomposed_submodule.to(orig_device)
+    new_decomposed_submodule.to(orig_dtype)
     _unwrap_in_place(root_module, decomposed_submodule_name)
+
     return {
         "proportion":        proportion,
-        "nsr_final":         nsr_new,
-        "ppl_final":         ppl_new,
+        "nsr_final":         0.0,
+        "ppl_final":         0.0,
         "decomposed_module": new_decomposed_submodule,
     }
 
@@ -1195,16 +1164,15 @@ def decompose_step_by_step(
     # final_sweep
     for k, submodule_name in enumerate(tqdm(reversed(modules_to_decompose))):
         logger.info(f'Processing submodule: {submodule_name}')
-        result = finalize_step_by_step(
-            root_module=module,
-            decomposed_submodule_name=submodule_name,
-            proportion=results[submodule_name]['proportion'],
-            data_iterator=data_iterator,
-            metric_iterator=metric_iterator,
-            num_data_steps=num_data_steps,
-            num_metric_steps=num_metric_steps,
-            device=device,
-        )
+        with torch.no_grad():
+            result = finalize_step_by_step(
+                root_module=module,
+                decomposed_submodule_name=submodule_name,
+                proportion=results[submodule_name]['proportion'],
+                data_iterator=data_iterator,
+                num_data_steps=num_data_steps,
+                device=device,
+            )
         new_submodule = result['decomposed_module']
         if new_submodule:
             proportion = result['proportion']
