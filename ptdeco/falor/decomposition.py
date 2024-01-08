@@ -540,7 +540,7 @@ def decompose_in_place(
     logger.info(f"Decomposition took {stop_time - start_time:.1f} seconds")
     return decompose_config
 
-
+# TODO DEPRECATE
 def decompose_in_place_sequentially(
         *,
         module: torch.nn.Module,
@@ -823,7 +823,7 @@ def decompose_in_place_sequentially_with_finetuning(
         min_proportion: float = 0.2,
         dtype: torch.dtype,
         start_layer_num: int = 0,
-        run_finetuning: bool = False,
+        run_finetuning: bool = True,
         lora_finetuning: bool = False,
         ft_interval: int = 4
 ) -> dict[str, Any]:
@@ -849,7 +849,7 @@ def decompose_in_place_sequentially_with_finetuning(
             continue
         modules_to_decompose.append(submodule_name)
 
-    # 2.
+    # 2. Actual decomposition
     decompose_config = {}
     decomposed_submodules = []
 
