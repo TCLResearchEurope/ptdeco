@@ -19,6 +19,7 @@ from peft import LoraConfig, get_peft_model
 from tqdm import tqdm, trange
 from transformers import get_linear_schedule_with_warmup
 
+from llm_playground.lrc.valid_utils import compute_perplexity
 from .. import utils
 from ..utils import modconfig
 
@@ -626,7 +627,7 @@ def decompose_in_place_sequentially(
     return decompose_config
 
 
-def finetune_decomposed_layer(
+def local_nsr_finetune_decomposed_layer(
         model: torch.nn.Module,
         ft_iterator: collections.abc.Iterator[torch.Tensor],
         old_module: torch.nn.Module,
@@ -690,6 +691,8 @@ def finetune_decomposed_layers(
         num_steps: int = 100,
         lr: float = 0.0001,
 ):
+    if len(decomposed_submodules) == 0:
+        return model
     for name, param in model.named_parameters():
         # if not any([e in name for e in decomposed_submodules]):
         #     # logger.info(f'Skipping parameter updates for name: {name}')
@@ -912,6 +915,7 @@ def decompose_in_place_sequentially_with_finetuning(
     logger.info(f"Decomposition took {stop_time - start_time:.1f} seconds")
     return decompose_config
 
+
 def process_module_step_by_step(
         *,
         root_module: torch.nn.Module,
@@ -943,6 +947,7 @@ def process_module_step_by_step(
     orig_dtype = orig_weight.dtype
     dim_out, dim_in = orig_weight.shape
     full_rank = min(dim_in, dim_out)
+    current_rank = int(current_proportion * full_rank)
 
     new_proportion = current_proportion / 2
 
@@ -990,91 +995,52 @@ def process_module_step_by_step(
     logger.info(f'deco ppl: {ppl_deco}, orig ppl: {ppl_orig}')
 
     accept_drop_in_rank = nsr_new < nsr_final_threshold and ppl_new < ppl_diff_threshold
+
+    best_rank = new_rank if accept_drop_in_rank else current_rank
+    best_proportion = new_proportion if accept_drop_in_rank else current_proportion
+
+    decompose_decision = check_if_decompose(
+        proportion=best_proportion,
+        in_features=dim_in,
+        out_features=dim_out)
+    if decompose_decision:
+        uk = u[:, u.shape[1] - best_rank:]
+        U, V = orig_weight.T @ uk, uk.T
+        new_decomposed_submodule = decomposed_submodule.get_decomposed_module(
+            u=U.T, v=V.T
+        )
+        new_decomposed_submodule.to(orig_device)
+        new_decomposed_submodule.to(orig_dtype)
+    else:
+        new_decomposed_submodule = None
+
     if accept_drop_in_rank:
         print(30 * '#')
-        logger.info(f'Dropping rank proportion of {decomposed_submodule_name} from {current_proportion} to {new_proportion}')
+        logger.info(
+            f'Dropping rank proportion of {decomposed_submodule_name} from {current_proportion} to {new_proportion}')
         print(30 * '#')
         decomposed_submodule.set_weight(deco_weight)
         _unwrap_in_place(root_module, decomposed_submodule_name)
         return {
-            "proportion": new_proportion,
-            "nsr_final":  nsr_new,
-            "ppl_final":  ppl_new,
-            "dim_in": dim_in,
-            "dim_out": dim_out,
+            "proportion":        new_proportion,
+            "nsr_final":         nsr_new,
+            "ppl_final":         ppl_new,
+            "dim_in":            dim_in,
+            "dim_out":           dim_out,
+            "decomposed_module": new_decomposed_submodule,
         }
 
     else:
         decomposed_submodule.set_weight(orig_weight)
         _unwrap_in_place(root_module, decomposed_submodule_name)
         return {
-            "proportion": current_proportion,
-            "nsr_final":  nsr_new,
-            "ppl_final":  ppl_new,
-            "dim_in":  dim_in,
-            "dim_out": dim_out,
+            "proportion":        current_proportion,
+            "nsr_final":         nsr_new,
+            "ppl_final":         ppl_new,
+            "dim_in":            dim_in,
+            "dim_out":           dim_out,
+            "decomposed_module": new_decomposed_submodule,
         }
-
-def finalize_step_by_step(
-        *,
-        root_module: torch.nn.Module,
-        decomposed_submodule_name: str,
-        proportion: float,
-        data_iterator: collections.abc.Iterator[torch.Tensor],
-        num_data_steps: int,
-        device: torch.device,
-) -> dict[str, Any]:
-    decomposed_submodule = root_module.get_submodule(decomposed_submodule_name)
-    _wrap_in_place(root_module, decomposed_submodule_name)
-    decomposed_submodule = root_module.get_submodule(decomposed_submodule_name)
-    assert isinstance(decomposed_submodule, WrappedFALORModule)
-    orig_weight = decomposed_submodule.get_weight_copy()
-    orig_device = orig_weight.device
-    orig_dtype = orig_weight.dtype
-    dim_out, dim_in = orig_weight.shape
-    full_rank = min(dim_in, dim_out)
-    if not check_if_decompose(proportion=proportion, in_features=dim_in, out_features=dim_out):
-        return {
-            "proportion":        proportion,
-            "nsr_final":         0.0,
-            "ppl_final":         0.0,
-            "decomposed_module": None,
-        }
-
-    logger.info(f'Final processing of: {decomposed_submodule_name}, with proportion: {proportion}')
-
-    use_mean = not any([e in decomposed_submodule_name for e in NO_MEAN_NAMES])
-    if not use_mean:
-        logger.info(f'Not using mean for {decomposed_submodule_name} decomposition.')
-    u = _compute_decompositon_of_covariance_matrix(
-        root_module=root_module,
-        decomposed_submodule_name=decomposed_submodule_name,
-        data_iterator=data_iterator,
-        weight=orig_weight,
-        num_data_steps=num_data_steps,
-        device=device,
-        use_mean=use_mean,
-    )
-    u = u.to(orig_dtype)
-    u = u.to(orig_device)
-    new_rank = int(proportion * full_rank)
-    uk = u[:, u.shape[1] - new_rank:]
-    U, V = orig_weight.T @ uk, uk.T
-
-    new_decomposed_submodule = decomposed_submodule.get_decomposed_module(
-        u=U.T, v=V.T
-    )
-    new_decomposed_submodule.to(orig_device)
-    new_decomposed_submodule.to(orig_dtype)
-    _unwrap_in_place(root_module, decomposed_submodule_name)
-
-    return {
-        "proportion":        proportion,
-        "nsr_final":         0.0,
-        "ppl_final":         0.0,
-        "decomposed_module": new_decomposed_submodule,
-    }
-
 
 
 def get_relative_size(results_dict: dict):
@@ -1087,12 +1053,70 @@ def get_relative_size(results_dict: dict):
 
     return current / baseline
 
+
+def sbs_lora_finetune_decomposed_layers(
+        model: torch.nn.Module,
+        ft_iterator: collections.abc.Iterator[torch.Tensor],
+        finetune_module_names: list[str],
+        num_steps: int = 100,
+        lr: float = 0.0001,
+):
+    if len(finetune_module_names) == 0:
+        return model
+    for name, param in model.named_parameters():
+        if any([e in name for e in finetune_module_names]):  # and ('Wqkv' in name or 'out_proj' in name):
+            pass
+        else:
+            param.requires_grad = False
+
+    lora_config = LoraConfig(
+        r=16,
+        target_modules=finetune_module_names,
+        lora_alpha=8,
+        lora_dropout=0.05,
+        bias="none",
+        task_type="CAUSAL_LM",
+    )
+    peft_model = get_peft_model(model, lora_config)
+
+    optimizer = torch.optim.AdamW(peft_model.parameters(), lr=lr)
+
+    # lr scheduler
+    lr_scheduler = get_linear_schedule_with_warmup(
+        optimizer=optimizer,
+        num_warmup_steps=10,
+        num_training_steps=num_steps,
+    )
+    counter = 0
+    peft_model.train()
+    total_loss = 0.0
+    for step in trange(num_steps):
+        batch = next(ft_iterator)
+        counter += 1
+        if step > num_steps:
+            break
+        optimizer.zero_grad()
+        outputs = peft_model(batch, labels=batch.clone())
+        loss = outputs.loss
+        total_loss += loss.detach().float()
+        loss.backward()
+        optimizer.step()
+        lr_scheduler.step()
+
+        if step % 10 == 0:
+            logger.info(f'Step: {step}/{num_steps}, loss: {total_loss / counter}')
+    peft_model.eval()
+    model = peft_model.merge_and_unload()
+    return model
+
+
 def decompose_step_by_step(
         *,
         module: torch.nn.Module,
         device: torch.device,
         data_iterator: collections.abc.Iterator[torch.Tensor],
         ft_iterator: collections.abc.Iterator[torch.Tensor],
+        tokenizer,
         metric_iterator: Optional[collections.abc.Iterator[torch.Tensor]] = None,
         blacklisted_module_names: Optional[list[str]] = None,
         nsr_final_threshold: float,
@@ -1136,13 +1160,14 @@ def decompose_step_by_step(
     decompose_config = {}
     results = {name: {'proportion': 1.0} for name in modules_to_decompose}
 
-    NUM_SWEEPS = 2
+    NUM_SWEEPS = 3
 
     for sweep_number in range(NUM_SWEEPS):
         # run rank-dropping sweep
+        decomposed_modules = []
         for k, submodule_name in enumerate(tqdm(reversed(modules_to_decompose))):
             logger.info(f'Processing submodule: {submodule_name}')
-
+            initial_proportion = results[submodule_name]['proportion']
             with torch.no_grad():
                 result = process_module_step_by_step(
                     root_module=module,
@@ -1157,25 +1182,49 @@ def decompose_step_by_step(
                     device=device,
                 )
                 results[submodule_name] = result
+            post_proportion = results[submodule_name]['proportion']
+            if initial_proportion != post_proportion:
+                decomposed_modules.append(submodule_name)
+
+            # optional fine-tuning
+            if (k + 1) % ft_interval == 0 and k > 0 and run_finetuning:
+                if lora_finetuning:
+                    module = sbs_lora_finetune_decomposed_layers(
+                        model=module,
+                        ft_iterator=ft_iterator,
+                        finetune_module_names=decomposed_modules[-ft_interval:],
+                        lr=ft_lr,
+                        num_steps=num_ft_steps,
+                    )
+                else:
+                    module = finetune_decomposed_layers(
+                        model=module,
+                        ft_iterator=ft_iterator,
+                        decomposed_submodules=decomposed_modules,
+                        lr=ft_lr,
+                        num_steps=num_ft_steps,
+                    )
+                module.to(dtype)
 
         relative_size = get_relative_size(results_dict=results)
         logger.info(f'Sweep: {sweep_number}, relative size: {relative_size}')
+        valid_ppl = compute_perplexity(
+            model=module,
+            tokenizer=tokenizer,
+            device=device,
+            log_steps=True,
+        )
+        logger.info(f'Sweep: {sweep_number}, valid ppl: {valid_ppl}')
+        import ipdb
+        ipdb.set_trace()
 
-    # final_sweep
+    # actual decomposition
     for k, submodule_name in enumerate(tqdm(reversed(modules_to_decompose))):
         logger.info(f'Processing submodule: {submodule_name}')
-        with torch.no_grad():
-            result = finalize_step_by_step(
-                root_module=module,
-                decomposed_submodule_name=submodule_name,
-                proportion=results[submodule_name]['proportion'],
-                data_iterator=data_iterator,
-                num_data_steps=num_data_steps,
-                device=device,
-            )
-        new_submodule = result['decomposed_module']
-        if new_submodule:
+        if results[submodule_name]['decomposed_module'] is not None:
+            result = results[submodule_name]
             proportion = result['proportion']
+            new_submodule = result['decomposed_module']
             utils.replace_submodule_in_place(module, submodule_name, new_submodule)
             module_config = modconfig.get_module_config(new_submodule)
             add_meta_to_module_config(module_config, result)
