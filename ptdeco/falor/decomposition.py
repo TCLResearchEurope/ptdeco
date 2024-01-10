@@ -209,7 +209,6 @@ def _compute_metrics(
         *,
         x: torch.Tensor,
         root_module: torch.nn.Module,
-        baseline_model: torch.nn.Module,
         decomposed_submodule: torch.nn.Module,
         orig_weight: torch.Tensor,
         deco_weight: torch.Tensor,
@@ -276,7 +275,6 @@ def _unwrap_in_place(
 def _process_module(
         *,
         root_module: torch.nn.Module,
-        baseline_model: torch.nn.Module,
         decomposed_submodule_name: str,
         data_iterator: collections.abc.Iterator[torch.Tensor],
         nsr_final_threshold: float,
@@ -360,7 +358,6 @@ def _process_module(
             nsr_sample, ppl_deco, ppl_orig = _compute_metrics(
                 x=x,
                 root_module=root_module,
-                baseline_model=baseline_model,
                 decomposed_submodule=decomposed_submodule,
                 orig_weight=orig_weight,
                 deco_weight=deco_weight,
@@ -742,7 +739,6 @@ def finetune_decomposed_layers(
 
 def lora_finetune_decomposed_layers(
         model: torch.nn.Module,
-        baseline_model: torch.nn.Module,
         ft_iterator: collections.abc.Iterator[torch.Tensor],
         decomposed_submodules: list[str],
         num_steps: int = 100,
@@ -786,10 +782,7 @@ def lora_finetune_decomposed_layers(
             break
         optimizer.zero_grad()
         outputs = peft_model(batch, labels=batch.clone())
-        with torch.no_grad():
-            target_logits = baseline_model(batch, labels=batch.clone()).logits
-        loss = utils.calc_per_channel_noise_to_signal_ratio(outputs.logits, target_logits, (0, 1))
-        # loss = outputs.loss
+        loss = outputs.loss
         total_loss += loss.detach().float()
         loss.backward()
         optimizer.step()
@@ -837,7 +830,6 @@ def decompose_in_place_sequentially_with_finetuning(
         ft_interval: int = 4
 ) -> dict[str, Any]:
     start_time = time.perf_counter()
-    baseline_model = deepcopy(module)
 
     # 1. Get all the names of modules to be decomposed
     if blacklisted_module_names is None:
@@ -870,7 +862,6 @@ def decompose_in_place_sequentially_with_finetuning(
         with torch.no_grad():
             result = _process_module(
                 root_module=module,
-                baseline_model=baseline_model,
                 decomposed_submodule_name=submodule_name,
                 data_iterator=data_iterator,
                 metric_iterator=metric_iterator,
@@ -902,7 +893,6 @@ def decompose_in_place_sequentially_with_finetuning(
                 if lora_finetuning:
                     module = lora_finetune_decomposed_layers(
                         model=module,
-                        baseline_model=baseline_model,
                         ft_iterator=ft_iterator,
                         decomposed_submodules=decomposed_submodules[-ft_interval:],
                         lr=ft_lr,
@@ -932,7 +922,6 @@ def decompose_in_place_sequentially_with_finetuning(
 def process_module_step_by_step(
         *,
         root_module: torch.nn.Module,
-        baseline_model: torch.nn.Module,
         decomposed_submodule_name: str,
         current_proportion: float,
         data_iterator: collections.abc.Iterator[torch.Tensor],
@@ -1004,7 +993,6 @@ def process_module_step_by_step(
         nsr_sample, ppl_deco, ppl_orig = _compute_metrics(
             x=x,
             root_module=root_module,
-            baseline_model=baseline_model,
             decomposed_submodule=decomposed_submodule,
             orig_weight=orig_weight,
             deco_weight=deco_weight,
@@ -1125,7 +1113,6 @@ def get_relative_size(results_dict: dict):
 
 def sbs_lora_finetune_decomposed_layers(
         model: torch.nn.Module,
-        baseline_model: torch.nn.Module,
         ft_iterator: collections.abc.Iterator[torch.Tensor],
         finetune_module_names: list[str],
         num_steps: int = 100,
@@ -1168,10 +1155,7 @@ def sbs_lora_finetune_decomposed_layers(
             break
         optimizer.zero_grad()
         outputs = peft_model(batch, labels=batch.clone())
-        with torch.no_grad():
-            target_logits = baseline_model(batch, labels=batch.clone()).logits
-        loss = utils.calc_per_channel_noise_to_signal_ratio(outputs.logits, target_logits, (0, 1))
-        # loss = outputs.loss
+        loss = outputs.loss
         total_loss += loss.detach().float()
         loss.backward()
         optimizer.step()
@@ -1209,7 +1193,6 @@ def decompose_step_by_step(
         num_sweeps: int = 2,
 ) -> dict[str, Any]:
     start_time = time.perf_counter()
-    baseline_model = deepcopy(module)
 
     # 1. Get all the names of modules to be decomposed
     if blacklisted_module_names is None:
@@ -1245,7 +1228,6 @@ def decompose_step_by_step(
             with torch.no_grad():
                 result = process_module_step_by_step(
                     root_module=module,
-                    baseline_model=baseline_model,
                     current_proportion=results[submodule_name]['proportion'],
                     decomposed_submodule_name=submodule_name,
                     data_iterator=data_iterator,
@@ -1266,7 +1248,6 @@ def decompose_step_by_step(
                 if lora_finetuning:
                     module = sbs_lora_finetune_decomposed_layers(
                         model=module,
-                        baseline_model=baseline_model,
                         ft_iterator=ft_iterator,
                         finetune_module_names=decomposed_modules[-ft_interval:],
                         lr=ft_lr,
