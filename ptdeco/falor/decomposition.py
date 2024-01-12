@@ -387,9 +387,8 @@ def _process_module(
             nsr_best = nsr_new
             ppl_best = ppl_new
             print(colored(f'Accepting rank {rank_best}/{full_rank}', 'blue'))
-        else:
-            rank_best = rank_new * 2
-            break
+        # else:
+        #     break
 
         msg_iter = f"{i=} {rank_new=} {nsr_new=:.6f} {ppl_new=:.6f} "
         msg_cur = f"{rank_best=} {nsr_best=:.6f} {ppl_best=:.6f}"
@@ -770,7 +769,7 @@ def decompose_in_place_sequentially_with_finetuning(
         end_layer_num: int = 0,
         run_finetuning: bool = True,
         lora_finetuning: bool = False,
-        ft_interval: int = 4,
+        num_last_decomposed_layers_to_finetune: int = 8,
         trade_off_factor: float = 0.5,
 ) -> dict[str, Any]:
     start_time = time.perf_counter()
@@ -838,12 +837,12 @@ def decompose_in_place_sequentially_with_finetuning(
             decomposed_submodules.append(submodule_name)
             utils.replace_submodule_in_place(module, submodule_name, new_module)
             num_decomposed_layers = len(decomposed_submodules)
-            if (k + 1) % ft_interval == 0 and num_decomposed_layers > 0 and run_finetuning:
+            if num_decomposed_layers > 0 and run_finetuning:
                 if lora_finetuning:
                     module = lora_finetune_decomposed_layers(
                         model=module,
                         ft_iterator=ft_iterator,
-                        decomposed_submodules=decomposed_submodules[-ft_interval:],
+                        decomposed_submodules=decomposed_submodules[-num_last_decomposed_layers_to_finetune:],
                         lr=ft_lr,
                         num_steps=num_ft_steps,
                     )
@@ -851,7 +850,7 @@ def decompose_in_place_sequentially_with_finetuning(
                     module = finetune_decomposed_layers(
                         model=module,
                         ft_iterator=ft_iterator,
-                        decomposed_submodules=decomposed_submodules[-ft_interval:],
+                        decomposed_submodules=decomposed_submodules[-num_last_decomposed_layers_to_finetune:],
                         lr=ft_lr,
                         num_steps=num_ft_steps,
                     )
