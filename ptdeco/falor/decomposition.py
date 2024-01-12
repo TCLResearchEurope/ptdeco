@@ -283,10 +283,7 @@ def _process_module(
         device: torch.device,
         metric_iterator: collections.abc.Iterator[torch.Tensor] = None,
         num_params: int,
-        min_rank_width_to_check: int = 128,
-        min_rank = 128,
-        min_proportion: float = 0.1,
-        proportion_threshold: float = 0.8,
+        min_rank=32,
         trade_off_factor: float = 1.0,
 ) -> dict[str, Any]:
     if metric_iterator is None:
@@ -343,7 +340,7 @@ def _process_module(
     skip = False
     drop_in_params = 0
 
-    while rank_new >= min_rank_width_to_check:
+    while rank_new >= min_rank * 2:
 
         rank_new = rank_new // 2
 
@@ -358,9 +355,6 @@ def _process_module(
             continue
 
         current_proportion = rank_new / full_rank
-        if current_proportion > proportion_threshold:
-            skip = True
-            break
         uk = u[:, u.shape[1] - rank_new:].to(orig_dtype)
         U, V = orig_weight.T @ uk, uk.T
         deco_weight = (U @ V).T
@@ -393,11 +387,10 @@ def _process_module(
             nsr_best = nsr_new
             ppl_best = ppl_new
             print(colored(f'Accepting rank {rank_best}/{full_rank}', 'blue'))
-            if current_proportion < min_proportion:
-                break
         else:
             rank_best = rank_new * 2
             break
+
         msg_iter = f"{i=} {rank_new=} {nsr_new=:.6f} {ppl_new=:.6f} "
         msg_cur = f"{rank_best=} {nsr_best=:.6f} {ppl_best=:.6f}"
         logger.info(f"{msg_prefix} {msg_iter} {msg_cur}")
@@ -764,7 +757,6 @@ def decompose_in_place_sequentially_with_finetuning(
         ft_iterator: collections.abc.Iterator[torch.Tensor],
         metric_iterator: Optional[collections.abc.Iterator[torch.Tensor]] = None,
         blacklisted_module_names: Optional[list[str]] = None,
-        proportion_threshold: float,
         nsr_final_threshold: float,
         ppl_diff_threshold: float,
         num_data_steps: int,
@@ -772,7 +764,7 @@ def decompose_in_place_sequentially_with_finetuning(
         num_ft_steps: int,
         ft_lr: float = 0.0001,
         blacklisted_substrings: Optional[list[str]] = None,
-        min_proportion: float = 0.2,
+        min_rank: int = 32,
         dtype: torch.dtype,
         start_layer_num: int = 0,
         end_layer_num: int = 0,
@@ -824,10 +816,9 @@ def decompose_in_place_sequentially_with_finetuning(
                 num_data_steps=num_data_steps,
                 num_metric_steps=num_metric_steps,
                 device=device,
-                min_proportion=min_proportion,
-                proportion_threshold=proportion_threshold,
                 num_params=num_params,
                 trade_off_factor=trade_off_factor,
+                min_rank=min_rank,
             )
         current_params -= result['drop_in_params']
         print(colored(f'Current params in M: {current_params / 1e6}', 'green'))
