@@ -19,6 +19,7 @@ def calc_per_channel_noise_to_signal_ratio(
     result = torch.divide(
         per_channel_squared_difference, y_per_channel_variance + epsilon
     )
+    result = torch.minimum(result, torch.tensor(1.0, device=x.device))
     if mode == 'mean':
         return result.mean()
     elif mode == 'max':

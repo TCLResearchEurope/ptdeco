@@ -32,7 +32,9 @@ __all__ = [
     "decompose_step_by_step_v2",
 ]
 
-NO_MEAN_NAMES = ['Wqkv', 'fc1', 'out_proj', 'self_attn', 'mlp.up_proj']
+NO_MEAN_NAMES = ['Wqkv', 'fc1', 'out_proj', 'self_attn', 'mlp.up_proj', 'self_attention.query_key_value',
+                 'self_attention.dense', 'mlp.gate_proj', 'mlp.up_proj', 'mlp.down_proj']
+NORMALIZE_NAMES = ['mlp.down_proj']
 
 
 class WrappedFALORModule(torch.nn.Module):
@@ -160,9 +162,15 @@ class WrappedFALORConv2d1x1(WrappedFALORModule):
 
 
 def _accumulate_Ey_and_Eyyt(
-        Ey: torch.Tensor, Eyyt: torch.Tensor, weight: torch.Tensor, x: torch.Tensor
+        Ey: torch.Tensor,
+        Eyyt: torch.Tensor,
+        weight: torch.Tensor,
+        x: torch.Tensor,
+        normalize: bool = False,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     y = x @ weight.T
+    if normalize:
+        y /= torch.linalg.norm(y, dim=1, keepdim=True)
     Eyyt += torch.einsum("bp,bq->pq", y, y) / y.shape[0]
     Ey += y.mean(dim=0)
     return Ey, Eyyt
@@ -177,6 +185,7 @@ def _compute_decompositon_of_covariance_matrix(
         num_data_steps: int,
         device: torch.device,
         use_mean: bool = True,
+        normalize: bool = False,
 ) -> torch.Tensor:
     root_module.eval()
     decomposed_submodule = root_module.get_submodule(decomposed_submodule_name)
@@ -189,7 +198,7 @@ def _compute_decompositon_of_covariance_matrix(
         inputs = next(data_iterator).to(device)
         _ = root_module(inputs)
         x = decomposed_submodule.get_last_input()
-        Ey, Eyyt = _accumulate_Ey_and_Eyyt(Ey=Ey, Eyyt=Eyyt, weight=weight, x=x)
+        Ey, Eyyt = _accumulate_Ey_and_Eyyt(Ey=Ey, Eyyt=Eyyt, weight=weight, x=x, normalize=normalize)
     Ey /= num_data_steps
     Eyyt /= num_data_steps
     if use_mean:
@@ -285,6 +294,7 @@ def _process_module(
         num_params: int,
         min_rank=32,
         trade_off_factor: float = 1.0,
+        max_accepted_ppl_diff: float = 0.1,
 ) -> dict[str, Any]:
     if metric_iterator is None:
         metric_iterator = data_iterator
@@ -318,6 +328,10 @@ def _process_module(
     use_mean = not any([e in decomposed_submodule_name for e in NO_MEAN_NAMES])
     if not use_mean:
         logger.info(f'Not using mean for {decomposed_submodule_name} decomposition.')
+    normalize = any([e in decomposed_submodule_name for e in NORMALIZE_NAMES])
+    if normalize:
+        logger.info(f'Normalizing for {decomposed_submodule_name} decomposition.')
+    use_mean = False
     u = _compute_decompositon_of_covariance_matrix(
         root_module=root_module,
         decomposed_submodule_name=decomposed_submodule_name,
@@ -382,7 +396,7 @@ def _process_module(
         nsr_new /= num_metric_steps
         ppl_new /= num_metric_steps
 
-        if nsr_new < nsr_final_threshold and ppl_new < ppl_diff_threshold:
+        if nsr_new < nsr_final_threshold and ppl_new < ppl_diff_threshold and ppl_new < max_accepted_ppl_diff:
             rank_best = rank_new
             nsr_best = nsr_new
             ppl_best = ppl_new
@@ -399,7 +413,7 @@ def _process_module(
     decomposed_submodule.set_weight(orig_weight)
 
     proportion = rank_best / full_rank
-    msg_metrics = f"{proportion=:.4f} nsr={nsr_best:.6f} ppl={ppl_new:.6f}"
+    msg_metrics = f"{proportion=:.4f} nsr={nsr_best:.6f} ppl={ppl_best:.6f}"
     logger.info(f"{msg_prefix} iter=FINAL rank={rank_best} {msg_metrics}")
 
     if full_rank != rank_best and not skip:
@@ -936,8 +950,12 @@ def process_module_step_by_step(
         'red'))
 
     use_mean = not any([e in decomposed_submodule_name for e in NO_MEAN_NAMES])
+    normalize = any([e in decomposed_submodule_name for e in NORMALIZE_NAMES])
     if not use_mean:
         logger.info(f'Not using mean for {decomposed_submodule_name} decomposition.')
+    if normalize:
+        logger.info(f'Normalizing for {decomposed_submodule_name} decomposition.')
+    use_mean = False
     u = _compute_decompositon_of_covariance_matrix(
         root_module=root_module,
         decomposed_submodule_name=decomposed_submodule_name,
@@ -946,6 +964,7 @@ def process_module_step_by_step(
         num_data_steps=num_data_steps,
         device=device,
         use_mean=use_mean,
+        normalize=normalize,
     )
     u = u.to(orig_dtype)
     u = u.to(orig_device)
