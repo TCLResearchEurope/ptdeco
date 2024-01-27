@@ -13,16 +13,20 @@
 <summary>Table of contents</summary>
 
 * [Introduction](#introduction)
+* [Installation](#installation)
+* [Saving and loading a decomposed model](#saving-and-loading-a-decomposed-model)
+   * [Saving a decomposed model](#saving-a-decomposed-model)
+   * [Loading a decomposed model](#loading-a-decomposed-model)
 * [Sample results](#sample-results)
-  * [convnext_femto.d1_in1k](#convnext_femtod1_in1k)
-  * [convnextv2_nano.fcmae_ft_in22k_in1k](#convnextv2_nanofcmae_ft_in22k_in1k)
-  * [rexnetr_200.sw_in12k_ft_in1k](#rexnetr_200sw_in12k_ft_in1k)
-  * [efficientformerv2_s2.snap_dist_in1k](#efficientformerv2_s2snap_dist_in1k)
-  * [mobilevitv2_200.cvnets_in22k_ft_in1k](#mobilevitv2_200cvnets_in22k_ft_in1k)
-  * [swinv2_cr_tiny_ns_224.sw_in1k](#swinv2_cr_tiny_ns_224sw_in1k)
-  * [deit3_small_patch16_224.fb_in1k](#deit3_small_patch16_224fb_in1k)
-  * [resnet18.a2_in1k](#resnet18a2_in1k)
-  * [resnet50d.a1_in1k](#resnet50da1_in1k)
+   * [convnext_femto.d1_in1k](#convnext_femtod1_in1k)
+   * [convnextv2_nano.fcmae_ft_in22k_in1k](#convnextv2_nanofcmae_ft_in22k_in1k)
+   * [rexnetr_200.sw_in12k_ft_in1k](#rexnetr_200sw_in12k_ft_in1k)
+   * [efficientformerv2_s2.snap_dist_in1k](#efficientformerv2_s2snap_dist_in1k)
+   * [mobilevitv2_200.cvnets_in22k_ft_in1k](#mobilevitv2_200cvnets_in22k_ft_in1k)
+   * [swinv2_cr_tiny_ns_224.sw_in1k](#swinv2_cr_tiny_ns_224sw_in1k)
+   * [deit3_small_patch16_224.fb_in1k](#deit3_small_patch16_224fb_in1k)
+   * [resnet18.a2_in1k](#resnet18a2_in1k)
+   * [resnet50d.a1_in1k](#resnet50da1_in1k)
 
 </details>
 
@@ -44,6 +48,63 @@ convolutions.
 GPU hour (depending on model size and parameters). It can decompose linear
 layers and 1x1 convolutions.
 
+## Installation
+
+```bash
+pip install ptdeco
+```
+## Saving and loading a decomposed model
+
+### Saving a decomposed model
+
+As a result of decomposition you get `decompose_config` dictionary. You need to
+serialize this e.g. to JSON. This will let you recreate the structure of a
+decomposed model.  Except this, you need to save `state_dict` to recover
+the weights of a decomposed model. The code below illustrates the procedure:
+
+```python
+import json
+import pathlib
+
+# Your decomposition code
+
+output_path = pathlib.Path("YOUR/CHEKCPOINT/DIRECTORY")
+out_decompose_config_path = output_path / "decompose_config.json"
+with open(out_decompose_config_path, "wt") as f:
+    json.dump(decompose_config, f)
+out_decompose_state_dict_path = output_path / "decompose_state_dict.pt"
+torch.save(model.state_dict(), out_decompose_state_dict_path)
+```
+
+### Loading a decomposed model
+To load the model, you need to recreate the original model first. Next, you load and apply the
+`decompose_config`. Finally, you load the `state_dict` (note the state dict "fits" the
+decomposed model, so you need to do it as a last step). The code below illustrates
+the procedure:
+
+```python
+
+import json
+import pathlib
+
+import ptdeco
+
+model = ... # Build original model
+device = ...     # Specify the device original model uses
+
+output_path = pathlib.Path("YOUR/CHEKCPOINT/DIRECTORY")
+
+with open(output_path / "decompose_config.json", "rt") as f:
+        decompose_config = json.load(f)
+
+ptdeco.utils.apply_decompose_config_in_place(model, decompose_config)
+
+sd = torch.load(output_path / "decompose_state_dict.pt")
+
+model.load_state_dict(sd, map_location=device)
+
+# Now `model` is decomposed and contains appropriate weights loaded
+```
 
 ## Sample results
 
