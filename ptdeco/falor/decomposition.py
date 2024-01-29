@@ -835,7 +835,7 @@ def decompose_in_place_sequentially_with_finetuning(
     decompose_config = {}
     decomposed_submodules = []
 
-    for k, submodule_name in enumerate(tqdm(modules_to_decompose)):
+    for k, submodule_name in enumerate(tqdm(reversed(modules_to_decompose))):
         logger.info(f'Processing submodule: {submodule_name}')
         with torch.no_grad():
             result = _process_module(
