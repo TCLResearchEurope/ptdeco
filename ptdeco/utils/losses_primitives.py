@@ -11,7 +11,7 @@ def calc_per_channel_noise_to_signal_ratio(
     x: torch.Tensor,
     y: torch.Tensor,
     non_channel_dim: tuple[int, ...] = (0, 2, 3),
-    epsilon: float = 1e-3,
+    epsilon: float = 1e-9,
     mode: str = 'mean'
 ) -> torch.Tensor:
     y_per_channel_variance = torch.square(torch.std(y, dim=non_channel_dim))
