@@ -33,7 +33,7 @@ __all__ = [
 ]
 
 NO_MEAN_NAMES = ['Wqkv', 'fc1', 'out_proj', 'self_attn', 'mlp.up_proj', 'self_attention.query_key_value',
-                 'self_attention.dense', 'mlp.gate_proj', 'mlp.up_proj', 'mlp.down_proj']
+                 'self_attention.dense', 'mlp.gate_proj', 'mlp.up_proj', 'mlp.down_proj', 'identity_linear']
 NORMALIZE_NAMES = ['mlp.down_proj']
 
 
@@ -331,7 +331,6 @@ def _process_module(
     normalize = any([e in decomposed_submodule_name for e in NORMALIZE_NAMES])
     if normalize:
         logger.info(f'Normalizing for {decomposed_submodule_name} decomposition.')
-    use_mean = False
     u = _compute_decompositon_of_covariance_matrix(
         root_module=root_module,
         decomposed_submodule_name=decomposed_submodule_name,
