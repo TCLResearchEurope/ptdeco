@@ -10,10 +10,10 @@ https://doi.org/10.1609/aaai.v37i9.26304
 
 import collections
 import collections.abc
+import gc
+import inspect
 import logging
 import time
-import inspect
-import gc
 from typing import Any, Optional
 
 import torch
