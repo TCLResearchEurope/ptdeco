@@ -12,6 +12,8 @@ import collections
 import collections.abc
 import logging
 import time
+import inspect
+import gc
 from typing import Any, Optional
 
 import torch
@@ -35,6 +37,31 @@ __all__ = [
 NO_MEAN_NAMES = ['Wqkv', 'fc1', 'out_proj', 'self_attn', 'mlp.up_proj', 'self_attention.query_key_value',
                  'self_attention.dense', 'mlp.gate_proj', 'mlp.up_proj', 'mlp.down_proj', 'identity_linear']
 NORMALIZE_NAMES = ['mlp.down_proj']
+
+
+def cleanup_memory() -> None:
+    """Run GC and clear GPU memory."""
+    caller_name = ''
+    try:
+        caller_name = f' (from {inspect.stack()[1].function})'
+    except (ValueError, KeyError):
+        pass
+
+    def total_reserved_mem() -> int:
+        return sum(torch.cuda.memory_reserved(device=i) for i in range(torch.cuda.device_count()))
+
+    memory_before = total_reserved_mem()
+
+    # gc.collect and empty cache are necessary to clean up GPU memory if the model was distributed
+    gc.collect()
+
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        memory_after = total_reserved_mem()
+        logger.info(
+            f"GPU memory{caller_name}: {memory_before / (1024 ** 3):.2f} -> {memory_after / (1024 ** 3):.2f} GB"
+            f" ({(memory_after - memory_before) / (1024 ** 3):.2f} GB)"
+        )
 
 
 class WrappedFALORModule(torch.nn.Module):
@@ -213,6 +240,7 @@ def _compute_decompositon_of_covariance_matrix(
     if use_float64:
         cov.to(torch.float64)
     _, u = torch.linalg.eigh(cov)
+    cleanup_memory()
     return u
 
 
@@ -880,6 +908,7 @@ def decompose_in_place_sequentially_with_finetuning(
                         lr=ft_lr,
                         num_steps=num_ft_steps,
                     )
+                    cleanup_memory()
                 else:
                     module = finetune_decomposed_layers(
                         model=module,
