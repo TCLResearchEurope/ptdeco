@@ -106,7 +106,7 @@ class WrappedFALORLinear(WrappedFALORModule):
         return self.lin_orig.weight.detach().clone()
 
     def set_weight(self, weights: torch.Tensor) -> None:
-        self.lin_orig.weight.data = weights
+        self.lin_orig.weight.copy_(weights)
 
     def get_last_input(self) -> torch.Tensor:
         return self.input.reshape(-1, self.lin_orig.in_features)
@@ -334,13 +334,15 @@ def _process_module(
         metric_iterator = data_iterator
         logger.warning(f'Using the same iterator to compute metrics and decompose layers.')
     decomposed_submodule = root_module.get_submodule(decomposed_submodule_name)
+    original_module = decomposed_submodule
+    orig_weight = original_module.weight.clone()
+    orig_device = decomposed_submodule.weight.device
+    orig_dtype = decomposed_submodule.weight.dtype
     decomposed_type = utils.get_type_name(decomposed_submodule)
     _wrap_in_place(root_module, decomposed_submodule_name)
     decomposed_submodule = root_module.get_submodule(decomposed_submodule_name)
     assert isinstance(decomposed_submodule, WrappedFALORModule)
-    orig_weight = decomposed_submodule.get_weight_copy()
-    orig_device = orig_weight.device
-    orig_dtype = orig_weight.dtype
+
     dim_out, dim_in = orig_weight.shape
     full_rank = min(dim_in, dim_out)
     msg_prefix = f"Processing {decomposed_submodule_name}:"
@@ -373,7 +375,8 @@ def _process_module(
         num_data_steps=num_data_steps,
         device=device,
         use_mean=use_mean,
-    ).to(orig_dtype)
+    )
+    u.to(orig_dtype)
 
     U, V = torch.empty(0), torch.empty(0)
 
@@ -925,7 +928,7 @@ def decompose_in_place_sequentially_with_finetuning(
             add_meta_to_module_config(module_config, result)
             decompose_config[submodule_name] = module_config
             logger.info(f'Decomposed {submodule_name}, with rank proportion: {proportion}')
-            cleanup_memory()
+        cleanup_memory()
 
     stop_time = time.perf_counter()
 
