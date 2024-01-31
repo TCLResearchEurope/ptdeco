@@ -63,6 +63,35 @@ def cleanup_memory() -> None:
             f" ({(memory_after - memory_before) / (1024 ** 3):.2f} GB)"
         )
 
+@torch.no_grad()
+def pca_calc(
+    X: list[torch.Tensor], ignore_masks: list[torch.Tensor] | None = None
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """
+    Run PCA on a list of batched data. Returns the eigenvalues and eigenvectors.
+    """
+    # Run GC and cleanup GPU memory
+    cleanup_memory()
+
+    H = None
+    for idx, X_batch in enumerate(X):
+        if ignore_masks:
+            X_batch[ignore_masks[idx]] = 0
+
+        X_batch = X_batch.double().to(device=config.device)
+        H_batch = torch.sum(X_batch.mT @ X_batch, dim=0)  # sum over the batch dimension.
+        H = H_batch if H is None else H + H_batch
+
+    damp = 0.01 * torch.mean(torch.diag(H))
+    diag = torch.arange(H.shape[-1]).to(device=config.device)
+    H[diag, diag] = H[diag, diag] + damp
+    X_eig = torch.linalg.eigh(H)
+    del H
+    index = torch.argsort(X_eig[0], descending=True)
+    eig_val = X_eig[0][index]
+    eigen_vec = X_eig[1][:, index]
+    return eig_val, eigen_vec
+
 
 class WrappedFALORModule(torch.nn.Module):
     def __init__(self) -> None:
@@ -214,10 +243,12 @@ def _compute_decompositon_of_covariance_matrix(
         use_mean: bool = True,
         normalize: bool = False,
         use_float64: bool = True,
+        dampen: bool = True,
 ) -> torch.Tensor:
     root_module.eval()
     decomposed_submodule = root_module.get_submodule(decomposed_submodule_name)
     assert isinstance(decomposed_submodule, WrappedFALORModule)
+    cleanup_memory()
 
     Ey = torch.zeros(weight.shape[0]).to(device)
     Eyyt = torch.zeros((weight.shape[0], weight.shape[0])).to(device)
@@ -229,17 +260,18 @@ def _compute_decompositon_of_covariance_matrix(
         Ey, Eyyt = _accumulate_Ey_and_Eyyt(Ey=Ey, Eyyt=Eyyt, weight=weight, x=x, normalize=normalize)
     Ey /= num_data_steps
     Eyyt /= num_data_steps
-    if use_mean:
+    if use_mean and not dampen:
         cov = Eyyt - torch.outer(Ey, Ey)
     else:
         cov = Eyyt
-    del Ey
-    del Eyyt
-    del x
-    torch.cuda.empty_cache()
+    if dampen:
+        damp = 0.01 * torch.mean(torch.diag(cov))
+        diag = torch.arange(cov.shape[-1], device=cov.device)
+        cov[diag, diag] = cov[diag, diag] + damp
     if use_float64:
         cov.to(torch.float64)
     _, u = torch.linalg.eigh(cov)
+    del cov
     cleanup_memory()
     return u
 
