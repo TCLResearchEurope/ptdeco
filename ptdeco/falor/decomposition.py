@@ -106,7 +106,7 @@ class WrappedFALORLinear(WrappedFALORModule):
         return self.lin_orig.weight.detach().clone()
 
     def set_weight(self, weights: torch.Tensor) -> None:
-        self.lin_orig.weight.copy_(weights)
+        self.lin_orig.weight.data = weights
 
     def get_last_input(self) -> torch.Tensor:
         return self.input.reshape(-1, self.lin_orig.in_features)
@@ -219,7 +219,6 @@ def _compute_decompositon_of_covariance_matrix(
     root_module.eval()
     decomposed_submodule = root_module.get_submodule(decomposed_submodule_name)
     assert isinstance(decomposed_submodule, WrappedFALORModule)
-    cleanup_memory()
 
     Ey = torch.zeros(weight.shape[0]).to(device)
     Eyyt = torch.zeros((weight.shape[0], weight.shape[0])).to(device)
@@ -243,7 +242,6 @@ def _compute_decompositon_of_covariance_matrix(
         cov.to(torch.float64)
     _, u = torch.linalg.eigh(cov)
     del cov
-    cleanup_memory()
     return u
 
 
@@ -375,8 +373,7 @@ def _process_module(
         num_data_steps=num_data_steps,
         device=device,
         use_mean=use_mean,
-    )
-    u = u.to(orig_dtype)
+    ).to(orig_dtype)
 
     U, V = torch.empty(0), torch.empty(0)
 
@@ -461,13 +458,19 @@ def _process_module(
         logger.info(f'deco ppl: {ppl_deco}, orig ppl: {ppl_orig}')
         i += 1
     assert U.numel() > 0 and V.numel() > 0
-    decomposed_submodule.set_weight(orig_weight)
+    # decomposed_submodule.set_weight(orig_weight)
 
     proportion = rank_best / full_rank
     msg_metrics = f"{proportion=:.4f} nsr={nsr_best:.6f} ppl={ppl_best:.6f}"
     logger.info(f"{msg_prefix} iter=FINAL rank={rank_best} {msg_metrics}")
 
-    if full_rank != rank_best and not skip:
+    decompose_decision = check_if_decompose(
+        proportion=proportion,
+        in_features=dim_in,
+        out_features=dim_out,
+    )
+
+    if full_rank != rank_best and not skip and decompose_decision:
         uk = u[:, u.shape[1] - rank_best:].to(orig_dtype)
         U, V = orig_weight.T @ uk, uk.T
         new_decomposed_submodule = decomposed_submodule.get_decomposed_module(
@@ -478,15 +481,11 @@ def _process_module(
     else:
         logger.info(f"{msg_prefix} Module decomposed to full rank, not decomposing")
         new_decomposed_submodule = None
+        _unwrap_in_place(root_module, decomposed_submodule_name)
 
-    _unwrap_in_place(root_module, decomposed_submodule_name)
     previous_params_in_module = get_params_for_proportion(1.0, dim_in, dim_out)
     current_params_in_module = get_params_for_proportion(proportion, dim_in, dim_out)
-    if check_if_decompose(
-            proportion=proportion,
-            in_features=dim_in,
-            out_features=dim_out,
-    ):
+    if decompose_decision:
         drop_in_params = previous_params_in_module - current_params_in_module
     else:
         drop_in_params = 0
@@ -870,6 +869,7 @@ def decompose_in_place_sequentially_with_finetuning(
     for k, submodule_name in enumerate(tqdm(reversed(modules_to_decompose))):
         logger.info(f'Processing submodule: {submodule_name}')
         with torch.no_grad():
+            old_module = module.get_submodule(submodule_name)
             result = _process_module(
                 root_module=module,
                 decomposed_submodule_name=submodule_name,
@@ -894,7 +894,6 @@ def decompose_in_place_sequentially_with_finetuning(
             continue
 
         proportion = result["proportion"]
-        old_module = module.get_submodule(submodule_name)
         if check_if_decompose(
                 proportion=proportion,
                 in_features=old_module.in_features,
@@ -926,8 +925,7 @@ def decompose_in_place_sequentially_with_finetuning(
             add_meta_to_module_config(module_config, result)
             decompose_config[submodule_name] = module_config
             logger.info(f'Decomposed {submodule_name}, with rank proportion: {proportion}')
-            old_module.to('cpu')
-            del old_module
+            cleanup_memory()
 
     stop_time = time.perf_counter()
 
