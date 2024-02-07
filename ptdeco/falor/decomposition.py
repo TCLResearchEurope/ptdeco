@@ -38,6 +38,15 @@ NO_MEAN_NAMES = ['Wqkv', 'fc1', 'out_proj', 'self_attn', 'mlp.up_proj', 'self_at
                  'self_attention.dense', 'mlp.gate_proj', 'mlp.up_proj', 'mlp.down_proj', 'identity_linear']
 NORMALIZE_NAMES = ['mlp.down_proj']
 
+class ZeroModule(torch.nn.Module):
+
+    def forward(self, *args, **kwargs):
+        if len(kwargs) > 0:
+            return torch.zeros_like(args[0]), None, None
+        else:
+            return args[0]
+
+
 
 def cleanup_memory() -> None:
     """Run GC and clear GPU memory."""
@@ -374,7 +383,7 @@ def _process_module(
         weight=orig_weight,
         num_data_steps=num_data_steps,
         device=device,
-        use_mean=use_mean,
+        use_mean=False,
     )
     u.to(orig_dtype)
 
@@ -393,7 +402,7 @@ def _process_module(
         min_rank = full_rank // 4
 
     else:
-        min_rank = min_rank * 2
+        min_rank = min_rank
 
     step_size = 256
 
@@ -427,10 +436,10 @@ def _process_module(
         nsr_new = 0.0
         ppl_new = 0.0
 
-        print(colored(
+        logger.info(print(colored(
             f'Current ppl diff threshold: {ppl_diff_threshold}, fraction of params that can be removed: '
             f'{fraction_of_params_to_be_removed}',
-            'red'))
+            'red')))
 
         for _ in range(num_metric_steps):
             x = next(metric_iterator).to(device)
@@ -451,7 +460,7 @@ def _process_module(
             rank_best = rank_new
             nsr_best = nsr_new
             ppl_best = ppl_new
-            print(colored(f'Accepting rank {rank_best}/{full_rank}', 'blue'))
+            logger.info(print(colored(f'Accepting rank {rank_best}/{full_rank}', 'blue')))
         # else:
         #     break
 
@@ -889,7 +898,7 @@ def decompose_in_place_sequentially_with_finetuning(
                 use_drop_in_params_heuristic='identity_linear' not in submodule_name
             )
         current_params -= result['drop_in_params']
-        print(colored(f'Current params in M: {current_params / 1e6}', 'green'))
+        logger.info(print(colored(f'Current params in M: {current_params / 1e6}', 'green')))
         new_module = result["decomposed_module"]
 
         if new_module is None:
@@ -999,10 +1008,10 @@ def process_module_step_by_step(
 
     logger.info(f'Processing {decomposed_submodule_name}, dim_in: {dim_in}, dim_out: {dim_out}')
     logger.info(f'Checking drop in rank proportion from {current_proportion} to {new_proportion}')
-    print(colored(
+    logger.info(print(colored(
         f'Current ppl diff threshold: {ppl_diff_threshold}, fraction of params that can be removed: '
         f'{fraction_of_params_to_be_removed}',
-        'red'))
+        'red')))
 
     use_mean = not any([e in decomposed_submodule_name for e in NO_MEAN_NAMES])
     normalize = any([e in decomposed_submodule_name for e in NORMALIZE_NAMES])
@@ -1063,10 +1072,10 @@ def process_module_step_by_step(
         )
         new_decomposed_submodule.to(orig_device)
         new_decomposed_submodule.to(orig_dtype)
-        print(30 * '#')
+        logger.info(30 * '#')
         logger.info(
             f'Dropping rank proportion of {decomposed_submodule_name} from {current_proportion} to {new_proportion}')
-        print(30 * '#')
+        logger.info(30 * '#')
         decomposed_submodule.set_weight(deco_weight)
         _unwrap_in_place(root_module, decomposed_submodule_name)
         return {
@@ -1236,7 +1245,7 @@ def decompose_step_by_step_v2(
                 )
                 results[submodule_name] = result
             current_params -= result['drop_in_params']
-            print(colored(f'Current params in M: {current_params / 1e6}', 'green'))
+            logger.info(print(colored(f'Current params in M: {current_params / 1e6}', 'green')))
 
             decomposed_module = result['decomposed_module']
             decompose_decision = result['decompose_decision']
