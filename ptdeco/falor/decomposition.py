@@ -16,9 +16,9 @@ import logging
 import time
 from typing import Any, Optional
 
+import coloredlogs
 import torch
 from peft import LoraConfig, get_peft_model
-from termcolor import colored
 from tqdm import tqdm, trange
 from transformers import get_linear_schedule_with_warmup
 
@@ -26,7 +26,12 @@ from llm_playground.lrc.valid_utils import compute_perplexity
 from .. import utils
 from ..utils import modconfig
 
+coloredlogs.install()
 logger = logging.getLogger(__name__)
+handler = logging.StreamHandler()
+formatter = coloredlogs.ColoredFormatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+handler.setFormatter(formatter)
+logger.addHandler(handler)
 
 __all__ = [
     "decompose_in_place",
@@ -38,6 +43,7 @@ NO_MEAN_NAMES = ['Wqkv', 'fc1', 'out_proj', 'self_attn', 'mlp.up_proj', 'self_at
                  'self_attention.dense', 'mlp.gate_proj', 'mlp.up_proj', 'mlp.down_proj', 'identity_linear']
 NORMALIZE_NAMES = ['mlp.down_proj']
 
+
 class ZeroModule(torch.nn.Module):
 
     def forward(self, *args, **kwargs):
@@ -45,7 +51,6 @@ class ZeroModule(torch.nn.Module):
             return torch.zeros_like(args[0]), None, None
         else:
             return args[0]
-
 
 
 def cleanup_memory() -> None:
@@ -436,10 +441,8 @@ def _process_module(
         nsr_new = 0.0
         ppl_new = 0.0
 
-        logger.info(print(colored(
-            f'Current ppl diff threshold: {ppl_diff_threshold}, fraction of params that can be removed: '
-            f'{fraction_of_params_to_be_removed}',
-            'red')))
+        logger.warning(f'Current ppl diff threshold: {ppl_diff_threshold}, fraction of params that can be removed: '
+                       f'{fraction_of_params_to_be_removed}')
 
         for _ in range(num_metric_steps):
             x = next(metric_iterator).to(device)
@@ -460,7 +463,7 @@ def _process_module(
             rank_best = rank_new
             nsr_best = nsr_new
             ppl_best = ppl_new
-            logger.info(print(colored(f'Accepting rank {rank_best}/{full_rank}', 'blue')))
+            logger.warning(f'Accepting rank {rank_best}/{full_rank}')
         # else:
         #     break
 
@@ -898,7 +901,7 @@ def decompose_in_place_sequentially_with_finetuning(
                 use_drop_in_params_heuristic='identity_linear' not in submodule_name
             )
         current_params -= result['drop_in_params']
-        logger.info(print(colored(f'Current params in M: {current_params / 1e6}', 'green')))
+        logger.warning(f'Current params in M: {current_params / 1e6}')
         new_module = result["decomposed_module"]
 
         if new_module is None:
@@ -1008,10 +1011,9 @@ def process_module_step_by_step(
 
     logger.info(f'Processing {decomposed_submodule_name}, dim_in: {dim_in}, dim_out: {dim_out}')
     logger.info(f'Checking drop in rank proportion from {current_proportion} to {new_proportion}')
-    logger.info(print(colored(
+    logger.warning(
         f'Current ppl diff threshold: {ppl_diff_threshold}, fraction of params that can be removed: '
-        f'{fraction_of_params_to_be_removed}',
-        'red')))
+        f'{fraction_of_params_to_be_removed}')
 
     use_mean = not any([e in decomposed_submodule_name for e in NO_MEAN_NAMES])
     normalize = any([e in decomposed_submodule_name for e in NORMALIZE_NAMES])
@@ -1245,7 +1247,7 @@ def decompose_step_by_step_v2(
                 )
                 results[submodule_name] = result
             current_params -= result['drop_in_params']
-            logger.info(print(colored(f'Current params in M: {current_params / 1e6}', 'green')))
+            logger.warning(f'Current params in M: {current_params / 1e6}')
 
             decomposed_module = result['decomposed_module']
             decompose_decision = result['decompose_decision']
