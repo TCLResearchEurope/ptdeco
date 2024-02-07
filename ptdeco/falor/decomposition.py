@@ -463,7 +463,7 @@ def _process_module(
             rank_best = rank_new
             nsr_best = nsr_new
             ppl_best = ppl_new
-            logger.warning(f'Accepting rank {rank_best}/{full_rank}')
+            logger.critical(f'Accepting rank {rank_best}/{full_rank}')
         # else:
         #     break
 
@@ -901,7 +901,7 @@ def decompose_in_place_sequentially_with_finetuning(
                 use_drop_in_params_heuristic='identity_linear' not in submodule_name
             )
         current_params -= result['drop_in_params']
-        logger.warning(f'Current params in M: {current_params / 1e6}')
+        logger.critical(f'Current params in M: {current_params / 1e6}')
         new_module = result["decomposed_module"]
 
         if new_module is None:
@@ -1247,7 +1247,7 @@ def decompose_step_by_step_v2(
                 )
                 results[submodule_name] = result
             current_params -= result['drop_in_params']
-            logger.warning(f'Current params in M: {current_params / 1e6}')
+            logger.critical(f'Current params in M: {current_params / 1e6}')
 
             decomposed_module = result['decomposed_module']
             decompose_decision = result['decompose_decision']
