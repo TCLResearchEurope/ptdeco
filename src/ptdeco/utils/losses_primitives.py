@@ -12,6 +12,7 @@ def calc_per_channel_noise_to_signal_ratio(
     y: torch.Tensor,
     non_channel_dim: tuple[int, ...] = (0, 2, 3),
     epsilon: float = 1e-3,
+    mode: str = "mean",
 ) -> torch.Tensor:
     y_per_channel_variance = torch.square(torch.std(y, dim=non_channel_dim))
     per_channel_squared_difference = torch.square((x - y)).mean(dim=non_channel_dim)
@@ -19,6 +20,29 @@ def calc_per_channel_noise_to_signal_ratio(
     return torch.divide(
         per_channel_squared_difference, y_per_channel_variance + epsilon
     ).mean()
+
+
+# TODO What to do is this any important?
+
+# def calc_per_channel_noise_to_signal_ratio(
+#     x: torch.Tensor,
+#     y: torch.Tensor,
+#     non_channel_dim: tuple[int, ...] = (0, 2, 3),
+#     epsilon: float = 1e-9,
+#     mode: str = 'mean'
+# ) -> torch.Tensor:
+#     y_per_channel_variance = torch.square(torch.std(y, dim=non_channel_dim))
+#     per_channel_squared_difference = torch.square((x - y)).mean(dim=non_channel_dim)
+#     result = torch.divide(
+#         per_channel_squared_difference, y_per_channel_variance + epsilon
+#     )
+#     result = torch.minimum(result, torch.tensor(1.0, device=x.device))
+#     if mode == 'mean':
+#         return result.mean()
+#     elif mode == 'max':
+#         return result.max()
+#     else:
+#         raise NotImplementedError
 
 
 def calc_kl_divergence(
