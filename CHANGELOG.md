@@ -1,4 +1,5 @@
 ## TODO
++ **[general]** NSR loss mode?
 + **[falor]** Add tests
 + **[lockd]** Idea - add some options to customize decomposition process (e.g, type of deconvolution decomposition)
 + **[trainer]** Add requirements.txt
