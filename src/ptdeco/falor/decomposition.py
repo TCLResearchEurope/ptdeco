@@ -17,7 +17,6 @@ from typing import Any, Optional
 import torch
 
 from .. import utils
-from ..utils import modconfig
 
 logger = logging.getLogger(__name__)
 
@@ -373,11 +372,11 @@ def _get_decomposeable_submodule_names(module: torch.nn.Module) -> list[str]:
     ]
 
 
-def add_meta_to_module_config(
+def _add_meta_to_module_config(
     module_config: dict[str, Any], module_deco_results: dict[str, Any]
 ) -> None:
     meta = {k: v for k, v in module_deco_results.items() if k != "decomposed_module"}
-    module_config[modconfig.MODCONFIG_META_KEY] = meta
+    module_config[utils.MODCONFIG_META_KEY] = meta
 
 
 def decompose_in_place(
@@ -445,8 +444,8 @@ def decompose_in_place(
             old_module = module.get_submodule(submodule_name)
             old_module_type_name = utils.get_type_name(old_module)
             utils.replace_submodule_in_place(module, submodule_name, new_module)
-            module_config = modconfig.get_module_config(new_module)
-            add_meta_to_module_config(module_config, result)
+            module_config = utils.get_module_config(new_module)
+            _add_meta_to_module_config(module_config, result)
             decompose_config[submodule_name] = module_config
             decompose_counter[old_module_type_name] += 1
             logger.info(f"{msg_prefix} finished {proportion=:.3f}")
