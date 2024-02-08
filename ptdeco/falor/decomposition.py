@@ -29,8 +29,9 @@ from ..utils import modconfig
 coloredlogs.install()
 logger = logging.getLogger(__name__)
 handler = logging.StreamHandler()
-formatter = coloredlogs.ColoredFormatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+formatter = coloredlogs.ColoredFormatter("%(asctime)s - %(levelname)s - %(message)s")
 handler.setFormatter(formatter)
+logger.propagate = False
 logger.addHandler(handler)
 
 __all__ = [
@@ -389,6 +390,7 @@ def _process_module(
         num_data_steps=num_data_steps,
         device=device,
         use_mean=False,
+        normalize=False,
     )
     u.to(orig_dtype)
 
