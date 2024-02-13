@@ -808,8 +808,6 @@ def lora_finetune_decomposed_layers(
         loss = outputs.loss
         total_loss += loss.detach().float()
         loss.backward()
-        import ipdb
-        ipdb.set_trace()
         optimizer.step()
         lr_scheduler.step()
 
