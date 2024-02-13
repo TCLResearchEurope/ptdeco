@@ -767,6 +767,7 @@ def lora_finetune_decomposed_layers(
         num_steps: int = 100,
         lr: float = 0.0001,
 ):
+    model.loss.loss_fct.ignore_index = model.config.pad_token_id
     decomposed_submodules_to_finetune = decomposed_submodules
     for name, param in model.named_parameters():
         if any([e in name for e in decomposed_submodules_to_finetune]):  # and ('Wqkv' in name or 'out_proj' in name):
