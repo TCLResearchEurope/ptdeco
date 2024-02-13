@@ -20,6 +20,7 @@ import coloredlogs
 import torch
 from peft import LoraConfig, get_peft_model
 from tqdm import tqdm, trange
+from transformers import PreTrainedModel
 from transformers import get_linear_schedule_with_warmup
 
 from llm_playground.lrc.valid_utils import compute_perplexity
@@ -760,6 +761,25 @@ def finetune_decomposed_layers(
     return model
 
 
+def compute_loss(
+        model: PreTrainedModel,
+        logits: torch.tensor,
+        labels: torch.tensor,
+):
+    # !important
+    loss_fc = torch.nn.CrossEntropyLoss(ignore_index=model.config.pad_token_id)
+    # Shift so that tokens < n predict n
+    shift_logits = logits[..., :-1, :].contiguous()
+    shift_labels = labels[..., 1:].contiguous()
+    # Flatten the tokens
+
+    shift_logits = shift_logits.view(-1, model.config.vocab_size)
+    shift_labels = shift_labels.view(-1)
+    # Enable model parallelism
+    shift_labels = shift_labels.to(shift_logits.device)
+    return loss_fc(shift_logits, shift_labels)
+
+
 def lora_finetune_decomposed_layers(
         model: torch.nn.Module,
         ft_iterator: collections.abc.Iterator[torch.Tensor],
@@ -805,7 +825,7 @@ def lora_finetune_decomposed_layers(
             break
         optimizer.zero_grad()
         outputs = peft_model(batch, labels=batch.clone())
-        loss = outputs.loss
+        loss = compute_loss(model, logits=outputs.logits, labels=batch.clone())
         total_loss += loss.detach().float()
         loss.backward()
         optimizer.step()
