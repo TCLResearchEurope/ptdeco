@@ -7,8 +7,14 @@ import torch
 
 from .. import utils
 
+__all__ = ["decompose_in_place"]
+
+
 logger = logging.getLogger(__name__)
 
+# Use_mean = False
+# use_drop_in_params_heuristic="identity_linear"
+# dampen = True
 
 NO_MEAN_NAMES = [
     "Wqkv",
@@ -526,7 +532,6 @@ def _process_module(
     rank_best = full_rank
     rank_new = full_rank
     nsr_best, ppl_best = 0.0, 0.0
-    skip = False
     drop_in_params = 0
 
     if not use_drop_in_params_heuristic:
@@ -616,7 +621,7 @@ def _process_module(
         out_features=dim_out,
     )
 
-    if full_rank != rank_best and not skip and decompose_decision:
+    if full_rank != rank_best and decompose_decision:
         uk = u[:, u.shape[1] - rank_best :].to(orig_dtype)
         U, V = orig_weight.T @ uk, uk.T
         new_decomposed_submodule = decomposed_submodule.get_decomposed_module(
@@ -645,7 +650,7 @@ def _process_module(
     }
 
 
-def decompose_in_place_sequentially_with_finetuning(
+def decompose_in_place(
     *,
     module: torch.nn.Module,
     device: torch.device,
@@ -659,11 +664,8 @@ def decompose_in_place_sequentially_with_finetuning(
     num_metric_steps: int,
     num_ft_steps: int,
     ft_lr: float = 0.0001,
-    blacklisted_substrings: Optional[list[str]] = None,
     min_rank: int = 32,
     dtype: torch.dtype,
-    start_layer_num: int = 0,
-    end_layer_num: int = 0,
     run_finetuning: bool = True,
     lora_finetuning: bool = False,
     num_last_decomposed_layers_to_finetune: int = 8,
@@ -678,31 +680,38 @@ def decompose_in_place_sequentially_with_finetuning(
         blacklisted_module_names = []
     decomposable_submodules_names = _get_decomposeable_submodule_names(module)
     n = len(decomposable_submodules_names)
-    logger.info(f"There are {n} modules that can be decomposed")
-    modules_to_decompose = []
+    # logger.info(f"There are {n} modules that can be decomposed")
+    # modules_to_decompose = []
 
-    for submodule_name in decomposable_submodules_names:
-        try:
-            layer_num = int(submodule_name.split(".")[2])
-            if layer_num < start_layer_num:
-                continue
-            if layer_num > end_layer_num:
-                continue
-        except ValueError:
-            pass
-        if submodule_name in blacklisted_module_names or _check_substring(
-            submodule_name, blacklisted_substrings
-        ):
-            logger.info(f"{submodule_name}, skipped as blacklisted")
-            continue
-        modules_to_decompose.append(submodule_name)
+    # for submodule_name in decomposable_submodules_names:
+    #     try:
+    #         layer_num = int(submodule_name.split(".")[2])
+    #         if layer_num < start_layer_num:
+    #             continue
+    #         if layer_num > end_layer_num:
+    #             continue
+    #     except ValueError:
+    #         pass
+    #     if submodule_name in blacklisted_module_names or _check_substring(
+    #         submodule_name, blacklisted_substrings
+    #     ):
+    #         logger.info(f"{submodule_name}, skipped as blacklisted")
+    #         continue
+    #     modules_to_decompose.append(submodule_name)
 
     # 2. Actual decomposition
     decompose_config = {}
     decomposed_submodules = []
 
-    for submodule_name in reversed(modules_to_decompose):
-        logger.info(f"Processing submodule: {submodule_name}")
+    for i, submodule_name in enumerate(
+        reversed(decomposable_submodules_names), start=1
+    ):
+        msg_prefix = f"{submodule_name}: module {i} of {n}"
+        if submodule_name in blacklisted_module_names:
+            logger.info(f"{msg_prefix}, skipped as blacklisted")
+            continue
+        logger.info(f"{msg_prefix}, processing")
+
         with torch.no_grad():
             old_module = module.get_submodule(submodule_name)
             result = _process_module(
@@ -725,9 +734,7 @@ def decompose_in_place_sequentially_with_finetuning(
         new_module = result["decomposed_module"]
 
         if new_module is None:
-            logger.info(
-                f"Skipped decomposing {submodule_name} -> decomposed to full rank"
-            )
+            logger.info(f"{msg_prefix}, skipped as decomposed to full rank")
             continue
 
         proportion = result["proportion"]
