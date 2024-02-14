@@ -1,0 +1,18 @@
+# From run_phi2_ft.py
+task: decompose_dwain
+proportion_threshold: 0.75
+ppl_diff_threshold: 0.005
+nsr_final_threshold: 1.0
+num_data_steps: 1024
+num_metric_steps: 10
+num_ft_steps: 20
+blacklisted_module_names: null
+min_proportion: 0.25
+ft_lr: 0.0001
+run_finetuning: false
+trade_off_factor: 1.0
+start_layer_num: 0
+end_layer_num: 23
+min_rank: 4
+max_length: 512
+batch_size: 1
