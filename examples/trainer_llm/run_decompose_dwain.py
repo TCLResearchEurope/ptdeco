@@ -11,6 +11,7 @@ import datasets
 
 import ptdeco
 
+import configurator
 import datasets_hf
 import metrics
 
@@ -18,8 +19,6 @@ PPL_EAVAL_SEQLEN = 2048
 PPL_EVAL_BATCH_SIZE = 1
 PPL_EVAL_VARIED_SEQLEN = False
 PPL_EVAL_SEED = 42
-
-
 
 
 logger = logging.getLogger(__name__)
@@ -43,6 +42,7 @@ def setup_logging():
 
 
 def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
+    config_parsed = configurator.DecomposeDWAINConfig(**config)
 
     # tokenizer = transformers.AutoTokenizer.from_pretrained(
     #     "facebook/opt-125m", trust_remote_code=True
@@ -85,7 +85,7 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
     ds = datasets.load_dataset("wikitext", name="wikitext-2-raw-v1")
     ds_train, ds_valid, ds_test = ds["train"], ds["validation"], ds["test"]
     logger.info(f"{len(ds_train)=}, {len(ds_valid)=}, {len(ds_test)=}")
-    #sys.exit()
+    # sys.exit()
 
     if torch.cuda.is_available():
         device = torch.device("cuda")
@@ -122,15 +122,49 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
             varied_seqlen=PPL_EVAL_VARIED_SEQLEN,
             seed=PPL_EVAL_SEED,
         )
+    train_dataloader = datasets_hf.prepare_dataloader(
+        dataset=ds_train,
+        tokenizer=tokenizer,
+        max_seqlen=PPL_EAVAL_SEQLEN,
+        batch_size=PPL_EVAL_BATCH_SIZE,
+        nsamples=len(ds_test),
+        varied_seqlen=PPL_EVAL_VARIED_SEQLEN,
+        seed=PPL_EVAL_SEED,
+    )
+    valid_dataloader = datasets_hf.prepare_dataloader(
+        dataset=ds_valid,
+        tokenizer=tokenizer,
+        max_seqlen=PPL_EAVAL_SEQLEN,
+        batch_size=PPL_EVAL_BATCH_SIZE,
+        nsamples=len(ds_test),
+        varied_seqlen=PPL_EVAL_VARIED_SEQLEN,
+        seed=PPL_EVAL_SEED,
+    )
     with torch.no_grad():
         perplexity = metrics.calc_perplexity(
             model, ppl_eval_loader, device, model.config.pad_token_id
         )
     logger.info(f"{perplexity=}")
-    # ptdeco.dwain.decompose_in_place(
-    #     model=model,
-    #     device=device,
-    # )
+    ptdeco.dwain.decompose_in_place(
+        module=model,
+        device=device,
+        dtype=torch.float32,
+        data_iterator=train_dataloader,
+        ft_iterator=train_dataloader,
+        metric_iterator=valid_dataloader,
+        nsr_final_threshold=config_parsed.nsr_final_threshold,
+        ppl_diff_threshold=config_parsed.ppl_diff_threshold,
+        num_data_steps=config_parsed.num_data_steps,
+        num_metric_steps=config_parsed.num_metric_steps,
+        num_ft_steps=config_parsed.num_ft_steps,
+        ft_lr=config_parsed.ft_lr,
+        min_rank=config_parsed.min_rank,
+        trade_off_factor=config_parsed.trade_off_factor,
+        num_last_decomposed_layers_to_finetune=8,
+        run_finetuning=True,
+        lora_finetuning=False,
+    )
+
 
 if __name__ == "__main__":
     main()

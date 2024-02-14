@@ -1,7 +1,9 @@
+from typing import Optional
+
 import pydantic
 
 
-class DecompoesDWAIN(pydantic.BaseModel):
+class DecomposeDWAINConfig(pydantic.BaseModel):
     task: str
     proportion_threshold: float
     ppl_diff_threshold: float
@@ -9,8 +11,7 @@ class DecompoesDWAIN(pydantic.BaseModel):
     num_data_steps: int
     num_metric_steps: int
     num_ft_steps: int
-    blacklisted_module_names: list[str] = None
-    blacklisted_substrings: list[str] = None
+    blacklisted_module_names: Optional[list[str]] = None
     min_proportion: float = 0.25
     ft_lr: float = 0.0001
     run_finetuning: bool = False
