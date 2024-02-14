@@ -786,24 +786,38 @@ def lora_finetune_decomposed_layers(
         decomposed_submodules: list[str],
         num_steps: int = 100,
         lr: float = 0.0001,
+        num_last_decomposed_layers_to_finetune: int = 8,
+        min_rank_to_finetune: int = 32,
 ):
-    decomposed_submodules_to_finetune = decomposed_submodules
+    decomposed_submodules_to_finetune = decomposed_submodules[-num_last_decomposed_layers_to_finetune:]
     for name, param in model.named_parameters():
         if any([e in name for e in decomposed_submodules_to_finetune]):  # and ('Wqkv' in name or 'out_proj' in name):
             pass
         else:
             param.requires_grad = False
+    rank_pattern = {}
+    for module_name in decomposed_submodules_to_finetune:
+        first_module_name = f'{module_name}.0'
+        second_module_name = f'{module_name}.1'
+        rank = model.get_submodule(first_module_name).out_features
+        if rank >= min_rank_to_finetune:
+            rank_pattern[first_module_name] = 16
+            rank_pattern[second_module_name] = 16
 
-    target_modules = [e + '.0' for e in decomposed_submodules_to_finetune] + [e + '.1' for e in
-                                                                              decomposed_submodules_to_finetune]
+    if len(rank_pattern) == 0:
+        logger.info(f'Skipping fine-tuning.')
+        return model
+
+    logger.info(f'Fine-tuning {len(rank_pattern)} modules.')
 
     lora_config = LoraConfig(
         r=16,
-        target_modules=target_modules,
+        target_modules=list(rank_pattern.keys()),
         lora_alpha=8,
         lora_dropout=0.05,
         bias="none",
         task_type="CAUSAL_LM",
+        rank_pattern=rank_pattern
     )
     peft_model = get_peft_model(model, lora_config)
 
@@ -832,7 +846,7 @@ def lora_finetune_decomposed_layers(
         lr_scheduler.step()
 
         if step % 10 == 0:
-            logger.info(f'Step: {step}/{num_steps}, loss: {total_loss / counter}')
+            logger.info(f'Step: {step}/{num_steps}, loss: {total_loss / counter}, lr: {lr_scheduler.get_last_lr()}')
     peft_model.eval()
     model = peft_model.merge_and_unload()
     return model
@@ -944,7 +958,8 @@ def decompose_in_place_sequentially_with_finetuning(
                     module = lora_finetune_decomposed_layers(
                         model=module,
                         ft_iterator=ft_iterator,
-                        decomposed_submodules=decomposed_submodules[-num_last_decomposed_layers_to_finetune:],
+                        decomposed_submodules=decomposed_submodules,
+                        num_last_decomposed_layers_to_finetune=num_last_decomposed_layers_to_finetune,
                         lr=ft_lr,
                         num_steps=num_ft_steps,
                     )
