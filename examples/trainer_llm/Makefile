@@ -27,11 +27,11 @@ vercommit:
 	git checkout $(VER_FILE)
 	../../aux/update_version.py --version-segment=2 --version-file=$(VER_FILE)
 	git add $(VER_FILE)
-	VER=$$(../../aux/get_version.py --version-file=$(VER_FILE)) && git commit -m "[trainer] $${VER} " -e
+	VER=$$(../../aux/get_version.py --version-file=$(VER_FILE)) && git commit -m "[trainer_llm] $${VER} " -e
 
 manualvercommit:
 	git add $(VER_FILE)
-	VER=$$(../../aux/get_version.py --version-file=$(VER_FILE)) && git commit -m "[trainer] $${VER}" -e
+	VER=$$(../../aux/get_version.py --version-file=$(VER_FILE)) && git commit -m "[trainer_llm] $${VER}" -e
 
 
 build:
