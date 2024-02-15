@@ -796,13 +796,18 @@ def lora_finetune_decomposed_layers(
         else:
             param.requires_grad = False
     rank_pattern = {}
+    alpha_pattern = {}
+    target_modules = []
     for module_name in decomposed_submodules_to_finetune:
         first_module_name = f'{module_name}.0'
         second_module_name = f'{module_name}.1'
         rank = model.get_submodule(first_module_name).out_features
         if rank >= min_rank_to_finetune:
-            rank_pattern[first_module_name] = 16
-            rank_pattern[second_module_name] = 16
+            rank_pattern[first_module_name] = rank // 16
+            rank_pattern[second_module_name] = rank // 16
+            alpha_pattern[first_module_name] = rank // 32
+            alpha_pattern[second_module_name] = rank // 32
+            target_modules.extend([first_module_name, second_module_name])
 
     if len(rank_pattern) == 0:
         logger.info(f'Skipping fine-tuning.')
@@ -812,12 +817,13 @@ def lora_finetune_decomposed_layers(
 
     lora_config = LoraConfig(
         r=16,
-        target_modules=list(rank_pattern.keys()),
+        target_modules=target_modules,
         lora_alpha=8,
         lora_dropout=0.05,
         bias="none",
         task_type="CAUSAL_LM",
-        rank_pattern=rank_pattern
+        rank_pattern=rank_pattern,
+        alpha_pattern=alpha_pattern,
     )
     peft_model = get_peft_model(model, lora_config)
 
