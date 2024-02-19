@@ -240,7 +240,8 @@ def _compute_decompositon_of_covariance_matrix(
     Eyyt = torch.zeros((weight.shape[0], weight.shape[0])).to(device)
 
     for i in range(num_data_steps):
-        inputs = next(data_iterator).to(device)
+        input_dict = next(data_iterator)
+        inputs = input_dict['input_ids'].to(device)
         _ = root_module(inputs)
         x = decomposed_submodule.get_last_input()
         Ey, Eyyt = _accumulate_Ey_and_Eyyt(Ey=Ey, Eyyt=Eyyt, weight=weight, x=x, normalize=normalize)
@@ -263,13 +264,15 @@ def _compute_decompositon_of_covariance_matrix(
 
 def _compute_metrics(
         *,
-        x: torch.Tensor,
+        input_dict: dict[str, torch.Tensor],
         root_module: torch.nn.Module,
         decomposed_submodule: torch.nn.Module,
         orig_weight: torch.Tensor,
         deco_weight: torch.Tensor,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     assert isinstance(decomposed_submodule, WrappedFALORModule)
+    x = input_dict['input_ids']
+    attention_mask = input_dict['attention_mask']
 
     root_module.eval()
 
@@ -277,14 +280,12 @@ def _compute_metrics(
     labels = x.clone()
     deco_output = root_module(x, labels=labels)
     y_deco = deco_output.logits
-    loss_deco = deco_output.loss
 
     decomposed_submodule.set_weight(orig_weight)
     orig_output = root_module(x, labels=x.clone())
-    loss_deco = compute_loss(model=root_module, logits=y_deco, labels=labels)
+    loss_deco = compute_loss_v2(logits=y_deco, labels=labels, attention_mask=attention_mask)
     y_orig = orig_output.logits
-    loss_orig = orig_output.loss
-    loss_orig = compute_loss(model=root_module, logits=y_orig, labels=labels)
+    loss_orig = compute_loss_v2(logits=y_orig, labels=labels, attention_mask=attention_mask)
 
     nsr_final = utils.calc_per_channel_noise_to_signal_ratio(
         y=y_orig, x=y_deco, non_channel_dim=(0, 1), mode='mean'
@@ -451,9 +452,9 @@ def _process_module(
                        f'{fraction_of_params_to_be_removed}')
 
         for _ in range(num_metric_steps):
-            x = next(metric_iterator).to(device)
+            input_dict = next(data_iterator)
             nsr_sample, ppl_deco, ppl_orig = _compute_metrics(
-                x=x,
+                input_dict=input_dict,
                 root_module=root_module,
                 decomposed_submodule=decomposed_submodule,
                 orig_weight=orig_weight,
@@ -783,6 +784,23 @@ def compute_loss(
     return loss_fc(shift_logits, shift_labels)
 
 
+def compute_loss_v2(
+        logits: torch.tensor,
+        labels: torch.tensor,
+        attention_mask: torch.tensor,
+):
+    loss_fc = torch.nn.CrossEntropyLoss()
+    labels = labels[..., 1:].contiguous()
+    logits = logits[..., :-1, :].contiguous()
+    attention_mask = attention_mask[..., :-1]
+
+    # ignore padding tokens when computing the loss
+    logits = logits * attention_mask.unsqueeze(-1)
+
+    loss = loss_fc(logits.view(-1, logits.shape[-1]), labels.view(-1))
+    return loss
+
+
 def lora_finetune_decomposed_layers(
         model: torch.nn.Module,
         ft_iterator: collections.abc.Iterator[torch.Tensor],
@@ -842,13 +860,16 @@ def lora_finetune_decomposed_layers(
     peft_model.train()
     total_loss = 0.0
     for step in trange(num_steps):
-        batch = next(ft_iterator)
+        input_dict = next(ft_iterator)
+        input_ids = input_dict['input_ids']
+        labels = input_dict['labels']
+        attention_mask = input_dict['attention_mask']
         counter += 1
         if step > num_steps:
             break
         optimizer.zero_grad()
-        outputs = peft_model(batch, labels=batch.clone())
-        loss = compute_loss(model, logits=outputs.logits, labels=batch.clone())
+        outputs = peft_model(input_ids, labels=labels)
+        loss = compute_loss_v2(logits=outputs.logits, labels=labels, attention_mask=attention_mask)
         total_loss += loss.detach().float()
         loss.backward()
         optimizer.step()
