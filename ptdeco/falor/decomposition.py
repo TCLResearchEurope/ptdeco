@@ -274,14 +274,17 @@ def _compute_metrics(
     root_module.eval()
 
     decomposed_submodule.set_weight(deco_weight)
-    deco_output = root_module(x, labels=x.clone())
+    labels = x.clone()
+    deco_output = root_module(x, labels=labels)
     y_deco = deco_output.logits
     loss_deco = deco_output.loss
 
     decomposed_submodule.set_weight(orig_weight)
     orig_output = root_module(x, labels=x.clone())
+    loss_deco = compute_loss(model=root_module, logits=y_deco, labels=labels)
     y_orig = orig_output.logits
     loss_orig = orig_output.loss
+    loss_orig = compute_loss(model=root_module, logits=y_orig, labels=labels)
 
     nsr_final = utils.calc_per_channel_noise_to_signal_ratio(
         y=y_orig, x=y_deco, non_channel_dim=(0, 1), mode='mean'
@@ -767,7 +770,7 @@ def compute_loss(
         labels: torch.tensor,
 ):
     # !important
-    loss_fc = torch.nn.CrossEntropyLoss(ignore_index=model.config.pad_token_id)
+    loss_fc = torch.nn.CrossEntropyLoss()
     # Shift so that tokens < n predict n
     shift_logits = logits[..., :-1, :].contiguous()
     shift_labels = labels[..., 1:].contiguous()
