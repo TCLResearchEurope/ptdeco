@@ -212,6 +212,20 @@ def _accumulate_Ey_and_Eyyt(
     return Ey, Eyyt
 
 
+def _to(o, device: torch.device):
+    if isinstance(o, torch.Tensor):
+        return o.to(device)
+    elif isinstance(o, dict):
+        res = {}
+        for k, v in o.items():
+            if isinstance(v, torch.Tensor):
+                res[k] = v.to(device)
+            else:
+                res[k] = v
+        return res
+    raise ValueError(f"Unsupported type {type(o)}")
+
+
 def _compute_decompositon_of_covariance_matrix(
     *,
     root_module: torch.nn.Module,
@@ -233,7 +247,7 @@ def _compute_decompositon_of_covariance_matrix(
     Eyyt = torch.zeros((weight.shape[0], weight.shape[0])).to(device)
 
     for i in range(num_data_steps):
-        inputs = next(data_iterator).to(device)
+        inputs = _to(next(data_iterator), device)
         _ = root_module(inputs)
         x = decomposed_submodule.get_last_input()
         Ey, Eyyt = _accumulate_Ey_and_Eyyt(
@@ -269,12 +283,14 @@ def _compute_metrics(
     root_module.eval()
 
     decomposed_submodule.set_weight(deco_weight)
-    deco_output = root_module(x, labels=x.clone())
+    #deco_output = root_module(x, labels=x.clone())
+    deco_output = root_module(x)
     y_deco = deco_output.logits
     loss_deco = deco_output.loss
 
     decomposed_submodule.set_weight(orig_weight)
-    orig_output = root_module(x, labels=x.clone())
+    #orig_output = root_module(x, labels=x.clone())
+    orig_output = root_module(x)
     y_orig = orig_output.logits
     loss_orig = orig_output.loss
 
@@ -338,12 +354,14 @@ def _get_params_for_proportion(
         return baseline
 
 
-def finetune_decomposed_layers(
+def _finetune_decomposed_layers(
+    *,
     model: torch.nn.Module,
     ft_iterator: collections.abc.Iterator[torch.Tensor],
     decomposed_submodules: list[str],
     num_steps: int = 100,
     lr: float = 0.0001,
+    device: torch.device
 ) -> torch.nn.Module:
     from transformers import get_linear_schedule_with_warmup
 
@@ -375,12 +393,12 @@ def finetune_decomposed_layers(
     model.train()
     total_loss = 0.0
     for step in range(num_steps):
-        batch = next(ft_iterator)
+        batch = _to(next(ft_iterator), device)
         counter += 1
         if step > num_steps:
             break
         optimizer.zero_grad()
-        outputs = model(batch, labels=batch.clone())
+        outputs = model(batch)
         loss = outputs.loss
         total_loss += loss.detach().float()
         loss.backward()
@@ -393,12 +411,14 @@ def finetune_decomposed_layers(
     return model
 
 
-def lora_finetune_decomposed_layers(
+def _lora_finetune_decomposed_layers(
+    *,
     model: torch.nn.Module,
     ft_iterator: collections.abc.Iterator[torch.Tensor],
     decomposed_submodules: list[str],
     num_steps: int = 100,
     lr: float = 0.0001,
+    device: torch.device
 ) -> torch.nn.Module:
     from peft import LoraConfig, get_peft_model
     from transformers import get_linear_schedule_with_warmup
@@ -577,7 +597,7 @@ def _process_module(
         logger.warning(f"{ppl_diff_threshold=},  {fraction_of_params_to_be_removed=}")
 
         for _ in range(num_metric_steps):
-            x = next(metric_iterator).to(device)
+            x = _to(next(metric_iterator), device)
             nsr_sample, ppl_deco, ppl_orig = _compute_metrics(
                 x=x,
                 root_module=root_module,
@@ -748,7 +768,7 @@ def decompose_in_place(
             num_decomposed_layers = len(decomposed_submodules)
             if num_decomposed_layers > 0 and run_finetuning:
                 if lora_finetuning:
-                    module = lora_finetune_decomposed_layers(
+                    module = _lora_finetune_decomposed_layers(
                         model=module,
                         ft_iterator=ft_iterator,
                         decomposed_submodules=decomposed_submodules[
@@ -756,10 +776,11 @@ def decompose_in_place(
                         ],
                         lr=ft_lr,
                         num_steps=num_ft_steps,
+                        device=device
                     )
                     utils.free_gpu_reserved_memory()
                 else:
-                    module = finetune_decomposed_layers(
+                    module = _finetune_decomposed_layers(
                         model=module,
                         ft_iterator=ft_iterator,
                         decomposed_submodules=decomposed_submodules[
@@ -767,6 +788,7 @@ def decompose_in_place(
                         ],
                         lr=ft_lr,
                         num_steps=num_ft_steps,
+                        device=device
                     )
                 module.to(dtype)
             module_config = utils.get_module_config(new_module)
