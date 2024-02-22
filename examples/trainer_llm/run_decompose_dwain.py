@@ -1,14 +1,10 @@
 from typing import Any
 import logging
 import pathlib
-import sys
-
-
-import torch
-import transformers
 
 import datasets
-
+import torch
+import transformers
 import ptdeco
 
 import configurator
@@ -55,7 +51,31 @@ def make_inifinte_iterator(dl):
             yield x
 
 
+def make_padding_tokenizer(
+    model: torch.nn.Module, tokenizer: transformers.PreTrainedTokenizer, model_name: str
+) -> transformers.PreTrainedTokenizer:
+    if model_name in (
+        "meta-llama/Llama-2-7b-hf",
+        "microsoft/phi-2",
+        "Qwen/Qwen1.5-1.8B",
+        "upstage/SOLAR-10.7B-v1.0",
+        "mistralai/Mistral-7B-Instruct-v0.2",
+    ):
+        tokenizer.pad_token = (
+            tokenizer.eos_token
+        )  # Phi-2 and LLama2 models don't have a pad token by default
+        model.config.pad_token_id = tokenizer.pad_token_id  # llama, phi
+        logger.warning(f"Setting pad_token to eos_token")
+
+    if model_name == "Qwen/Qwen-1_8B":
+        tokenizer = transformers.AutoTokenizer.from_pretrained(
+            "Qwen/Qwen-1.8B", trust_remote_code=True, pad_token="<|endoftext|>"
+        )
+    return tokenizer
+
+
 def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
+    transformers.utils.logging.disable_progress_bar()
     config_parsed = configurator.DecomposeDWAINConfig(**config)
 
     # tokenizer = transformers.AutoTokenizer.from_pretrained(
@@ -106,13 +126,24 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
     else:
         device = torch.device("cpu")
 
-    model = transformers.OPTForCausalLM.from_pretrained(
-        "facebook/opt-125m",
-        torch_dtype=torch.float32,
-    )
+    # model = transformers.OPTForCausalLM.from_pretrained(
+    #     "facebook/opt-125m",
+    #     torch_dtype=torch.float32,
+    # )
+    # tokenizer = transformers.AutoTokenizer.from_pretrained(
+    #     "facebook/opt-125m", trust_remote_code=True
+    # )
+    model_name = config_parsed.decompose_model_name
     tokenizer = transformers.AutoTokenizer.from_pretrained(
-        "facebook/opt-125m", trust_remote_code=True
+        model_name, trust_remote_code=True
     )
+    model = transformers.AutoModelForCausalLM.from_pretrained(
+        model_name, torch_dtype="auto", trust_remote_code=True
+    )
+    tokenizer = make_padding_tokenizer(
+        model_name=model_name, model=model, tokenizer=tokenizer
+    )
+
     model.to(device)
     model.eval()
 
@@ -161,20 +192,23 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
     logger.info(f"{perplexity_orig=} {params_orig=}")
 
     class WrapperModule(torch.nn.Module):
-
         def __init__(self, model):
             super().__init__()
             self.model = model
+            self.config = model.config
 
         def forward(self, x):
-            return self.model(**x)
+            return self.model(**x).logits
+
+        def prepare_inputs_for_generation(self, input_ids, **kwargs):
+            return self.model.prepare_inputs_for_generation(input_ids, **kwargs)
 
     model_wrapped = WrapperModule(model)
 
     for n, m in model_wrapped.named_modules():
         if isinstance(m, torch.nn.Linear):
             logger.info(f"{n}, {m.weight.shape}")
-
+    num_layers = config_parsed.num_last_decomposed_layers_to_finetune
     ptdeco.dwain.decompose_in_place(
         module=model_wrapped,
         device=device,
@@ -191,9 +225,9 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
         ft_lr=config_parsed.ft_lr,
         min_rank=config_parsed.min_rank,
         trade_off_factor=config_parsed.trade_off_factor,
-        num_last_decomposed_layers_to_finetune=8,
-        run_finetuning=True,
-        lora_finetuning=False,
+        num_last_decomposed_layers_to_finetune=num_layers,
+        run_finetuning=config_parsed.run_finetuning,
+        lora_finetuning=config_parsed.lora_finetuning,
     )
     with torch.no_grad():
         perplexity_final = metrics.calc_perplexity(

@@ -13,7 +13,9 @@ def _sync_gpus() -> None:
         torch.cuda.synchronize(device=i)
 
 
-def _map_tensors(obj: Any, device: torch.device | str | None = None, dtype: torch.dtype | None = None) -> Any:
+def _map_tensors(
+    obj: Any, device: torch.device | str | None = None, dtype: torch.dtype | None = None
+) -> Any:
     """Recursively map tensors to device and dtype."""
     if isinstance(obj, torch.Tensor):
         if device is not None:
