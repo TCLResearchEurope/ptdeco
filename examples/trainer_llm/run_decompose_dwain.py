@@ -41,6 +41,20 @@ def setup_logging():
         logging.getLogger(module_name).setLevel(logging.INFO)
 
 
+def get_params(m: torch.nn.Module, only_trainable: bool = False) -> int:
+    parameters = list(m.parameters())
+    if only_trainable:
+        parameters = [p for p in parameters if p.requires_grad]
+    unique = {p.data_ptr(): p for p in parameters}.values()
+    return sum(p.numel() for p in unique)
+
+
+def make_inifinte_iterator(dl):
+    while True:
+        for x in dl:
+            yield x
+
+
 def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
     config_parsed = configurator.DecomposeDWAINConfig(**config)
 
@@ -101,7 +115,6 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
     )
     model.to(device)
     model.eval()
-    ds = datasets.load_dataset("wikitext", name="wikitext-2-raw-v1")
 
     test_datasetloader = False
     logger.info(f"{test_datasetloader=}")
@@ -141,17 +154,35 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
         seed=PPL_EVAL_SEED,
     )
     with torch.no_grad():
-        perplexity = metrics.calc_perplexity(
+        perplexity_orig = metrics.calc_perplexity(
             model, ppl_eval_loader, device, model.config.pad_token_id
         )
-    logger.info(f"{perplexity=}")
+    params_orig = get_params(model) / 1.0e6
+    logger.info(f"{perplexity_orig=} {params_orig=}")
+
+    class WrapperModule(torch.nn.Module):
+
+        def __init__(self, model):
+            super().__init__()
+            self.model = model
+
+        def forward(self, x):
+            return self.model(**x)
+
+    model_wrapped = WrapperModule(model)
+
+    for n, m in model_wrapped.named_modules():
+        if isinstance(m, torch.nn.Linear):
+            logger.info(f"{n}, {m.weight.shape}")
+
     ptdeco.dwain.decompose_in_place(
-        module=model,
+        module=model_wrapped,
         device=device,
         dtype=torch.float32,
-        data_iterator=train_dataloader,
-        ft_iterator=train_dataloader,
-        metric_iterator=valid_dataloader,
+        blacklisted_module_names=config_parsed.blacklisted_module_names,
+        data_iterator=make_inifinte_iterator(train_dataloader),
+        ft_iterator=iter(train_dataloader),
+        metric_iterator=make_inifinte_iterator(valid_dataloader),
         nsr_final_threshold=config_parsed.nsr_final_threshold,
         ppl_diff_threshold=config_parsed.ppl_diff_threshold,
         num_data_steps=config_parsed.num_data_steps,
@@ -164,6 +195,13 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
         run_finetuning=True,
         lora_finetuning=False,
     )
+    with torch.no_grad():
+        perplexity_final = metrics.calc_perplexity(
+            model, ppl_eval_loader, device, model.config.pad_token_id
+        )
+    params_final = get_params(model) / 1.0e6
+    logger.info(f"{perplexity_orig=} -> {perplexity_final=}")
+    logger.info(f"{params_orig=} -> {params_final=}")
 
 
 if __name__ == "__main__":
