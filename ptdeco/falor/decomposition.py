@@ -836,8 +836,8 @@ def lora_finetune_decomposed_layers(
         return model
 
     if not use_rank_pattern:
-        rank_pattern = None
-        alpha_pattern = None
+        rank_pattern = {}
+        alpha_pattern = {}
 
     logger.info(f'Fine-tuning {len(rank_pattern)} modules.')
 
