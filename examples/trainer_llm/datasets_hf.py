@@ -85,6 +85,8 @@ def prepare_dataloader(
         A DataLoader.
     """
     logger.info(f"Preparing dataloader")
+    if nsamples is None:
+        nsamples = len(dataset)
 
     if not varied_seqlen and not nsamples:
         logger.warning(
@@ -120,6 +122,8 @@ def prepare_dataloader(
 
         ds = datasets.Dataset.from_dict({data_name: new_data_list})
 
+    raw = False
+
     def tokenize(data_batch):
         # tokenize then pad each batch according to the longest sequence in the batch
         batch = tokenizer(
@@ -129,18 +133,19 @@ def prepare_dataloader(
             truncation=True,
             return_tensors="pt",
         )
-        batch["labels"] = batch["input_ids"].clone()
-        return batch
+        if raw:
+            return batch["input_ids"]
+        else:
+            batch["labels"] = batch["input_ids"].clone()
+            return batch
 
     # tokenize lazily
     ds.set_transform(tokenize)
 
     gen = torch.Generator()
     gen.manual_seed(seed)
-    if nsamples is not None:
-        indices = torch.randperm(len(ds), generator=gen)[:nsamples]
-    else:
-        indices = torch.randperm(len(ds), generator=gen)
+
+    indices = torch.randperm(len(ds), generator=gen)[:nsamples]
     sampler = torch.utils.data.SubsetRandomSampler(indices)
     loader = torch.utils.data.DataLoader(ds, batch_size=batch_size, sampler=sampler)
 
