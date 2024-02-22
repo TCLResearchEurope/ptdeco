@@ -809,6 +809,7 @@ def lora_finetune_decomposed_layers(
         lr: float = 0.0001,
         num_last_decomposed_layers_to_finetune: int = 8,
         min_rank_to_finetune: int = 32,
+        use_rank_pattern: bool = False
 ):
     decomposed_submodules_to_finetune = decomposed_submodules[-num_last_decomposed_layers_to_finetune:]
     for name, param in model.named_parameters():
@@ -833,6 +834,10 @@ def lora_finetune_decomposed_layers(
     if len(rank_pattern) == 0:
         logger.info(f'Skipping fine-tuning.')
         return model
+
+    if not use_rank_pattern:
+        rank_pattern = None
+        alpha_pattern = None
 
     logger.info(f'Fine-tuning {len(rank_pattern)} modules.')
 
@@ -916,6 +921,7 @@ def decompose_in_place_sequentially_with_finetuning(
         lora_finetuning: bool = False,
         num_last_decomposed_layers_to_finetune: int = 8,
         trade_off_factor: float = 0.5,
+        use_rank_pattern: bool = False,
 ) -> dict[str, Any]:
     start_time = time.perf_counter()
     num_params = get_params(module)
@@ -992,6 +998,7 @@ def decompose_in_place_sequentially_with_finetuning(
                         num_last_decomposed_layers_to_finetune=num_last_decomposed_layers_to_finetune,
                         lr=ft_lr,
                         num_steps=num_ft_steps,
+                        use_rank_pattern=use_rank_pattern,
                     )
                     cleanup_memory()
                 else:
