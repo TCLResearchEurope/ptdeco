@@ -838,6 +838,8 @@ def lora_finetune_decomposed_layers(
     if not use_rank_pattern:
         rank_pattern = {}
         alpha_pattern = {}
+    else:
+        logger.warning(f'Using ranka and alpha patterns. Watch out for overfitting on small datasets')
 
     logger.info(f'Fine-tuning {len(rank_pattern)} modules.')
 
