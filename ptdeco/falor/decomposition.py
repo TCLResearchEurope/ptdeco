@@ -204,6 +204,38 @@ class WrappedFALORConv2d1x1(WrappedFALORModule):
         return torch.nn.Sequential(conv_1, conv_2)
 
 
+class CovarianceComputingLinearModule(torch.nn.Module):
+    def __init__(self, original_linear: torch.nn.Linear, use_float64: bool = False):
+        super().__init__()
+        self.original_linear = original_linear
+        self.cov = torch.zeros(
+            (original_linear.out_features, original_linear.out_features),
+            device=self.original_linear.weight.device,
+            dtype=self.original_linear.weight.dtype,
+        )
+        self.num_data_steps = 0
+        self.use_float64 = use_float64
+
+    def forward(self, x):
+        y = x.reshape(-1, self.original_linear.in_features) @ self.original_linear.weight.T
+        self.cov += torch.einsum("bp,bq->pq", y, y) / self.original_linear.out_features
+        self.num_data_steps += 1
+        return self.original_linear(x)
+
+    def get_eigenvectors(self):
+        cov = self.cov / self.num_data_steps
+        damp = 0.01 * torch.mean(torch.diag(cov))
+        diag = torch.arange(self.cov.shape[-1], device=cov.device)
+        cov[diag, diag] = cov[diag, diag] + damp
+
+        if self.use_float64:
+            cov = cov.to(torch.float64)
+        else:
+            cov = cov.to(torch.float32)
+        _, u = torch.linalg.eigh(cov)
+        return u.to(self.original_linear.weight.dtype).to('cpu')
+
+
 def _accumulate_Ey_and_Eyyt(
         Ey: torch.Tensor,
         Eyyt: torch.Tensor,
@@ -349,6 +381,7 @@ def _process_module(
         trade_off_factor: float = 1.0,
         max_accepted_ppl_diff: float = 0.1,
         use_drop_in_params_heuristic: True,
+        u_matrix: torch.Tensor = None,
 ) -> dict[str, Any]:
     if metric_iterator is None:
         metric_iterator = data_iterator
@@ -387,16 +420,21 @@ def _process_module(
     normalize = any([e in decomposed_submodule_name for e in NORMALIZE_NAMES])
     if normalize:
         logger.info(f'Normalizing for {decomposed_submodule_name} decomposition.')
-    u = _compute_decompositon_of_covariance_matrix(
-        root_module=root_module,
-        decomposed_submodule_name=decomposed_submodule_name,
-        data_iterator=data_iterator,
-        weight=orig_weight,
-        num_data_steps=num_data_steps,
-        device=device,
-        use_mean=False,
-        normalize=False,
-    )
+
+    if u_matrix is not None:
+        u = u_matrix.to(device)
+        logger.info(f'Using pre-computed u_matrix')
+    else:
+        u = _compute_decompositon_of_covariance_matrix(
+            root_module=root_module,
+            decomposed_submodule_name=decomposed_submodule_name,
+            data_iterator=data_iterator,
+            weight=orig_weight,
+            num_data_steps=num_data_steps,
+            device=device,
+            use_mean=False,
+            normalize=False,
+        )
     u.to(orig_dtype)
 
     U, V = torch.empty(0), torch.empty(0)
@@ -924,6 +962,7 @@ def decompose_in_place_sequentially_with_finetuning(
         num_last_decomposed_layers_to_finetune: int = 8,
         trade_off_factor: float = 0.5,
         use_rank_pattern: bool = False,
+        pre_compute_covariance: bool = False,
 ) -> dict[str, Any]:
     start_time = time.perf_counter()
     num_params = get_params(module)
@@ -955,6 +994,16 @@ def decompose_in_place_sequentially_with_finetuning(
     decompose_config = {}
     decomposed_submodules = []
 
+    if pre_compute_covariance:
+        u_dict = pre_compute_u_matrices(
+            module=module,
+            submodule_names=modules_to_decompose,
+            num_data_steps=num_data_steps,
+            data_iterator=data_iterator,
+        )
+    else:
+        u_dict = {}
+
     for k, submodule_name in enumerate(tqdm(reversed(modules_to_decompose))):
         logger.info(f'Processing submodule: {submodule_name}')
         with torch.no_grad():
@@ -972,7 +1021,8 @@ def decompose_in_place_sequentially_with_finetuning(
                 num_params=num_params,
                 trade_off_factor=trade_off_factor,
                 min_rank=min_rank,
-                use_drop_in_params_heuristic='identity_linear' not in submodule_name
+                use_drop_in_params_heuristic='identity_linear' not in submodule_name,
+                u_matrix=u_dict[submodule_name] if pre_compute_covariance else None,
             )
         current_params -= result['drop_in_params']
         logger.critical(f'Current params in M: {current_params / 1e6}')
@@ -1384,3 +1434,56 @@ def decompose_step_by_step_v2(
 
     logger.info(f"Decomposition took {stop_time - start_time:.1f} seconds")
     return decompose_config
+
+
+def pre_compute_u_matrices(
+        module: torch.nn.Module,
+        submodule_names: list[str],
+        num_data_steps: int,
+        data_iterator: collections.abc.Iterator[torch.Tensor],
+) -> dict[str, torch.Tensor]:
+    # replace all layers to be decomposed by covariance computing ones
+
+    for submodule_name in submodule_names:
+        old_module = module.get_submodule(submodule_name)
+        new_module = CovarianceComputingLinearModule(
+            original_linear=old_module,
+        )
+        logger.info(f'Replacing {submodule_name} by covariance computing wrapper.')
+        utils.replace_submodule_in_place(root_module=module, submodule_name=submodule_name, new_submodule=new_module)
+
+    counter = 0
+    module.eval()
+
+    with torch.no_grad():
+        for step in trange(num_data_steps):
+            input_dict = next(data_iterator)
+            input_ids = input_dict['input_ids']
+            labels = input_dict['labels']
+            attention_mask = input_dict['attention_mask']
+            counter += 1
+            outputs = module(input_ids, labels=labels)
+            loss = compute_loss_v2(logits=outputs.logits, labels=labels, attention_mask=attention_mask)
+            if step % 10 == 0:
+                logger.info(f'Loss: {loss}')
+
+    cleanup_memory()
+
+    # compute eigenvectors
+    logger.info(f'Computing eigenvectors ...')
+    u_dict = {}
+
+    for submodule_name in tqdm(submodule_names):
+        submodule: CovarianceComputingLinearModule = module.get_submodule(submodule_name)
+        u = submodule.get_eigenvectors()
+        u_dict[submodule_name] = u
+
+    # revert to original linears
+    for submodule_name in submodule_names:
+        wrapped_module: CovarianceComputingLinearModule = module.get_submodule(submodule_name)
+        logger.info(f'Replacing {submodule_name} by original linear.')
+        utils.replace_submodule_in_place(root_module=module, submodule_name=submodule_name,
+                                         new_submodule=wrapped_module.original_linear)
+
+    cleanup_memory()
+    return u_dict
