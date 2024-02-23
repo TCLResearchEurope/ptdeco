@@ -995,12 +995,22 @@ def decompose_in_place_sequentially_with_finetuning(
     decomposed_submodules = []
 
     if pre_compute_covariance:
-        u_dict = pre_compute_u_matrices(
-            module=module,
-            submodule_names=modules_to_decompose,
-            num_data_steps=num_data_steps,
-            data_iterator=data_iterator,
-        )
+        u_dicts = []
+        num_splits = 4  # we split to prevent OOM works how llama2-7b and phi-2
+
+        def split_list(lst, n):
+            chunk_size = len(lst) // n + (len(lst) % n > 0)
+            return [lst[i:i + chunk_size] for i in range(0, len(lst), chunk_size)]
+
+        for sublist in split_list(modules_to_decompose, num_splits):
+            logger.info(f'Pre computing covariance matrices for {len(sublist)} modules')
+            u_dicts.append(pre_compute_u_matrices(
+                module=module,
+                submodule_names=sublist,
+                num_data_steps=num_data_steps,
+                data_iterator=data_iterator,
+            ))
+        u_dict = {k: v for d in u_dicts for k, v in d.items()}
     else:
         u_dict = {}
 
@@ -1452,7 +1462,6 @@ def pre_compute_u_matrices(
         logger.info(f'Replacing {submodule_name} by covariance computing wrapper.')
         utils.replace_submodule_in_place(root_module=module, submodule_name=submodule_name, new_submodule=new_module)
 
-    counter = 0
     module.eval()
 
     with torch.no_grad():
@@ -1460,12 +1469,7 @@ def pre_compute_u_matrices(
             input_dict = next(data_iterator)
             input_ids = input_dict['input_ids']
             labels = input_dict['labels']
-            attention_mask = input_dict['attention_mask']
-            counter += 1
-            outputs = module(input_ids, labels=labels)
-            loss = compute_loss_v2(logits=outputs.logits, labels=labels, attention_mask=attention_mask)
-            if step % 10 == 0:
-                logger.info(f'Loss: {loss}')
+            _ = module(input_ids, labels=labels)
 
     cleanup_memory()
 
