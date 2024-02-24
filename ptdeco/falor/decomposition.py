@@ -205,22 +205,28 @@ class WrappedFALORConv2d1x1(WrappedFALORModule):
 
 
 class CovarianceComputingLinearModule(torch.nn.Module):
-    def __init__(self, original_linear: torch.nn.Linear, use_float64: bool = False):
+    def __init__(self, weight: torch.nn.Parameter, bias: torch.nn.Parameter = None, use_float64: bool = False):
         super().__init__()
-        self.original_linear = original_linear
+        self.weight = weight
+        self.bias = bias
+        self.in_features = weight.shape[1]
+        self.out_features = weight.shape[0]
         self.cov = torch.zeros(
-            (original_linear.out_features, original_linear.out_features),
-            device=self.original_linear.weight.device,
-            dtype=self.original_linear.weight.dtype,
+            (self.out_features, self.out_features),
+            device=self.weight.device,
+            dtype=self.weight.dtype,
         )
         self.num_data_steps = 0
         self.use_float64 = use_float64
 
     def forward(self, x):
-        y = x.reshape(-1, self.original_linear.in_features) @ self.original_linear.weight.T
-        self.cov += torch.einsum("bp,bq->pq", y, y) / self.original_linear.out_features
+        y = x @ self.weight.T
+        y_reshaped = y.reshape(-1, self.out_features)
+        self.cov += torch.einsum("bp,bq->pq", y_reshaped, y_reshaped) / self.out_features
+        if self.bias is not None:
+            y += self.bias
         self.num_data_steps += 1
-        return self.original_linear(x)
+        return y
 
     def get_eigenvectors(self):
         cov = self.cov / self.num_data_steps
@@ -233,7 +239,7 @@ class CovarianceComputingLinearModule(torch.nn.Module):
         else:
             cov = cov.to(torch.float32)
         _, u = torch.linalg.eigh(cov)
-        return u.to(self.original_linear.weight.dtype).to('cpu')
+        return u.to(self.weight.dtype).to('cpu')
 
 
 def _accumulate_Ey_and_Eyyt(
@@ -422,10 +428,9 @@ def _process_module(
         logger.info(f'Normalizing for {decomposed_submodule_name} decomposition.')
 
     if u_matrix is not None:
-        u = u_matrix.to(device)
         logger.info(f'Using pre-computed u_matrix')
     else:
-        u = _compute_decompositon_of_covariance_matrix(
+        u_matrix = _compute_decompositon_of_covariance_matrix(
             root_module=root_module,
             decomposed_submodule_name=decomposed_submodule_name,
             data_iterator=data_iterator,
@@ -435,7 +440,6 @@ def _process_module(
             use_mean=False,
             normalize=False,
         )
-    u.to(orig_dtype)
 
     U, V = torch.empty(0), torch.empty(0)
 
@@ -479,7 +483,7 @@ def _process_module(
             continue
 
         current_proportion = rank_new / full_rank
-        uk = u[:, u.shape[1] - rank_new:].to(orig_dtype)
+        uk = u_matrix[:, u_matrix.shape[1] - rank_new:].to(orig_dtype).to(device)
         U, V = orig_weight.T @ uk, uk.T
         deco_weight = (U @ V).T
 
@@ -531,7 +535,7 @@ def _process_module(
     )
 
     if full_rank != rank_best and not skip and decompose_decision:
-        uk = u[:, u.shape[1] - rank_best:].to(orig_dtype)
+        uk = u_matrix[:, u_matrix.shape[1] - rank_best:].to(orig_dtype).to(device)
         U, V = orig_weight.T @ uk, uk.T
         new_decomposed_submodule = decomposed_submodule.get_decomposed_module(
             u=U.T, v=V.T
@@ -997,12 +1001,10 @@ def decompose_in_place_sequentially_with_finetuning(
     if pre_compute_covariance:
         u_dicts = []
         num_splits = 4  # we split to prevent OOM works how llama2-7b and phi-2
-
-        def split_list(lst, n):
-            chunk_size = len(lst) // n + (len(lst) % n > 0)
-            return [lst[i:i + chunk_size] for i in range(0, len(lst), chunk_size)]
-
-        for sublist in split_list(modules_to_decompose, num_splits):
+        chunk_size = len(modules_to_decompose) // num_splits
+        num_partitions = num_splits if len(modules_to_decompose) % num_splits == 0 else num_splits + 1
+        for partition_index in range(num_partitions):
+            sublist = modules_to_decompose[partition_index * chunk_size: (partition_index + 1) * chunk_size]
             logger.info(f'Pre computing covariance matrices for {len(sublist)} modules')
             u_dicts.append(pre_compute_u_matrices(
                 module=module,
@@ -1013,6 +1015,8 @@ def decompose_in_place_sequentially_with_finetuning(
         u_dict = {k: v for d in u_dicts for k, v in d.items()}
     else:
         u_dict = {}
+
+    cleanup_memory()
 
     for k, submodule_name in enumerate(tqdm(reversed(modules_to_decompose))):
         logger.info(f'Processing submodule: {submodule_name}')
@@ -1032,7 +1036,7 @@ def decompose_in_place_sequentially_with_finetuning(
                 trade_off_factor=trade_off_factor,
                 min_rank=min_rank,
                 use_drop_in_params_heuristic='identity_linear' not in submodule_name,
-                u_matrix=u_dict[submodule_name] if pre_compute_covariance else None,
+                u_matrix=u_dict.pop(submodule_name) if pre_compute_covariance else None,
             )
         current_params -= result['drop_in_params']
         logger.critical(f'Current params in M: {current_params / 1e6}')
@@ -1453,11 +1457,16 @@ def pre_compute_u_matrices(
         data_iterator: collections.abc.Iterator[torch.Tensor],
 ) -> dict[str, torch.Tensor]:
     # replace all layers to be decomposed by covariance computing ones
+    original_linears_dict = {}
 
     for submodule_name in submodule_names:
         old_module = module.get_submodule(submodule_name)
+        original_linears_dict[submodule_name] = old_module
         new_module = CovarianceComputingLinearModule(
-            original_linear=old_module,
+            weight=old_module.weight,
+            bias=old_module.bias,
+            # weight=torch.nn.Parameter(old_module.weight.clone().detach()),
+            # bias=torch.nn.Parameter(old_module.bias.clone().detach()) if old_module.bias is not None else None,
         )
         logger.info(f'Replacing {submodule_name} by covariance computing wrapper.')
         utils.replace_submodule_in_place(root_module=module, submodule_name=submodule_name, new_submodule=new_module)
@@ -1484,10 +1493,9 @@ def pre_compute_u_matrices(
 
     # revert to original linears
     for submodule_name in submodule_names:
-        wrapped_module: CovarianceComputingLinearModule = module.get_submodule(submodule_name)
         logger.info(f'Replacing {submodule_name} by original linear.')
         utils.replace_submodule_in_place(root_module=module, submodule_name=submodule_name,
-                                         new_submodule=wrapped_module.original_linear)
+                                         new_submodule=original_linears_dict[submodule_name])
 
     cleanup_memory()
     return u_dict
