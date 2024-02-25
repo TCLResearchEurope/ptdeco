@@ -372,7 +372,7 @@ def _process_module(
         }
 
     msg = f"{msg_prefix} {decomposed_type} weight_shape={tuple(orig_weight.shape)}"
-    logger.info(msg)
+    logger.info(msg + f" {orig_weight.dtype}")
     logger.info(f"{msg_prefix} {nsr_final_threshold=:.6f} {ppl_diff_threshold=:.6f}")
 
     use_mean = not any([e in decomposed_submodule_name for e in NO_MEAN_NAMES])
@@ -472,7 +472,7 @@ def _process_module(
             rank_best = rank_new
             nsr_best = nsr_new
             ppl_best = ppl_new
-            logger.critical(f"Accepting rank {rank_best}/{full_rank}")
+            logger.info(f"Accepting rank {rank_best}/{full_rank}")
         # else:
         #     break
 
@@ -672,7 +672,7 @@ def _lora_finetune_decomposed_layers(
         if any(
             [e in name for e in decomposed_submodules_to_finetune]
         ):  # and ('Wqkv' in name or 'out_proj' in name):
-            pass
+            logger.info(f"Enabling gradients for {name}")
         else:
             param.requires_grad = False
     rank_pattern = {}
@@ -803,6 +803,8 @@ def decompose_in_place(
         logger.info(f"Processing submodule: {submodule_name}")
         with torch.no_grad():
             old_module = module.get_submodule(submodule_name)
+            msg = f"{submodule_name} START MEM={utils.get_gpu_reserved_memory_gb():.2f}"
+            logger.info(msg)
             result = _process_module(
                 root_module=module,
                 decomposed_submodule_name=submodule_name,
@@ -818,6 +820,8 @@ def decompose_in_place(
                 min_rank=min_rank,
                 use_drop_in_params_heuristic="identity_linear" not in submodule_name,
             )
+            msg = f"{submodule_name} STOP MEM={utils.get_gpu_reserved_memory_gb():.2f}"
+            logger.info(msg)
         current_params -= result["drop_in_params"]
         logger.info(f"Current params in M: {current_params / 1e6}")
         new_module = result["decomposed_module"]
