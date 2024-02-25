@@ -11,10 +11,12 @@ import configurator
 import datasets_hf
 import metrics
 
+TRN_SEQLEN = 1024
 PPL_EAVAL_SEQLEN = 2048
 PPL_EVAL_BATCH_SIZE = 1
-PPL_EVAL_VARIED_SEQLEN = False
-PPL_EVAL_SEED = 42
+
+PPL_EVAL_VARIED_SEQLEN = True
+LOADER_SEED = 42
 
 
 logger = logging.getLogger(__name__)
@@ -72,6 +74,16 @@ def make_padding_tokenizer(
             "Qwen/Qwen-1.8B", trust_remote_code=True, pad_token="<|endoftext|>"
         )
     return tokenizer
+
+
+def conv_str_to_dtype(s: str) -> torch.dtype:
+    if s == "torch.float32":
+        return torch.float32
+    elif s == "torch.bfloat16":
+        return torch.bfloat16
+    elif s == "torch.float16":
+        return torch.float16
+    raise ValueError(f"Unknown dtype {s}")
 
 
 def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
@@ -133,18 +145,22 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
     # tokenizer = transformers.AutoTokenizer.from_pretrained(
     #     "facebook/opt-125m", trust_remote_code=True
     # )
-    model_name = config_parsed.decompose_model_name
+    model_name = config_parsed.decomposed_model_name
     tokenizer = transformers.AutoTokenizer.from_pretrained(
         model_name, trust_remote_code=True
     )
+
+    dtype = conv_str_to_dtype(config_parsed.decomposed_model_dtype)
+    logger.info(f"Using {dtype=}")
     model = transformers.AutoModelForCausalLM.from_pretrained(
-        model_name, torch_dtype="auto", trust_remote_code=True
+        model_name, torch_dtype=dtype, trust_remote_code=True
     )
     tokenizer = make_padding_tokenizer(
         model_name=model_name, model=model, tokenizer=tokenizer
     )
 
     model.to(device)
+    model.to(dtype)  # Just to be sure
     model.eval()
 
     test_datasetloader = False
@@ -153,36 +169,36 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
         ppl_eval_loader = datasets_hf.prepare_test_dataloader(
             dataset=ds_test,
             tokenizer=tokenizer,
-            max_seqlen=PPL_EAVAL_SEQLEN,
-            batch_size=PPL_EVAL_BATCH_SIZE,
+            max_seqlen=config_parsed.metric_max_length,
+            batch_size=config_parsed.metric_batch_size,
         )
     else:
         ppl_eval_loader = datasets_hf.prepare_dataloader(
             dataset=ds_test,
             tokenizer=tokenizer,
-            max_seqlen=PPL_EAVAL_SEQLEN,
-            batch_size=PPL_EVAL_BATCH_SIZE,
+            max_seqlen=config_parsed.metric_max_length,
+            batch_size=config_parsed.metric_batch_size,
             nsamples=len(ds_test),
             varied_seqlen=PPL_EVAL_VARIED_SEQLEN,
-            seed=PPL_EVAL_SEED,
+            seed=LOADER_SEED,
         )
     train_dataloader = datasets_hf.prepare_dataloader(
         dataset=ds_train,
         tokenizer=tokenizer,
-        max_seqlen=PPL_EAVAL_SEQLEN,
-        batch_size=PPL_EVAL_BATCH_SIZE,
+        max_seqlen=config_parsed.data_max_length,
+        batch_size=config_parsed.data_batch_size,
         nsamples=len(ds_test),
-        varied_seqlen=PPL_EVAL_VARIED_SEQLEN,
-        seed=PPL_EVAL_SEED,
+        varied_seqlen=False,
+        seed=LOADER_SEED,
     )
     valid_dataloader = datasets_hf.prepare_dataloader(
         dataset=ds_valid,
         tokenizer=tokenizer,
         max_seqlen=PPL_EAVAL_SEQLEN,
         batch_size=PPL_EVAL_BATCH_SIZE,
-        nsamples=len(ds_test),
-        varied_seqlen=PPL_EVAL_VARIED_SEQLEN,
-        seed=PPL_EVAL_SEED,
+        nsamples=len(ds_valid),
+        varied_seqlen=False,
+        seed=LOADER_SEED,
     )
     with torch.no_grad():
         perplexity_orig = metrics.calc_perplexity(
@@ -212,7 +228,7 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
     ptdeco.dwain.decompose_in_place(
         module=model_wrapped,
         device=device,
-        dtype=torch.float32,
+        dtype=dtype,
         blacklisted_module_names=config_parsed.blacklisted_module_names,
         data_iterator=make_inifinte_iterator(train_dataloader),
         ft_iterator=iter(train_dataloader),
