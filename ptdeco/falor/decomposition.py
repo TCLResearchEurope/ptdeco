@@ -222,7 +222,7 @@ class CovarianceComputingLinearModule(torch.nn.Module):
     def forward(self, x):
         y = x @ self.weight.T
         y_reshaped = y.reshape(-1, self.out_features)
-        self.cov += torch.einsum("bp,bq->pq", y_reshaped, y_reshaped) / self.out_features
+        self.cov += torch.einsum("bp,bq->pq", y_reshaped, y_reshaped) / y_reshaped.shape[0]
         if self.bias is not None:
             y += self.bias
         self.num_data_steps += 1
