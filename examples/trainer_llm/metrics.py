@@ -82,7 +82,8 @@ def calc_lm_eval_metrics(
     tokenizer,
     device: torch.device,
     suppress_initialize_tasks: bool = False,
-) -> dict[str, Any]:
+) -> tuple[dict[str, Any], str]:
+
     import lm_eval
 
     if not suppress_initialize_tasks:
@@ -101,4 +102,5 @@ def calc_lm_eval_metrics(
         max_batch_size=None,
         device=device,
     )
-    return results
+    results_str = lm_eval.utils.make_table(results)
+    return results, results_str

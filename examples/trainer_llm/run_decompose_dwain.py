@@ -263,11 +263,17 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
     logger.info(f"{params_orig=} -> {params_final=}")
 
     if config_parsed.lm_eval_tasks is not None and len(config_parsed.lm_eval_tasks) > 0:
-        lm_eval_results = metrics.calc_lm_eval_metrics(
-            model=model_wrapped.model, tokenizer=tokenizer, device=device
+        lm_eval_results, lm_eval_results_str = metrics.calc_lm_eval_metrics(
+            model=model_wrapped.model,
+            tokenizer=tokenizer,
+            device=device,
+            tasks=config_parsed.lm_eval_tasks,
         )
-        with open(output_path / "lm_eval.json", "wt") as f:
+        logger.info(lm_eval_results_str)
+        lm_eval_path = output_path / "lm_eval.json"
+        with open(lm_eval_path, "wt") as f:
             json.dump(lm_eval_results, f)
+        logger.info(f"lm_eval results saved to {lm_eval_path}")
 
 
 if __name__ == "__main__":
