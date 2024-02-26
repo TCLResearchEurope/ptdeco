@@ -1,11 +1,10 @@
-from typing import Any
+from typing import Any, Optional
 
 import logging
 import time
 
 import torch
 
-import lm_eval
 
 logger = logging.getLogger(__name__)
 
@@ -104,3 +103,36 @@ def calc_lm_eval_metrics(
     )
     results_str = lm_eval.utils.make_table(results)
     return results, results_str
+
+
+def get_params(m: torch.nn.Module, only_trainable: bool = False) -> int:
+    parameters = list(m.parameters())
+    if only_trainable:
+        parameters = [p for p in parameters if p.requires_grad]
+    unique = {p.data_ptr(): p for p in parameters}.values()
+    return sum(p.numel() for p in unique)
+
+
+def get_giga_flops(
+    model: torch.nn.Module,
+    tensor_size: tuple[int, ...],
+    device: Optional[torch.device] = None,
+    warnings_off: bool = False,
+) -> float:
+    import ptdeco
+    import fvcore.nn
+
+    if device is None:
+        device = ptdeco.utils.get_default_device(model)
+    x = torch.ones(size=tensor_size, device=device, dtype=torch.int64)
+    fca = fvcore.nn.FlopCountAnalysis(model, x)
+
+    if warnings_off:
+        fca.unsupported_ops_warnings(False)
+
+    # NOTE FV.CORE computes MACs not FLOPs !!!!
+    # Hence 2.0 * here for proper GIGA FLOPS
+
+    flops = 2 * fca.total()
+
+    return flops / 1.0e9
