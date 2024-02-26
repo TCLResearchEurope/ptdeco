@@ -214,7 +214,7 @@ class CovarianceComputingLinearModule(torch.nn.Module):
         self.cov = torch.zeros(
             (self.out_features, self.out_features),
             device=self.weight.device,
-            dtype=self.weight.dtype,
+            dtype=torch.float32,
         )
         self.num_data_steps = 0
         self.use_float64 = use_float64
