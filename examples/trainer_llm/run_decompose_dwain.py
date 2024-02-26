@@ -2,6 +2,7 @@ from typing import Any
 import json
 import logging
 import pathlib
+import time
 
 import datasets
 import torch
@@ -35,14 +36,6 @@ def setup_logging():
 
     for module_name in [__name__, "datasets_hf", "metrics", "ptdeco"]:
         logging.getLogger(module_name).setLevel(logging.INFO)
-
-
-def get_params(m: torch.nn.Module, only_trainable: bool = False) -> int:
-    parameters = list(m.parameters())
-    if only_trainable:
-        parameters = [p for p in parameters if p.requires_grad]
-    unique = {p.data_ptr(): p for p in parameters}.values()
-    return sum(p.numel() for p in unique)
 
 
 def make_inifinte_iterator(dl):
@@ -85,46 +78,9 @@ def conv_str_to_dtype(s: str) -> torch.dtype:
 
 
 def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
+    start = time.perf_counter()
     transformers.utils.logging.disable_progress_bar()
     config_parsed = configurator.DecomposeDWAINConfig(**config)
-
-    # tokenizer = transformers.AutoTokenizer.from_pretrained(
-    #     "facebook/opt-125m", trust_remote_code=True
-    # )
-    # model = transformers.AutoModel.from_pretrained(
-    #     "facebook/opt-125m", trust_remote_code=True
-    # )
-    # print(type(model))
-
-    # message = ["The largest lake on earth is "]
-    # inputs = tokenizer(message, return_tensors="pt", return_token_type_ids=False)
-    # response = model.generate(
-    #     **inputs, max_new_tokens=100, do_sample=True, top_k=50, top_p=0.95
-    # )
-    # print(tokenizer.batch_decode(response, skip_special_tokens=True)[0])
-    # tokenizer = transformers.AutoTokenizer.from_pretrained(
-    #     "facebook/opt-125m", trust_remote_code=True
-    # )
-    # model = transformers.AutoModel.from_pretrained(
-    #     "facebook/opt-125m", trust_remote_code=True
-    # )
-
-    # GENERATION:
-    #
-    # if torch.cuda.is_available():
-    #     device = torch.device("cuda")
-    # else:
-    #     device = torch.device("cpu")
-
-    # model = transformers.OPTForCausalLM.from_pretrained(
-    #     "facebook/opt-125m", torch_dtype=torch.float32,
-    # )
-    # tokenizer = transformers.AutoTokenizer.from_pretrained(
-    #     "facebook/opt-125m", trust_remote_code=True
-    # )
-    # generator = transformers.pipeline(
-    #     "text-generation", model=model, tokenizer=tokenizer, do_sample=True
-    # )
 
     ds = datasets.load_dataset("wikitext", name="wikitext-2-raw-v1")
     ds_train, ds_valid, ds_test = ds["train"], ds["validation"], ds["test"]
@@ -202,8 +158,10 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
         perplexity_orig = metrics.calc_perplexity(
             model, ppl_eval_loader, device, model.config.pad_token_id
         )
-    params_orig = get_params(model) / 1.0e6
-    logger.info(f"{perplexity_orig=} {params_orig=}")
+    params_orig = metrics.get_params(model) / 1.0e6
+    gflops_orig = metrics.get_giga_flops(model, tensor_size=(1, 512))
+
+    logger.info(f"{perplexity_orig=} {params_orig=} {gflops_orig}")
 
     class WrapperModule(torch.nn.Module):
         def __init__(self, model):
@@ -250,30 +208,72 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
     with open(out_decompose_config_path, "wt") as f:
         json.dump(decompose_config, f)
     out_decompose_state_dict_path = output_path / "decompose_state_dict.pt"
+    # TODO Remove model prefix from state dict !!!
     torch.save(model.state_dict(), out_decompose_state_dict_path)
 
-    # Evaluate model
+    # Evaluate model - perplexity
 
     with torch.no_grad():
         perplexity_final = metrics.calc_perplexity(
             model, ppl_eval_loader, device, model.config.pad_token_id
         )
-    params_final = get_params(model) / 1.0e6
+    params_final = metrics.get_params(model) / 1.0e6
+    gflops_final = metrics.get_giga_flops(model, tensor_size=(1, 512))
+    params_frac = params_final / params_orig * 100.0
+    gflops_frac = gflops_final / gflops_orig * 100.0
+
     logger.info(f"{perplexity_orig=} -> {perplexity_final=}")
-    logger.info(f"{params_orig=} -> {params_final=}")
+    logger.info(f"{params_orig=} -> {params_final=} {params_frac:.2f}")
+    logger.info(f"{gflops_orig=} -> {gflops_final=} {gflops_frac:.2f}")
+
+    stop = time.perf_counter()
+    time_decomposition_and_perplex_eval = stop - start
+    logger.info(
+        "Decomposition and perplexity evaluation "
+        f"took {time_decomposition_and_perplex_eval:.2f} s"
+    )
+
+    time_lm_eval = -1.0
 
     if config_parsed.lm_eval_tasks is not None and len(config_parsed.lm_eval_tasks) > 0:
+        start = time.perf_counter()
         lm_eval_results, lm_eval_results_str = metrics.calc_lm_eval_metrics(
             model=model_wrapped.model,
             tokenizer=tokenizer,
             device=device,
             tasks=config_parsed.lm_eval_tasks,
         )
-        logger.info(lm_eval_results_str)
+        logger.info("\n" + lm_eval_results_str)
         lm_eval_path = output_path / "lm_eval.json"
+        lm_eval_results["config"]["device"] = str(lm_eval_results["config"]["device"])
         with open(lm_eval_path, "wt") as f:
             json.dump(lm_eval_results, f)
         logger.info(f"lm_eval results saved to {lm_eval_path}")
+        time_lm_eval = time.perf_counter() - start
+        logger.info(f"lm_eval took {time_lm_eval:.2f} s")
+
+    # Save summary
+
+    device_str = str(device)
+    if "cuda" in device_str:
+        device_str += " @ " + torch.cuda.get_device_name(device)
+
+    summary = {
+        "perplexity_orig": perplexity_orig,
+        "perplexity_final": perplexity_final,
+        "mparams_orig": params_orig,
+        "mparams_final": params_final,
+        "mparams_frac": params_frac,
+        "gflops_orig": gflops_orig,
+        "gflops_final": gflops_final,
+        "gflops_frac": gflops_frac,
+        "time_decomposition_and_perplex_eval": time_decomposition_and_perplex_eval,
+        "time_lm_eval": time_lm_eval,
+        "device": device_str,
+    }
+
+    with open(output_path / "summary.json", "wt") as f:
+        json.dump(summary, f)
 
 
 if __name__ == "__main__":
