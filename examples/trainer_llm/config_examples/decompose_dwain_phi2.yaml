@@ -1,0 +1,232 @@
+task: "decompose_dwain"
+
+# Model specification
+
+decomposed_model_name: "microsoft/phi-2"
+decomposed_model_dtype: "torch.bfloat16"
+
+# Data handling params
+
+metric_max_length: 2048
+metric_batch_size: 1
+data_max_length: 1024
+data_batch_size: 1
+
+# Decomposition params
+
+num_data_steps: 8
+num_metric_steps: 8
+trade_off_factor: 1.0
+proportion_threshold: 0.75
+ppl_diff_threshold: 0.005
+min_proportion: 0.25
+nsr_final_threshold: 1.0
+min_rank: 4
+
+# Fintetuning params
+
+ft_lr: 0.0001
+run_finetuning: true
+lora_finetuning: true
+num_ft_steps: 10
+num_last_decomposed_layers_to_finetune: 8
+
+# lm_eval evaluation params
+lm_eval_tasks:
+  - arc_challenge
+  - arc_easy
+
+blacklisted_module_names:
+  - model.lm_head
+  #- model.model.layers.0.self_attn.q_proj
+  #- model.model.layers.0.self_attn.k_proj
+  #- model.model.layers.0.self_attn.v_proj
+  #- model.model.layers.0.self_attn.dense
+  #- model.model.layers.0.mlp.fc1
+  #- model.model.layers.0.mlp.fc2
+  #- model.model.layers.1.self_attn.q_proj
+  #- model.model.layers.1.self_attn.k_proj
+  #- model.model.layers.1.self_attn.v_proj
+  #- model.model.layers.1.self_attn.dense
+  #- model.model.layers.1.mlp.fc1
+  #- model.model.layers.1.mlp.fc2
+  - model.model.layers.2.self_attn.q_proj
+  - model.model.layers.2.self_attn.k_proj
+  - model.model.layers.2.self_attn.v_proj
+  - model.model.layers.2.self_attn.dense
+  - model.model.layers.2.mlp.fc1
+  - model.model.layers.2.mlp.fc2
+  - model.model.layers.3.self_attn.q_proj
+  - model.model.layers.3.self_attn.k_proj
+  - model.model.layers.3.self_attn.v_proj
+  - model.model.layers.3.self_attn.dense
+  - model.model.layers.3.mlp.fc1
+  - model.model.layers.3.mlp.fc2
+  - model.model.layers.4.self_attn.q_proj
+  - model.model.layers.4.self_attn.k_proj
+  - model.model.layers.4.self_attn.v_proj
+  - model.model.layers.4.self_attn.dense
+  - model.model.layers.4.mlp.fc1
+  - model.model.layers.4.mlp.fc2
+  - model.model.layers.5.self_attn.q_proj
+  - model.model.layers.5.self_attn.k_proj
+  - model.model.layers.5.self_attn.v_proj
+  - model.model.layers.5.self_attn.dense
+  - model.model.layers.5.mlp.fc1
+  - model.model.layers.5.mlp.fc2
+  - model.model.layers.6.self_attn.q_proj
+  - model.model.layers.6.self_attn.k_proj
+  - model.model.layers.6.self_attn.v_proj
+  - model.model.layers.6.self_attn.dense
+  - model.model.layers.6.mlp.fc1
+  - model.model.layers.6.mlp.fc2
+  - model.model.layers.7.self_attn.q_proj
+  - model.model.layers.7.self_attn.k_proj
+  - model.model.layers.7.self_attn.v_proj
+  - model.model.layers.7.self_attn.dense
+  - model.model.layers.7.mlp.fc1
+  - model.model.layers.7.mlp.fc2
+  - model.model.layers.8.self_attn.q_proj
+  - model.model.layers.8.self_attn.k_proj
+  - model.model.layers.8.self_attn.v_proj
+  - model.model.layers.8.self_attn.dense
+  - model.model.layers.8.mlp.fc1
+  - model.model.layers.8.mlp.fc2
+  - model.model.layers.9.self_attn.q_proj
+  - model.model.layers.9.self_attn.k_proj
+  - model.model.layers.9.self_attn.v_proj
+  - model.model.layers.9.self_attn.dense
+  - model.model.layers.9.mlp.fc1
+  - model.model.layers.9.mlp.fc2
+  - model.model.layers.10.self_attn.q_proj
+  - model.model.layers.10.self_attn.k_proj
+  - model.model.layers.10.self_attn.v_proj
+  - model.model.layers.10.self_attn.dense
+  - model.model.layers.10.mlp.fc1
+  - model.model.layers.10.mlp.fc2
+  - model.model.layers.11.self_attn.q_proj
+  - model.model.layers.11.self_attn.k_proj
+  - model.model.layers.11.self_attn.v_proj
+  - model.model.layers.11.self_attn.dense
+  - model.model.layers.11.mlp.fc1
+  - model.model.layers.11.mlp.fc2
+  - model.model.layers.12.self_attn.q_proj
+  - model.model.layers.12.self_attn.k_proj
+  - model.model.layers.12.self_attn.v_proj
+  - model.model.layers.12.self_attn.dense
+  - model.model.layers.12.mlp.fc1
+  - model.model.layers.12.mlp.fc2
+  - model.model.layers.13.self_attn.q_proj
+  - model.model.layers.13.self_attn.k_proj
+  - model.model.layers.13.self_attn.v_proj
+  - model.model.layers.13.self_attn.dense
+  - model.model.layers.13.mlp.fc1
+  - model.model.layers.13.mlp.fc2
+  - model.model.layers.14.self_attn.q_proj
+  - model.model.layers.14.self_attn.k_proj
+  - model.model.layers.14.self_attn.v_proj
+  - model.model.layers.14.self_attn.dense
+  - model.model.layers.14.mlp.fc1
+  - model.model.layers.14.mlp.fc2
+  - model.model.layers.15.self_attn.q_proj
+  - model.model.layers.15.self_attn.k_proj
+  - model.model.layers.15.self_attn.v_proj
+  - model.model.layers.15.self_attn.dense
+  - model.model.layers.15.mlp.fc1
+  - model.model.layers.15.mlp.fc2
+  - model.model.layers.16.self_attn.q_proj
+  - model.model.layers.16.self_attn.k_proj
+  - model.model.layers.16.self_attn.v_proj
+  - model.model.layers.16.self_attn.dense
+  - model.model.layers.16.mlp.fc1
+  - model.model.layers.16.mlp.fc2
+  - model.model.layers.17.self_attn.q_proj
+  - model.model.layers.17.self_attn.k_proj
+  - model.model.layers.17.self_attn.v_proj
+  - model.model.layers.17.self_attn.dense
+  - model.model.layers.17.mlp.fc1
+  - model.model.layers.17.mlp.fc2
+  - model.model.layers.18.self_attn.q_proj
+  - model.model.layers.18.self_attn.k_proj
+  - model.model.layers.18.self_attn.v_proj
+  - model.model.layers.18.self_attn.dense
+  - model.model.layers.18.mlp.fc1
+  - model.model.layers.18.mlp.fc2
+  - model.model.layers.19.self_attn.q_proj
+  - model.model.layers.19.self_attn.k_proj
+  - model.model.layers.19.self_attn.v_proj
+  - model.model.layers.19.self_attn.dense
+  - model.model.layers.19.mlp.fc1
+  - model.model.layers.19.mlp.fc2
+  - model.model.layers.20.self_attn.q_proj
+  - model.model.layers.20.self_attn.k_proj
+  - model.model.layers.20.self_attn.v_proj
+  - model.model.layers.20.self_attn.dense
+  - model.model.layers.20.mlp.fc1
+  - model.model.layers.20.mlp.fc2
+  - model.model.layers.21.self_attn.q_proj
+  - model.model.layers.21.self_attn.k_proj
+  - model.model.layers.21.self_attn.v_proj
+  - model.model.layers.21.self_attn.dense
+  - model.model.layers.21.mlp.fc1
+  - model.model.layers.21.mlp.fc2
+  - model.model.layers.22.self_attn.q_proj
+  - model.model.layers.22.self_attn.k_proj
+  - model.model.layers.22.self_attn.v_proj
+  - model.model.layers.22.self_attn.dense
+  - model.model.layers.22.mlp.fc1
+  - model.model.layers.22.mlp.fc2
+  - model.model.layers.23.self_attn.q_proj
+  - model.model.layers.23.self_attn.k_proj
+  - model.model.layers.23.self_attn.v_proj
+  - model.model.layers.23.self_attn.dense
+  - model.model.layers.23.mlp.fc1
+  - model.model.layers.23.mlp.fc2
+  - model.model.layers.24.self_attn.q_proj
+  - model.model.layers.24.self_attn.k_proj
+  - model.model.layers.24.self_attn.v_proj
+  - model.model.layers.24.self_attn.dense
+  - model.model.layers.24.mlp.fc1
+  - model.model.layers.24.mlp.fc2
+  - model.model.layers.25.self_attn.q_proj
+  - model.model.layers.25.self_attn.k_proj
+  - model.model.layers.25.self_attn.v_proj
+  - model.model.layers.25.self_attn.dense
+  - model.model.layers.25.mlp.fc1
+  - model.model.layers.25.mlp.fc2
+  - model.model.layers.26.self_attn.q_proj
+  - model.model.layers.26.self_attn.k_proj
+  - model.model.layers.26.self_attn.v_proj
+  - model.model.layers.26.self_attn.dense
+  - model.model.layers.26.mlp.fc1
+  - model.model.layers.26.mlp.fc2
+  - model.model.layers.27.self_attn.q_proj
+  - model.model.layers.27.self_attn.k_proj
+  - model.model.layers.27.self_attn.v_proj
+  - model.model.layers.27.self_attn.dense
+  - model.model.layers.27.mlp.fc1
+  - model.model.layers.27.mlp.fc2
+  - model.model.layers.28.self_attn.q_proj
+  - model.model.layers.28.self_attn.k_proj
+  - model.model.layers.28.self_attn.v_proj
+  - model.model.layers.28.self_attn.dense
+  - model.model.layers.28.mlp.fc1
+  - model.model.layers.28.mlp.fc2
+  - model.model.layers.29.self_attn.q_proj
+  - model.model.layers.29.self_attn.k_proj
+  - model.model.layers.29.self_attn.v_proj
+  - model.model.layers.29.self_attn.dense
+  - model.model.layers.29.mlp.fc1
+  - model.model.layers.29.mlp.fc2
+  - model.model.layers.30.self_attn.q_proj
+  - model.model.layers.30.self_attn.k_proj
+  - model.model.layers.30.self_attn.v_proj
+  - model.model.layers.30.self_attn.dense
+  - model.model.layers.30.mlp.fc1
+  - model.model.layers.30.mlp.fc2
+  - model.model.layers.31.self_attn.q_proj
+  - model.model.layers.31.self_attn.k_proj
+  - model.model.layers.31.self_attn.v_proj
+  - model.model.layers.31.self_attn.dense
+  - model.model.layers.31.mlp.fc1
+  - model.model.layers.31.mlp.fc2
