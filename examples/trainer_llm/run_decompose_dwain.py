@@ -200,6 +200,7 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
         num_last_decomposed_layers_to_finetune=num_layers,
         run_finetuning=config_parsed.run_finetuning,
         lora_finetuning=config_parsed.lora_finetuning,
+        decompose_in_float64=config_parsed.decompose_in_float64,
     )
 
     # Serialize model

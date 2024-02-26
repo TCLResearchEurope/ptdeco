@@ -34,6 +34,7 @@ class DecomposeDWAINConfig(pydantic.BaseModel):
     min_proportion: float
     min_rank: int
     blacklisted_module_names: Optional[list[str]] = None
+    decompose_in_float64: bool
 
     # Finetuning params
 
