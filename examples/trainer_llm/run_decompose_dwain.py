@@ -11,11 +11,8 @@ import configurator
 import datasets_hf
 import metrics
 
-TRN_SEQLEN = 1024
-PPL_EAVAL_SEQLEN = 2048
-PPL_EVAL_BATCH_SIZE = 1
 
-PPL_EVAL_VARIED_SEQLEN = True
+PPL_EVAL_VARIED_SEQLEN = False
 LOADER_SEED = 42
 
 
@@ -194,10 +191,10 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
     valid_dataloader = datasets_hf.prepare_dataloader(
         dataset=ds_valid,
         tokenizer=tokenizer,
-        max_seqlen=PPL_EAVAL_SEQLEN,
-        batch_size=PPL_EVAL_BATCH_SIZE,
+        max_seqlen=config_parsed.metric_max_length,
+        batch_size=config_parsed.metric_batch_size,
         nsamples=len(ds_valid),
-        varied_seqlen=False,
+        varied_seqlen=PPL_EVAL_VARIED_SEQLEN,
         seed=LOADER_SEED,
     )
     with torch.no_grad():
