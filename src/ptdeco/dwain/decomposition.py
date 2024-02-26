@@ -201,17 +201,21 @@ def _compute_decompositon_of_covariance_matrix(
     device: torch.device,
     use_mean: bool = True,
     normalize: bool = False,
-    use_float64: bool = True,
+    decompose_in_float64: bool,
     dampen: bool = True,
 ) -> torch.Tensor:
     root_module.eval()
     decomposed_submodule = root_module.get_submodule(decomposed_submodule_name)
     assert isinstance(decomposed_submodule, WrappedFALORModule)
 
-    Ey = torch.zeros(weight.shape[0]).to(device)
-    Eyyt = torch.zeros((weight.shape[0], weight.shape[0])).to(device)
+    if decompose_in_float64:
+        dtype = torch.float64
+    else:
+        dtype = torch.float32
+    Ey = torch.zeros(weight.shape[0], dtype=dtype).to(device)
+    Eyyt = torch.zeros((weight.shape[0], weight.shape[0]), dtype=dtype).to(device)
 
-    for i in range(num_data_steps):
+    for _ in range(num_data_steps):
         inputs = _to(next(data_iterator), device)
         # inputs = input_dict["input_ids"].to(device)
         _ = root_module(inputs)
@@ -229,8 +233,6 @@ def _compute_decompositon_of_covariance_matrix(
         damp = 0.01 * torch.mean(torch.diag(cov))
         diag = torch.arange(cov.shape[-1], device=cov.device)
         cov[diag, diag] = cov[diag, diag] + damp
-    if use_float64:
-        cov.to(torch.float64)
     _, u = torch.linalg.eigh(cov)
     del cov
     return u
@@ -340,7 +342,8 @@ def _process_module(
     min_rank=32,
     trade_off_factor: float = 1.0,
     max_accepted_ppl_diff: float = 0.1,
-    use_drop_in_params_heuristic: True,
+    use_drop_in_params_heuristic: bool = True,
+    decompose_in_float64: bool = True
 ) -> dict[str, Any]:
     if metric_iterator is None:
         metric_iterator = data_iterator
@@ -390,6 +393,7 @@ def _process_module(
         device=device,
         use_mean=False,
         normalize=False,
+        decompose_in_float64=decompose_in_float64
     )
     u.to(orig_dtype)
 
@@ -777,6 +781,7 @@ def decompose_in_place(
     lora_finetuning: bool = False,
     num_last_decomposed_layers_to_finetune: int = 8,
     trade_off_factor: float = 0.5,
+    decompose_in_float64: bool = True
 ) -> dict[str, Any]:
     start_time = time.perf_counter()
     num_params = utils.get_num_params(module)
@@ -819,6 +824,7 @@ def decompose_in_place(
                 trade_off_factor=trade_off_factor,
                 min_rank=min_rank,
                 use_drop_in_params_heuristic="identity_linear" not in submodule_name,
+                decompose_in_float64=decompose_in_float64,
             )
             msg = f"{submodule_name} STOP MEM={utils.get_gpu_reserved_memory_gb():.2f}"
             logger.info(msg)
