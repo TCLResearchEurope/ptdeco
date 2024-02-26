@@ -42,3 +42,6 @@ class DecomposeDWAINConfig(pydantic.BaseModel):
     ft_lr: float = 0.0001
     num_ft_steps: int
     num_last_decomposed_layers_to_finetune: int
+
+    # lm_eval evaluation params
+    lm_eval_tasks: Optional[list[str]]
