@@ -967,6 +967,7 @@ def decompose_in_place_sequentially_with_finetuning(
         trade_off_factor: float = 0.5,
         use_rank_pattern: bool = False,
         pre_compute_covariance: bool = False,
+        num_splits: int = 4,
 ) -> dict[str, Any]:
     start_time = time.perf_counter()
     num_params = get_params(module)
@@ -1000,7 +1001,7 @@ def decompose_in_place_sequentially_with_finetuning(
 
     if pre_compute_covariance:
         u_dicts = []
-        num_splits = 4  # we split to prevent OOM works how llama2-7b and phi-2
+        # we split to prevent OOM works how llama2-7b and phi-2
         chunk_size = len(modules_to_decompose) // num_splits
         num_partitions = num_splits if len(modules_to_decompose) % num_splits == 0 else num_splits + 1
         for partition_index in range(num_partitions):
