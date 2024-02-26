@@ -1,4 +1,5 @@
 from typing import Any
+import json
 import logging
 import pathlib
 
@@ -157,7 +158,7 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
     )
 
     model.to(device)
-    model.to(dtype)  # Just to be sure
+    model.to(dtype)
     model.eval()
 
     test_datasetloader = False
@@ -222,7 +223,7 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
         if isinstance(m, torch.nn.Linear):
             logger.info(f"{n}, {m.weight.shape}")
     num_layers = config_parsed.num_last_decomposed_layers_to_finetune
-    ptdeco.dwain.decompose_in_place(
+    decompose_config = ptdeco.dwain.decompose_in_place(
         module=model_wrapped,
         device=device,
         dtype=dtype,
@@ -242,6 +243,17 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
         run_finetuning=config_parsed.run_finetuning,
         lora_finetuning=config_parsed.lora_finetuning,
     )
+
+    # Serialize model
+
+    out_decompose_config_path = output_path / "decompose_config.json"
+    with open(out_decompose_config_path, "wt") as f:
+        json.dump(decompose_config, f)
+    out_decompose_state_dict_path = output_path / "decompose_state_dict.pt"
+    torch.save(model.state_dict(), out_decompose_state_dict_path)
+
+    # Evaluate model
+
     with torch.no_grad():
         perplexity_final = metrics.calc_perplexity(
             model, ppl_eval_loader, device, model.config.pad_token_id
@@ -249,6 +261,13 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
     params_final = get_params(model) / 1.0e6
     logger.info(f"{perplexity_orig=} -> {perplexity_final=}")
     logger.info(f"{params_orig=} -> {params_final=}")
+
+    if config_parsed.lm_eval_tasks is not None and len(config_parsed.lm_eval_tasks) > 0:
+        lm_eval_results = metrics.calc_lm_eval_metrics(
+            model=model_wrapped.model, tokenizer=tokenizer, device=device
+        )
+        with open(output_path / "lm_eval.json", "wt") as f:
+            json.dump(lm_eval_results, f)
 
 
 if __name__ == "__main__":

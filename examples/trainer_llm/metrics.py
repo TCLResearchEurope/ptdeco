@@ -5,6 +5,8 @@ import time
 
 import torch
 
+import lm_eval
+
 logger = logging.getLogger(__name__)
 
 
@@ -72,3 +74,31 @@ def calc_perplexity(
     logging.info("Perplexity evaluation finished")
 
     return perplexity.item()
+
+
+def calc_lm_eval_metrics(
+    model: torch.nn.Module,
+    tasks: list[str],
+    tokenizer,
+    device: torch.device,
+    suppress_initialize_tasks: bool = False,
+) -> dict[str, Any]:
+    import lm_eval
+
+    if not suppress_initialize_tasks:
+        lm_eval.tasks.initialize_tasks()
+
+    lm_eval_model = lm_eval.models.huggingface.HFLM(
+        pretrained=model, tokenizer=tokenizer, device=device
+    )
+
+    num_fewshot = 0
+    results = lm_eval.evaluator.simple_evaluate(
+        model=lm_eval_model,
+        tasks=tasks,
+        num_fewshot=num_fewshot,
+        batch_size="auto",
+        max_batch_size=None,
+        device=device,
+    )
+    return results
