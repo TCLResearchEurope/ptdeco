@@ -209,8 +209,10 @@ def _compute_decompositon_of_covariance_matrix(
     assert isinstance(decomposed_submodule, WrappedFALORModule)
 
     if decompose_in_float64:
+        logger.info("Using float64 for decomposition")
         dtype = torch.float64
     else:
+        logger.info("Using float32 for decomposition")
         dtype = torch.float32
     Ey = torch.zeros(weight.shape[0], dtype=dtype).to(device)
     Eyyt = torch.zeros((weight.shape[0], weight.shape[0]), dtype=dtype).to(device)
@@ -343,7 +345,7 @@ def _process_module(
     trade_off_factor: float = 1.0,
     max_accepted_ppl_diff: float = 0.1,
     use_drop_in_params_heuristic: bool = True,
-    decompose_in_float64: bool = True
+    decompose_in_float64: bool = True,
 ) -> dict[str, Any]:
     if metric_iterator is None:
         metric_iterator = data_iterator
@@ -393,7 +395,7 @@ def _process_module(
         device=device,
         use_mean=False,
         normalize=False,
-        decompose_in_float64=decompose_in_float64
+        decompose_in_float64=decompose_in_float64,
     )
     u.to(orig_dtype)
 
@@ -781,7 +783,7 @@ def decompose_in_place(
     lora_finetuning: bool = False,
     num_last_decomposed_layers_to_finetune: int = 8,
     trade_off_factor: float = 0.5,
-    decompose_in_float64: bool = True
+    decompose_in_float64: bool = True,
 ) -> dict[str, Any]:
     start_time = time.perf_counter()
     num_params = utils.get_num_params(module)
