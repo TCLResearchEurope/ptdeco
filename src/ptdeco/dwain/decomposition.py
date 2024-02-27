@@ -1,11 +1,5 @@
-
 # Decomposing Weights Algorithm - Iterative techNique
 
-# 430998a2b1f223e977ab0c7002f1303015c3c27b (HEAD -> lt-dev, origin/lt-dev) Make loss computation respect attention mask
-
-# Use_mean = False
-# use_drop_in_params_heuristic="identity_linear"
-# dampen = True
 import collections.abc
 import logging
 import time
@@ -249,11 +243,11 @@ def _compute_metrics(
 
     decomposed_submodule.set_weight(orig_weight)
     orig_output = root_module(input_dict)
-    loss_deco = _compute_loss_v2(
+    loss_deco = _compute_loss(
         logits=y_deco, labels=labels, attention_mask=attention_mask
     )
     y_orig = orig_output
-    loss_orig = _compute_loss_v2(
+    loss_orig = _compute_loss(
         logits=y_orig, labels=labels, attention_mask=attention_mask
     )
 
@@ -582,7 +576,7 @@ def _finetune_decomposed_layers(
         labels = batch["labels"]
         attention_mask = batch["attention_mask"]
         outputs = model({"input_ids": input_ids})
-        loss = _compute_loss_v2(
+        loss = _compute_loss(
             logits=outputs.logits, labels=labels, attention_mask=attention_mask
         )
         loss.backward()
@@ -595,7 +589,7 @@ def _finetune_decomposed_layers(
     return model
 
 
-# def compute_loss(
+# def compute_loss_old(
 #         model: PreTrainedModel,
 #         logits: torch.tensor,
 #         labels: torch.tensor,
@@ -614,7 +608,7 @@ def _finetune_decomposed_layers(
 #     return loss_fc(shift_logits, shift_labels)
 
 
-def _compute_loss_v2(
+def _compute_loss(
     logits: torch.tensor,
     labels: torch.tensor,
     attention_mask: torch.tensor,
@@ -717,7 +711,7 @@ def _lora_finetune_decomposed_layers(
         optimizer.zero_grad()
         # outputs = peft_model({"input_ids": input_ids, "labels": labels})
         outputs = peft_model(input_ids=input_ids, labels=labels)
-        loss = _compute_loss_v2(
+        loss = _compute_loss(
             logits=outputs.logits, labels=labels, attention_mask=attention_mask
         )
         total_loss += loss.detach().float()
@@ -807,7 +801,7 @@ def decompose_in_place(
                 num_params=num_params,
                 trade_off_factor=trade_off_factor,
                 min_rank=min_rank,
-                use_drop_in_params_heuristic="identity_linear" not in submodule_name,
+                use_drop_in_params_heuristic=True,
                 decompose_in_float64=decompose_in_float64,
             )
             msg = f"{submodule_name} STOP MEM={utils.get_gpu_reserved_memory_gb():.2f}"
