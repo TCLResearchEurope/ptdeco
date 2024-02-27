@@ -14,8 +14,9 @@ data_batch_size: 1
 
 # Decomposition params
 
-num_data_steps: 8
-num_metric_steps: 8
+decompose_in_float64: false
+num_data_steps: 1024
+num_metric_steps: 32
 trade_off_factor: 1.0
 proportion_threshold: 0.75
 ppl_diff_threshold: 0.005
@@ -35,6 +36,9 @@ num_last_decomposed_layers_to_finetune: 8
 lm_eval_tasks:
   - arc_challenge
   - arc_easy
+  - piqa
+  - hellaswag
+  - winogrande
 
 blacklisted_module_names:
   - model.lm_head
