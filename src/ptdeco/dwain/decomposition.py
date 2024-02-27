@@ -1,3 +1,6 @@
+
+# Decomposing Weights Algorithm - Iterative techNique
+
 # 430998a2b1f223e977ab0c7002f1303015c3c27b (HEAD -> lt-dev, origin/lt-dev) Make loss computation respect attention mask
 
 # Use_mean = False
@@ -18,21 +21,6 @@ from .. import utils
 __all__ = [
     "decompose_in_place",
 ]
-
-NO_MEAN_NAMES = [
-    "Wqkv",
-    "fc1",
-    "out_proj",
-    "self_attn",
-    "mlp.up_proj",
-    "self_attention.query_key_value",
-    "self_attention.dense",
-    "mlp.gate_proj",
-    "mlp.up_proj",
-    "mlp.down_proj",
-    "identity_linear",
-]
-NORMALIZE_NAMES = ["mlp.down_proj"]
 
 
 logger = logging.getLogger(__name__)
@@ -380,12 +368,6 @@ def _process_module(
     logger.info(msg + f" {orig_weight.dtype}")
     logger.info(f"{msg_prefix} {nsr_final_threshold=:.6f} {ppl_diff_threshold=:.6f}")
 
-    use_mean = not any([e in decomposed_submodule_name for e in NO_MEAN_NAMES])
-    if not use_mean:
-        logger.info(f"Not using mean for {decomposed_submodule_name} decomposition.")
-    normalize = any([e in decomposed_submodule_name for e in NORMALIZE_NAMES])
-    if normalize:
-        logger.info(f"Normalizing for {decomposed_submodule_name} decomposition.")
     u = _compute_decompositon_of_covariance_matrix(
         root_module=root_module,
         decomposed_submodule_name=decomposed_submodule_name,
