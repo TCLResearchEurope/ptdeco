@@ -1,4 +1,4 @@
-# Decomposing Weights Algorithm - Iterative techNique
+# Decomposing Weights Algorithm - an Iterative techNique
 
 import collections.abc
 import logging
@@ -217,6 +217,7 @@ def _compute_decompositon_of_covariance_matrix(
         damp = 0.01 * torch.mean(torch.diag(cov))
         diag = torch.arange(cov.shape[-1], device=cov.device)
         cov[diag, diag] = cov[diag, diag] + damp
+    logger.info(f"Covariance matrix dtype is {cov.dtype}")
     _, u = torch.linalg.eigh(cov)
     del cov
     return u
