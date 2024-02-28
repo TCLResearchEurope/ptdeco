@@ -60,7 +60,7 @@ def prepare_test_dataloader(
     return loader
 
 
-def prepare_dataloader(
+def prepare_dataloader_v1(
     dataset: datasets.Dataset,
     tokenizer: transformers.PreTrainedTokenizerBase,
     max_seqlen: int = 2048,
@@ -69,21 +69,6 @@ def prepare_dataloader(
     varied_seqlen: bool = False,
     seed=42,
 ) -> torch.utils.data.DataLoader[dict[str, torch.Tensor]]:
-    """
-    Get a DataLoader from a dataset.
-
-    Args:
-        dataset: The dataset to create a dataloader from.
-        tokenizer: The tokenizer to use.
-        max_seqlen: The maximum sequence length, used for truncation of sequences in the dataset.
-        batch_size: The batch size.
-        nsamples: The number of samples to produce.
-        varied_seqlen: If False, concatenate multiple examples from the dataset into one example until max_seqlen is reached.
-        seed: The seed for sampling the dataset.
-
-    Returns:
-        A DataLoader.
-    """
     logger.info(f"Preparing dataloader")
     if nsamples is None:
         nsamples = len(dataset)
@@ -101,11 +86,13 @@ def prepare_dataloader(
         data_list = ds[data_name]
         new_data_list = []
 
-        torch.manual_seed(seed)
+        gen = torch.Generator()
+        gen.manual_seed(seed)
+
         indices = list(range(len(data_list)))
 
         while len(new_data_list) < nsamples and len(indices) > 0:
-            start_idx = torch.randint(0, len(indices), (1,)).item()
+            start_idx = torch.randint(0, len(indices), (1,), generator=gen).item()
             idx = start_idx
             tokens = []
             while len(tokens) < max_seqlen and idx < len(indices):
@@ -150,4 +137,76 @@ def prepare_dataloader(
     loader = torch.utils.data.DataLoader(ds, batch_size=batch_size, sampler=sampler)
 
     logger.info(f"Preparing dataloader done")
+    return loader
+
+
+def prepare_dataloader_v2(
+    dataset: datasets.Dataset,
+    tokenizer: transformers.PreTrainedTokenizerBase,
+    max_seqlen: int = 2048,
+    batch_size: int = 1,
+    varied_seqlen: bool = False,
+    seed=42,
+    separator: str = "\n\n",
+) -> torch.utils.data.DataLoader[dict[str, torch.Tensor]]:
+
+    if separator == "eos":
+        separator = tokenizer.eos_token
+    logging.info(f"Preparing dataloader v2")
+
+    data_name = dataset.column_names[0]
+    ds = dataset.filter(lambda x: len(x[data_name]) > 0)
+
+    if not varied_seqlen:
+        # create a new dataset where each example is a concatenation of multiple examples of total length = max_seqlen.
+        data_list = ds[data_name]
+        new_data_list = []
+
+        gen = torch.Generator()
+        gen.manual_seed(seed)
+
+        indices = list(range(len(data_list)))
+
+        while len(indices) > 0:
+            start_idx = torch.randint(0, len(indices), (1,), generator=gen).item()
+            idx = start_idx
+            tokens = []
+            while len(tokens) < max_seqlen and idx < len(indices):
+                item = data_list[indices[idx]]
+                input_to_tokenize = tokenizer.bos_token + item + tokenizer.eos_token
+                tokens += tokenizer.tokenize(input_to_tokenize)
+                idx += 1
+
+            indices = indices[:start_idx] + indices[idx:]  # remove the used indices
+
+            if len(tokens) >= max_seqlen:
+                tokens = tokens[:max_seqlen]  # truncate to max_seqlen
+                new_data_list.append(tokenizer.convert_tokens_to_string(tokens))
+
+        ds = datasets.Dataset.from_dict({data_name: new_data_list})
+
+    def tokenize(data_batch):
+        # tokenize then pad each batch according to the longest sequence in the batch
+        batch = tokenizer(
+            data_batch[data_name],
+            padding="longest",
+            max_length=max_seqlen,
+            truncation=True,
+            return_tensors="pt",
+            add_special_tokens=False,
+        )
+        batch["labels"] = batch["input_ids"].clone()
+        return batch
+
+    # tokenize lazily
+    ds.set_transform(tokenize)
+    gen = torch.Generator()
+    gen.manual_seed(seed)
+
+    sampler = torch.utils.data.SubsetRandomSampler(
+        torch.randperm(len(ds), generator=gen)
+    )
+
+    loader = torch.utils.data.DataLoader(ds, batch_size=batch_size, sampler=sampler)
+    logging.info(f"Preparing dataloader v2 done")
     return loader
