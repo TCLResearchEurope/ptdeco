@@ -144,7 +144,7 @@ def _normalize_separator(
     separator: str, tokenizer: transformers.PreTrainedTokenizerBase
 ):
 
-    allowed_separators = {"\n\n", " ", "eos"}
+    allowed_separators = {"\n\n", " ", "", "eos"}
 
     # Hmm, ... brutal but it might work
     if separator not in allowed_separators:
@@ -155,6 +155,7 @@ def _normalize_separator(
 
 
 def prepare_dataloader_v2(
+    *,
     dataset: datasets.Dataset,
     tokenizer: transformers.PreTrainedTokenizerBase,
     max_seqlen: int = 2048,

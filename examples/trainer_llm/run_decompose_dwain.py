@@ -3,6 +3,7 @@ import json
 import logging
 import pathlib
 import time
+import sys
 
 import datasets
 import torch
@@ -117,43 +118,44 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
     model.to(dtype)
     model.eval()
 
-    test_datasetloader = False
-    logger.info(f"{test_datasetloader=}")
-    if test_datasetloader:
-        ppl_eval_loader = datasets_hf.prepare_test_dataloader(
-            dataset=ds_test,
-            tokenizer=tokenizer,
-            max_seqlen=config_parsed.metric_max_length,
-            batch_size=config_parsed.metric_batch_size,
-        )
-    else:
-        ppl_eval_loader = datasets_hf.prepare_dataloader(
-            dataset=ds_test,
-            tokenizer=tokenizer,
-            max_seqlen=config_parsed.metric_max_length,
-            batch_size=config_parsed.metric_batch_size,
-            nsamples=len(ds_test),
-            varied_seqlen=PPL_EVAL_VARIED_SEQLEN,
-            seed=LOADER_SEED,
-        )
-    train_dataloader = datasets_hf.prepare_dataloader(
-        dataset=ds_train,
+    # test_datasetloader = False
+    # logger.info(f"{test_datasetloader=}")
+    # if test_datasetloader:
+    #     ppl_eval_loader = datasets_hf.prepare_test_dataloader(
+    #         dataset=ds_test,
+    #         tokenizer=tokenizer,
+    #         max_seqlen=config_parsed.metric_max_length,
+    #         batch_size=config_parsed.metric_batch_size,
+    #     )
+    # else:
+
+    ppl_eval_loader = datasets_hf.prepare_dataloader_v2(
+        dataset=ds_test,
         tokenizer=tokenizer,
-        max_seqlen=config_parsed.data_max_length,
-        batch_size=config_parsed.data_batch_size,
-        nsamples=len(ds_test),
-        varied_seqlen=False,
+        max_seqlen=config_parsed.metric_max_length,
+        batch_size=config_parsed.metric_batch_size,
         seed=LOADER_SEED,
+        separator=config_parsed.metric_separator,
     )
-    valid_dataloader = datasets_hf.prepare_dataloader(
+
+    valid_dataloader = datasets_hf.prepare_dataloader_v2(
         dataset=ds_valid,
         tokenizer=tokenizer,
         max_seqlen=config_parsed.metric_max_length,
         batch_size=config_parsed.metric_batch_size,
-        nsamples=len(ds_valid),
-        varied_seqlen=PPL_EVAL_VARIED_SEQLEN,
         seed=LOADER_SEED,
+        separator=config_parsed.metric_separator,
     )
+
+    train_dataloader = datasets_hf.prepare_dataloader_v2(
+        dataset=ds_train,
+        tokenizer=tokenizer,
+        max_seqlen=config_parsed.data_max_length,
+        batch_size=config_parsed.data_batch_size,
+        seed=LOADER_SEED,
+        separator=config_parsed.data_separator,
+    )
+
     with torch.no_grad():
         perplexity_orig = metrics.calc_perplexity(
             model, ppl_eval_loader, device, model.config.pad_token_id
