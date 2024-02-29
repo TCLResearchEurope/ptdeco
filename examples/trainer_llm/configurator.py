@@ -16,10 +16,11 @@ class DecomposeDWAINConfig(pydantic.BaseModel):
         str, pydantic.StringConstraints(pattern=DTYPES_PATTERN)
     ]
 
-    # Data handling params
-
+    # Tokenizer and Data handling params
+    metric_separator: str
     metric_max_length: int
     metric_batch_size: int
+    data_separator: str
     data_max_length: int
     data_batch_size: int
 

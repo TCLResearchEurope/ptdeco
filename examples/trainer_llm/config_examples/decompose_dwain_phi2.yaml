@@ -7,8 +7,10 @@ decomposed_model_dtype: "torch.bfloat16"
 
 # Data handling params
 
+metric_separator: "\n\n" # Normal pythonic string, no extra escaping
 metric_max_length: 2048
 metric_batch_size: 1
+data_separator: "\n\n"  # Normal pythonic string, no extra escaping
 data_max_length: 1024
 data_batch_size: 1
 
