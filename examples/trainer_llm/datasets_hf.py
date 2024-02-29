@@ -140,66 +140,79 @@ def prepare_dataloader_v1(
     return loader
 
 
+def _normalize_separator(
+    separator: str, tokenizer: transformers.PreTrainedTokenizerBase
+):
+
+    allowed_separators = {"\n\n", " ", "eos"}
+
+    # Hmm, ... brutal but it might work
+    if separator not in allowed_separators:
+        raise ValueError(f"{separator=} not in {allowed_separators=}")
+    if separator == "eos":
+        separator = tokenizer.eos_token
+    return separator
+
+
 def prepare_dataloader_v2(
     dataset: datasets.Dataset,
     tokenizer: transformers.PreTrainedTokenizerBase,
     max_seqlen: int = 2048,
     batch_size: int = 1,
-    varied_seqlen: bool = False,
     seed=42,
-    separator: str = "\n\n",
+    separator: str = "eos",
 ) -> torch.utils.data.DataLoader[dict[str, torch.Tensor]]:
 
-    if separator == "eos":
-        separator = tokenizer.eos_token
-    logging.info(f"Preparing dataloader v2")
+    logger.info(f"Preparing dataloader v2")
+    separator = _normalize_separator(separator, tokenizer)
+    eos_string = separator
+    eos_tokens = tokenizer(
+        eos_string,
+        truncation=False,
+        padding=False,
+        add_special_tokens=False,
+    )["input_ids"]
 
     data_name = dataset.column_names[0]
     ds = dataset.filter(lambda x: len(x[data_name]) > 0)
 
-    if not varied_seqlen:
-        # create a new dataset where each example is a concatenation of multiple examples of total length = max_seqlen.
-        data_list = ds[data_name]
-        new_data_list = []
+    data_list = ds[data_name]
+    new_data_list = []
 
-        gen = torch.Generator()
-        gen.manual_seed(seed)
+    idx = 0
+    buffer = []
+    while idx < len(data_list) - 1:
+        while len(buffer) <= max_seqlen and idx < len(data_list) - 1:
+            encoded = tokenizer(
+                data_list[idx],
+                truncation=False,
+                padding=False,
+                add_special_tokens=False,
+            )
+            iids = encoded["input_ids"]
+            buffer += iids + eos_tokens
+            idx += 1
+        tokens = buffer[:max_seqlen]
+        new_data_list.append(tokenizer.decode(tokens))
+        buffer = []
 
-        indices = list(range(len(data_list)))
-
-        while len(indices) > 0:
-            start_idx = torch.randint(0, len(indices), (1,), generator=gen).item()
-            idx = start_idx
-            tokens = []
-            while len(tokens) < max_seqlen and idx < len(indices):
-                item = data_list[indices[idx]]
-                input_to_tokenize = tokenizer.bos_token + item + tokenizer.eos_token
-                tokens += tokenizer.tokenize(input_to_tokenize)
-                idx += 1
-
-            indices = indices[:start_idx] + indices[idx:]  # remove the used indices
-
-            if len(tokens) >= max_seqlen:
-                tokens = tokens[:max_seqlen]  # truncate to max_seqlen
-                new_data_list.append(tokenizer.convert_tokens_to_string(tokens))
-
-        ds = datasets.Dataset.from_dict({data_name: new_data_list})
+    ds = datasets.Dataset.from_dict({data_name: new_data_list})
 
     def tokenize(data_batch):
         # tokenize then pad each batch according to the longest sequence in the batch
         batch = tokenizer(
             data_batch[data_name],
-            padding="longest",
-            max_length=max_seqlen,
-            truncation=True,
-            return_tensors="pt",
+            padding=False,
+            truncation=False,
             add_special_tokens=False,
+            return_tensors="pt",
         )
         batch["labels"] = batch["input_ids"].clone()
         return batch
 
     # tokenize lazily
     ds.set_transform(tokenize)
+
     gen = torch.Generator()
     gen.manual_seed(seed)
 
@@ -208,5 +221,5 @@ def prepare_dataloader_v2(
     )
 
     loader = torch.utils.data.DataLoader(ds, batch_size=batch_size, sampler=sampler)
-    logging.info(f"Preparing dataloader v2 done")
+    logger.info(f"Preparing dataloader v2 done")
     return loader
