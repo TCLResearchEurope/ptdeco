@@ -1,0 +1,7 @@
+fvcore>=0.1.5.post20221221
+mosaicml>=0.20.1
+numpy>=1.26.4
+tensorboard>=2.16.2
+timm>=0.9.16
+torch>=2.2.1
+pydantic>=2.6.3
