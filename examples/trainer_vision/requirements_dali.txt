@@ -1,0 +1,2 @@
+--extra-index-url https://developer.download.nvidia.com/compute/redist
+nvidia-dali-cuda120>=1.35.0
