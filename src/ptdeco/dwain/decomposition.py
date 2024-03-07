@@ -1,4 +1,4 @@
-# Decomposing Weights Algorithm - an Iterative techNique
+# Decomposing Weights Algorithm - an Iterative techNique (DWAIN)
 
 import collections.abc
 import logging
@@ -11,11 +11,9 @@ import transformers
 
 from .. import utils
 
-
 __all__ = [
     "decompose_in_place",
 ]
-
 
 logger = logging.getLogger(__name__)
 
@@ -144,6 +142,20 @@ class WrappedFALORConv2d1x1(WrappedFALORModule):
         return torch.nn.Sequential(conv_1, conv_2)
 
 
+def _to(o, device: torch.device):
+    if isinstance(o, torch.Tensor):
+        return o.to(device)
+    elif isinstance(o, dict):
+        res = {}
+        for k, v in o.items():
+            if isinstance(v, torch.Tensor):
+                res[k] = v.to(device)
+            else:
+                res[k] = v
+        return res
+    raise ValueError(f"Unsupported type {type(o)}")
+
+
 def _accumulate_Ey_and_Eyyt(
     Ey: torch.Tensor,
     Eyyt: torch.Tensor,
@@ -157,20 +169,6 @@ def _accumulate_Ey_and_Eyyt(
     Eyyt += torch.einsum("bp,bq->pq", y, y) / y.shape[0]
     Ey += y.mean(dim=0)
     return Ey, Eyyt
-
-
-def _to(o, device: torch.device):
-    if isinstance(o, torch.Tensor):
-        return o.to(device)
-    elif isinstance(o, dict):
-        res = {}
-        for k, v in o.items():
-            if isinstance(v, torch.Tensor):
-                res[k] = v.to(device)
-            else:
-                res[k] = v
-        return res
-    raise ValueError(f"Unsupported type {type(o)}")
 
 
 def _compute_decompositon_of_covariance_matrix(
@@ -196,12 +194,12 @@ def _compute_decompositon_of_covariance_matrix(
     else:
         logger.info("Using float32 for decomposition")
         dtype = torch.float32
+
     Ey = torch.zeros(weight.shape[0], dtype=dtype).to(device)
     Eyyt = torch.zeros((weight.shape[0], weight.shape[0]), dtype=dtype).to(device)
 
     for _ in range(num_data_steps):
         inputs = _to(next(data_iterator), device)
-        # inputs = input_dict["input_ids"].to(device)
         _ = root_module(inputs)
         x = decomposed_submodule.get_last_input()
         Ey, Eyyt = _accumulate_Ey_and_Eyyt(
@@ -239,15 +237,14 @@ def _compute_metrics(
 
     decomposed_submodule.set_weight(deco_weight)
     labels = x.clone()
-    deco_output = root_module(input_dict)
-    y_deco = deco_output
+    y_deco = root_module(input_dict)
 
     decomposed_submodule.set_weight(orig_weight)
-    orig_output = root_module(input_dict)
+    y_orig = root_module(input_dict)
     loss_deco = _compute_loss(
         logits=y_deco, labels=labels, attention_mask=attention_mask
     )
-    y_orig = orig_output
+
     loss_orig = _compute_loss(
         logits=y_orig, labels=labels, attention_mask=attention_mask
     )
@@ -363,7 +360,7 @@ def _process_module(
     logger.info(msg + f" {orig_weight.dtype}")
     logger.info(f"{msg_prefix} {nsr_final_threshold=:.6f} {ppl_diff_threshold=:.6f}")
 
-    u = _compute_decompositon_of_covariance_matrix(
+    u_matrix = _compute_decompositon_of_covariance_matrix(
         root_module=root_module,
         decomposed_submodule_name=decomposed_submodule_name,
         data_iterator=data_iterator,
@@ -374,7 +371,7 @@ def _process_module(
         normalize=False,
         decompose_in_float64=decompose_in_float64,
     )
-    u.to(orig_dtype)
+    u_matrix.to(orig_dtype)
 
     U, V = torch.empty(0), torch.empty(0)
 
@@ -419,9 +416,8 @@ def _process_module(
         if drop_in_params == 0:
             continue
 
-        current_proportion = rank_new / full_rank
-        uk = u[:, u.shape[1] - rank_new :].to(orig_dtype)
-        U, V = orig_weight.T @ uk, uk.T
+        uk_matrix = u_matrix[:, u_matrix.shape[1] - rank_new :].to(orig_dtype)
+        U, V = orig_weight.T @ uk_matrix, uk_matrix.T
         deco_weight = (U @ V).T
 
         nsr_new = 0.0
@@ -478,8 +474,8 @@ def _process_module(
     )
 
     if full_rank != rank_best and not skip and decompose_decision:
-        uk = u[:, u.shape[1] - rank_best :].to(orig_dtype)
-        U, V = orig_weight.T @ uk, uk.T
+        uk_matrix = u_matrix[:, u_matrix.shape[1] - rank_best :].to(orig_dtype)
+        U, V = orig_weight.T @ uk_matrix, uk_matrix.T
         new_decomposed_submodule = decomposed_submodule.get_decomposed_module(
             u=U.T, v=V.T
         )
@@ -584,6 +580,7 @@ def _finetune_decomposed_layers(
         optimizer.step()
         lr_scheduler.step()
         total_loss += loss.detach().float()
+
         if step % 10 == 0:
             logger.info(f"Step: {step}/{num_steps}, loss: {total_loss / counter}")
     model.eval()
@@ -591,9 +588,9 @@ def _finetune_decomposed_layers(
 
 
 # def compute_loss_old(
-#         model: PreTrainedModel,
-#         logits: torch.tensor,
-#         labels: torch.tensor,
+#     model: PreTrainedModel,
+#     logits: torch.tensor,
+#     labels: torch.tensor,
 # ):
 #     # !important
 #     loss_fc = torch.nn.CrossEntropyLoss()
@@ -710,7 +707,6 @@ def _lora_finetune_decomposed_layers(
         if step > num_steps:
             break
         optimizer.zero_grad()
-        # outputs = peft_model({"input_ids": input_ids, "labels": labels})
         outputs = peft_model(input_ids=input_ids, labels=labels)
         loss = _compute_loss(
             logits=outputs.logits, labels=labels, attention_mask=attention_mask
@@ -766,14 +762,12 @@ def decompose_in_place(
     num_params = utils.get_num_params(module)
     current_params = num_params
 
-    # 1. Get all the names of modules to be decomposed
     if blacklisted_module_names is None:
         blacklisted_module_names = []
     decomposable_submodules_names = _get_decomposeable_submodule_names(module)
     n = len(decomposable_submodules_names)
     logger.info(f"There are {n} modules that can be decomposed")
 
-    # 2. Actual decomposition
     decompose_config = {}
     decomposed_submodules = []
 
@@ -784,7 +778,6 @@ def decompose_in_place(
             continue
         logger.info(f"{msg_prefix}, processing")
 
-        logger.info(f"Processing submodule: {submodule_name}")
         with torch.no_grad():
             old_module = module.get_submodule(submodule_name)
             msg = f"{submodule_name} START MEM={utils.get_gpu_reserved_memory_gb():.2f}"
@@ -828,24 +821,24 @@ def decompose_in_place(
                 if lora_finetuning:
                     module = _lora_finetune_decomposed_layers(
                         model=module,
+                        device=device,
                         ft_iterator=ft_iterator,
                         decomposed_submodules=decomposed_submodules,
                         num_last_decomposed_layers_to_finetune=num_last_decomposed_layers_to_finetune,
                         lr=ft_lr,
                         num_steps=num_ft_steps,
-                        device=device,
                     )
                     utils.free_gpu_reserved_memory()
                 else:
                     module = _finetune_decomposed_layers(
                         model=module,
+                        device=device,
                         ft_iterator=ft_iterator,
                         decomposed_submodules=decomposed_submodules[
                             -num_last_decomposed_layers_to_finetune:
                         ],
                         lr=ft_lr,
                         num_steps=num_ft_steps,
-                        device=device,
                     )
                 module.to(dtype)
             module_config = utils.get_module_config(new_module)
