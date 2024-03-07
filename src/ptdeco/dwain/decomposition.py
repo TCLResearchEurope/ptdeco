@@ -3,7 +3,7 @@
 import collections.abc
 import logging
 import time
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 import peft
 import torch
@@ -162,7 +162,7 @@ class CovarianceComputingLinearModule(torch.nn.Module):
         self.num_data_steps = 0
         self.use_float64 = use_float64
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         y = x @ self.weight.T
         y_reshaped = y.reshape(-1, self.out_features)
         self.cov += (
@@ -173,7 +173,7 @@ class CovarianceComputingLinearModule(torch.nn.Module):
         self.num_data_steps += 1
         return y
 
-    def get_eigenvectors(self):
+    def get_eigenvectors(self) -> torch.Tensor:
         cov = self.cov / self.num_data_steps
         damp = 0.01 * torch.mean(torch.diag(cov))
         diag = torch.arange(self.cov.shape[-1], device=cov.device)
@@ -187,7 +187,9 @@ class CovarianceComputingLinearModule(torch.nn.Module):
         return u.to(self.weight.dtype).to("cpu")
 
 
-def _to(o, device: torch.device):
+def _to(
+    o: torch.Tensor | dict[str, torch.Tensor], device: torch.device
+) -> torch.Tensor | dict[str, torch.Tensor]:
     if isinstance(o, torch.Tensor):
         return o.to(device)
     elif isinstance(o, dict):
@@ -220,7 +222,7 @@ def _compute_covariance_matrix_decomposition(
     *,
     root_module: torch.nn.Module,
     decomposed_submodule_name: str,
-    data_iterator: collections.abc.Iterator[torch.Tensor],
+    data_iterator: collections.abc.Iterator[dict[str, torch.Tensor]],
     weight: torch.Tensor,
     num_data_steps: int,
     device: torch.device,
@@ -269,12 +271,13 @@ def _compute_covariance_matrix_decomposition(
 
 def _compute_metrics(
     *,
-    input_dict: dict[str, torch.Tensor],
+    input_dict: torch.Tensor | dict[str, torch.Tensor],
     root_module: torch.nn.Module,
     decomposed_submodule: torch.nn.Module,
     orig_weight: torch.Tensor,
     deco_weight: torch.Tensor,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    assert isinstance(input_dict, dict)
     assert isinstance(decomposed_submodule, WrappedFALORModule)
     x = input_dict["input_ids"]
     attention_mask = input_dict["attention_mask"]
@@ -350,7 +353,7 @@ def _get_params_for_proportion(
     original_rank = min(in_features, out_features)
     proposed = (in_features + out_features) * proportion * original_rank
     if proposed < baseline:
-        return proposed
+        return int(proposed)
     else:
         return baseline
 
@@ -359,20 +362,20 @@ def _process_module(
     *,
     root_module: torch.nn.Module,
     decomposed_submodule_name: str,
-    data_iterator: collections.abc.Iterator[torch.Tensor],
+    data_iterator: collections.abc.Iterator[dict[str, torch.Tensor]],
     nsr_final_threshold: float,
     ppl_diff_threshold: float,
     num_data_steps: int,
     num_metric_steps: int,
     device: torch.device,
-    metric_iterator: collections.abc.Iterator[torch.Tensor] = None,
+    metric_iterator: Optional[collections.abc.Iterator[dict[str, torch.Tensor]]] = None,
     num_params: int,
-    min_rank=32,
+    min_rank: int = 32,
     trade_off_factor: float = 1.0,
     max_accepted_ppl_diff: float = 0.1,
     use_drop_in_params_heuristic: bool = True,
     decompose_in_float64: bool = True,
-    u_matrix: torch.Tensor = None,
+    u_matrix: Optional[torch.Tensor] = None,
 ) -> dict[str, Any]:
     if metric_iterator is None:
         metric_iterator = data_iterator
@@ -589,11 +592,11 @@ def _finetune_decomposed_layers(
     *,
     model: torch.nn.Module,
     device: torch.device,
-    ft_iterator: collections.abc.Iterator[torch.Tensor],
+    ft_iterator: collections.abc.Iterator[dict[str, torch.Tensor]],
     decomposed_submodules: list[str],
     num_steps: int = 100,
     lr: float = 0.0001,
-):
+) -> torch.nn.Module:
     if len(decomposed_submodules) == 0:
         return model
     for name, param in model.named_parameters():
@@ -623,6 +626,8 @@ def _finetune_decomposed_layers(
     total_loss = 0.0
     for step in range(num_steps):
         batch = _to(next(ft_iterator), device)
+        # TODO: ML remove this cast
+        batch = cast(dict[str, torch.Tensor], batch)
         counter += 1
         if step > num_steps:
             break
@@ -637,7 +642,7 @@ def _finetune_decomposed_layers(
         loss.backward()
         optimizer.step()
         lr_scheduler.step()
-        total_loss += loss.detach().float()
+        total_loss += loss.item()
 
         if step % 10 == 0:
             logger.info(f"Step: {step}/{num_steps}, loss: {total_loss / counter}")
@@ -647,8 +652,8 @@ def _finetune_decomposed_layers(
 
 # def compute_loss_old(
 #     model: PreTrainedModel,
-#     logits: torch.tensor,
-#     labels: torch.tensor,
+#     logits: torch.Tensor,
+#     labels: torch.Tensor,
 # ):
 #     # !important
 #     loss_fc = torch.nn.CrossEntropyLoss()
@@ -665,10 +670,10 @@ def _finetune_decomposed_layers(
 
 
 def _compute_loss(
-    logits: torch.tensor,
-    labels: torch.tensor,
-    attention_mask: torch.tensor,
-):
+    logits: torch.Tensor,
+    labels: torch.Tensor,
+    attention_mask: torch.Tensor,
+) -> torch.Tensor:
     loss_fc = torch.nn.CrossEntropyLoss()
     labels = labels[..., 1:].contiguous()
     logits = logits[..., :-1, :].contiguous()
@@ -696,14 +701,14 @@ def _lora_finetune_decomposed_layers(
     *,
     model: torch.nn.Module,
     device: torch.device,
-    ft_iterator: collections.abc.Iterator[torch.Tensor],
+    ft_iterator: collections.abc.Iterator[dict[str, torch.Tensor]],
     decomposed_submodules: list[str],
     num_steps: int = 100,
     lr: float = 0.0001,
     num_last_decomposed_layers_to_finetune: int = 8,
     min_rank_to_finetune: int = 32,
     use_rank_pattern: bool = False,
-):
+) -> torch.nn.Module:
     decomposed_submodules_to_finetune = decomposed_submodules[
         -num_last_decomposed_layers_to_finetune:
     ]
@@ -769,6 +774,8 @@ def _lora_finetune_decomposed_layers(
     total_loss = 0.0
     for step in range(num_steps):
         input_dict = _to(next(ft_iterator), device)
+        # TODO: ML remove this cast
+        input_dict = cast(dict[str, torch.Tensor], input_dict)
         input_ids = input_dict["input_ids"]
         labels = input_dict["labels"]
         attention_mask = input_dict["attention_mask"]
@@ -780,7 +787,7 @@ def _lora_finetune_decomposed_layers(
         loss = _compute_loss(
             logits=outputs.logits, labels=labels, attention_mask=attention_mask
         )
-        total_loss += loss.detach().float()
+        total_loss += loss.item()
         loss.backward()
         optimizer.step()
         lr_scheduler.step()
@@ -810,7 +817,7 @@ def _precompute_covariance_matrix_decompositions(
     module: torch.nn.Module,
     submodule_names: list[str],
     num_data_steps: int,
-    data_iterator: collections.abc.Iterator[torch.Tensor],
+    data_iterator: collections.abc.Iterator[dict[str, torch.Tensor]],
 ) -> dict[str, torch.Tensor]:
     # replace all layers to be decomposed by covariance computing ones
     original_linears_dict = {}
@@ -832,6 +839,8 @@ def _precompute_covariance_matrix_decompositions(
     with torch.no_grad():
         for _ in range(num_data_steps):
             input_dict = next(data_iterator)
+            # TODO: ML remove this cast
+            input_dict = cast(dict[str, torch.Tensor], input_dict)
             input_ids = input_dict["input_ids"]
             labels = input_dict["labels"]
             _ = module(input_ids, labels=labels)
@@ -843,9 +852,7 @@ def _precompute_covariance_matrix_decompositions(
     u_dict = {}
 
     for submodule_name in submodule_names:
-        submodule: CovarianceComputingLinearModule = module.get_submodule(
-            submodule_name
-        )
+        submodule = module.get_submodule(submodule_name)
         u = submodule.get_eigenvectors()
         u_dict[submodule_name] = u
 
@@ -867,8 +874,8 @@ def _precompute_covariance_matrix_decompositions_in_splits(
     modules_to_decompose: list[str],
     num_splits: int,
     num_data_steps: int,
-    data_iterator: collections.abc.Iterator[torch.Tensor],
-):
+    data_iterator: collections.abc.Iterator[dict[str, torch.Tensor]],
+) -> dict[str, torch.Tensor]:
     u_dicts = []
     # we split to prevent OOM works how llama2-7b and phi-2
     chunk_size = len(modules_to_decompose) // num_splits
@@ -896,9 +903,9 @@ def decompose_in_place(
     *,
     module: torch.nn.Module,
     device: torch.device,
-    data_iterator: collections.abc.Iterator[torch.Tensor],
-    ft_iterator: collections.abc.Iterator[torch.Tensor],
-    metric_iterator: Optional[collections.abc.Iterator[torch.Tensor]] = None,
+    data_iterator: collections.abc.Iterator[dict[str, torch.Tensor]],
+    ft_iterator: collections.abc.Iterator[dict[str, torch.Tensor]],
+    metric_iterator: Optional[collections.abc.Iterator[dict[str, torch.Tensor]]] = None,
     blacklisted_module_names: Optional[list[str]] = None,
     nsr_final_threshold: float,
     ppl_diff_threshold: float,
@@ -937,6 +944,8 @@ def decompose_in_place(
             module=module,
             modules_to_decompose=modules_to_decompose,
             num_splits=num_splits_for_precomputing_covariance,
+            data_iterator=data_iterator,
+            num_data_steps=num_data_steps,
         )
     else:
         logger.info("Skipping precomputing convariance matrices")
@@ -966,7 +975,7 @@ def decompose_in_place(
                 min_rank=min_rank,
                 use_drop_in_params_heuristic=True,
                 decompose_in_float64=decompose_in_float64,
-                u_matrix=u_dict.pop(submodule_name) if len(u_dict > 0) else None,
+                u_matrix=u_dict.pop(submodule_name) if len(u_dict) > 0 else None,
             )
             msg = f"{submodule_name} STOP MEM={utils.get_gpu_reserved_memory_gb():.2f}"
             logger.info(msg)
