@@ -52,6 +52,7 @@ def make_padding_tokenizer(
         "meta-llama/Llama-2-7b-hf",
         "microsoft/phi-2",
         "Qwen/Qwen1.5-1.8B",
+        "Qwen/Qwen1.5-0.5B",
         "upstage/SOLAR-10.7B-v1.0",
         "mistralai/Mistral-7B-Instruct-v0.2",
     ):
@@ -76,6 +77,15 @@ def conv_str_to_dtype(s: str) -> torch.dtype:
     elif s == "torch.float16":
         return torch.float16
     raise ValueError(f"Unknown dtype {s}")
+
+
+def log_linear_submodules(m: torch.nn.Module) -> None:
+    res = ["Linear modules:"]
+
+    for name, module in m.named_modules():
+        if isinstance(module, torch.nn.Linear):
+            res.append(f"  - {name}")
+    logger.info("\n".join(res))
 
 
 def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
@@ -117,6 +127,7 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
     model.to(device)
     model.to(dtype)
     model.eval()
+    #log_linear_submodules(model)
 
     # test_datasetloader = False
     # logger.info(f"{test_datasetloader=}")
@@ -163,7 +174,7 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
     params_orig = metrics.get_params(model) / 1.0e6
     gflops_orig = metrics.get_giga_flops(model, tensor_size=(1, 512))
 
-    logger.info(f"{perplexity_orig=} {params_orig=} {gflops_orig}")
+    logger.info(f"{perplexity_orig=} {params_orig=} {gflops_orig=}")
 
     class WrapperModule(torch.nn.Module):
         def __init__(self, model):
