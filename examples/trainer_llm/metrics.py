@@ -122,17 +122,20 @@ def get_giga_flops(
     import ptdeco
     import fvcore.nn
 
-    if device is None:
-        device = ptdeco.utils.get_default_device(model)
-    x = torch.ones(size=tensor_size, device=device, dtype=torch.int64)
-    fca = fvcore.nn.FlopCountAnalysis(model, x)
+    try:
+        if device is None:
+            device = ptdeco.utils.get_default_device(model)
+        x = torch.ones(size=tensor_size, device=device, dtype=torch.int64)
+        fca = fvcore.nn.FlopCountAnalysis(model, x)
 
-    if warnings_off:
-        fca.unsupported_ops_warnings(False)
+        if warnings_off:
+            fca.unsupported_ops_warnings(False)
 
-    # NOTE FV.CORE computes MACs not FLOPs !!!!
-    # Hence 2.0 * here for proper GIGA FLOPS
+        # NOTE FV.CORE computes MACs not FLOPs !!!!
+        # Hence 2.0 * here for proper GIGA FLOPS
 
-    flops = 2 * fca.total()
-
-    return flops / 1.0e9
+        gflops = 2 * fca.total() / 1.0e9
+    except Exception as e:
+        logger.warning(f"While computing flops exception occurred: {repr(e)}")
+        gflops = float("nan")
+    return gflops
