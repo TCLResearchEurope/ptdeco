@@ -118,8 +118,13 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
     dtype = conv_str_to_dtype(config_parsed.decomposed_model_dtype)
     logger.info(f"Using {dtype=}")
     model = transformers.AutoModelForCausalLM.from_pretrained(
-        model_name, torch_dtype=dtype, trust_remote_code=True
+        model_name,
+        model_revision=config_parsed.decompoed_model_revision,
+        torch_dtype=dtype,
+        trust_remote_code=True,
     )
+    if config_parsed.decomposed_model_enable_gradient_checkpointing:
+        model.gradient_checkpointing_enable()
     tokenizer = make_padding_tokenizer(
         model_name=model_name, model=model, tokenizer=tokenizer
     )
@@ -127,7 +132,7 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
     model.to(device)
     model.to(dtype)
     model.eval()
-    #log_linear_submodules(model)
+    log_linear_submodules(model)
 
     # test_datasetloader = False
     # logger.info(f"{test_datasetloader=}")

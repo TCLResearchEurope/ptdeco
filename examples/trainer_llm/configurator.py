@@ -12,10 +12,11 @@ class DecomposeDWAINConfig(pydantic.BaseModel):
     # Model specification
 
     decomposed_model_name: str
+    decompoed_model_revision: str
     decomposed_model_dtype: Annotated[
         str, pydantic.StringConstraints(pattern=DTYPES_PATTERN)
     ]
-
+    decomposed_model_enable_gradient_checkpointing: bool
     # Tokenizer and Data handling params
     metric_separator: str
     metric_max_length: int
