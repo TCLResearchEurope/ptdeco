@@ -3,20 +3,23 @@ task: "decompose_dwain"
 # Model specification
 
 decomposed_model_name: "microsoft/phi-2"
+decomposed_model_revision: "main"
+decomposed_model_enable_gradient_checkpointing: true
 decomposed_model_dtype: "torch.bfloat16"
+
 
 # Data handling params
 
-metric_separator: "\n\n" # Normal pythonic string, no extra escaping
+metric_separator: "\n\n" # Normal pythonic string, no extra escaping needed
 metric_max_length: 2048
 metric_batch_size: 1
-data_separator: "\n\n"  # Normal pythonic string, no extra escaping
+data_separator: "\n\n"  # Normal pythonic string, no extra escaping needed
 data_max_length: 1024
 data_batch_size: 1
 
 # Decomposition params
 
-decompose_in_float64: false
+decompose_in_float64: true
 num_data_steps: 1024
 num_metric_steps: 32
 trade_off_factor: 1.0
