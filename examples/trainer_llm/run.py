@@ -132,7 +132,7 @@ def main(args: argparse.Namespace) -> None:
     logger.info(f"Using ptdeco {ptdeco.__version__}")
 
     if task == "decompose_dwain":
-        run_decompose_dwain.main(config=config, output_path=output_path)
+        run_decompose_dwain.main(config_raw=config, output_path=output_path)
     elif task == "finetune":
         # TODO
         pass
