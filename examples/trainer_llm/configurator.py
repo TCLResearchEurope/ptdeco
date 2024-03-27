@@ -12,18 +12,29 @@ class DecomposeDWAINConfig(pydantic.BaseModel):
     # Model specification
 
     decomposed_model_name: str
-    decompoed_model_revision: str
+    decomposed_model_revision: str
     decomposed_model_dtype: Annotated[
         str, pydantic.StringConstraints(pattern=DTYPES_PATTERN)
     ]
     decomposed_model_enable_gradient_checkpointing: bool
-    # Tokenizer and Data handling params
-    metric_separator: str
-    metric_max_length: int
-    metric_batch_size: int
-    data_separator: str
-    data_max_length: int
-    data_batch_size: int
+
+    # Tokenizer and data handling params
+    decomposition_data_name: str
+    decomposition_data_separator: str
+    decomposition_data_max_length: int
+    decomposition_data_batch_size: int
+
+    perplexity_data_name: str
+    perplexity_data_separator: str
+    perplexity_data_max_length: int
+    perplexity_data_batch_size: int
+
+    # metric_separator: str
+    # metric_max_length: int
+    # metric_batch_size: int
+    # data_separator: str
+    # data_max_length: int
+    # data_batch_size: int
 
     # Decomposition params
 
@@ -37,6 +48,7 @@ class DecomposeDWAINConfig(pydantic.BaseModel):
     min_rank: int
     blacklisted_module_names: Optional[list[str]] = None
     decompose_in_float64: bool
+    precomputing_covariance_num_splits: int
 
     # Finetuning params
 
