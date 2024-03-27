@@ -818,6 +818,7 @@ def _precompute_covariance_matrix_decompositions(
     submodule_names: list[str],
     num_data_steps: int,
     data_iterator: collections.abc.Iterator[dict[str, torch.Tensor]],
+    device: torch.device,
 ) -> dict[str, torch.Tensor]:
     # replace all layers to be decomposed by covariance computing ones
     original_linears_dict = {}
@@ -838,12 +839,13 @@ def _precompute_covariance_matrix_decompositions(
 
     with torch.no_grad():
         for _ in range(num_data_steps):
-            input_dict = next(data_iterator)
+            input_dict = _to(next(data_iterator), device)
             # TODO: ML remove this cast
             input_dict = cast(dict[str, torch.Tensor], input_dict)
             input_ids = input_dict["input_ids"]
-            labels = input_dict["labels"]
-            _ = module(input_ids, labels=labels)
+            # labels = input_dict["labels"]
+            # _ = module(input_ids, labels=labels)
+            _ = module({"input_ids": input_ids})
 
     utils.free_gpu_reserved_memory()
 
@@ -875,6 +877,7 @@ def _precompute_covariance_matrix_decompositions_in_splits(
     num_splits: int,
     num_data_steps: int,
     data_iterator: collections.abc.Iterator[dict[str, torch.Tensor]],
+    device: torch.device
 ) -> dict[str, torch.Tensor]:
     u_dicts = []
     # we split to prevent OOM works how llama2-7b and phi-2
@@ -893,6 +896,7 @@ def _precompute_covariance_matrix_decompositions_in_splits(
                 submodule_names=sublist,
                 num_data_steps=num_data_steps,
                 data_iterator=data_iterator,
+                device=device,
             )
         )
     u_dict = {k: v for d in u_dicts for k, v in d.items()}
@@ -921,7 +925,7 @@ def decompose_in_place(
     trade_off_factor: float = 0.5,
     use_rank_pattern: bool = False,
     decompose_in_float64: bool = True,
-    num_splits_for_precomputing_covariance: int = 0,
+    precomputing_covariance_num_splits: int = 0,
 ) -> dict[str, Any]:
     start_time = time.perf_counter()
     num_params = utils.get_num_params(module)
@@ -939,13 +943,14 @@ def decompose_in_place(
     decompose_config = {}
     decomposed_submodules = []
 
-    if num_splits_for_precomputing_covariance > 0:
+    if precomputing_covariance_num_splits > 0:
         u_dict = _precompute_covariance_matrix_decompositions_in_splits(
             module=module,
             modules_to_decompose=modules_to_decompose,
-            num_splits=num_splits_for_precomputing_covariance,
+            num_splits=precomputing_covariance_num_splits,
             data_iterator=data_iterator,
             num_data_steps=num_data_steps,
+            device=device,
         )
     else:
         logger.info("Skipping precomputing convariance matrices")
