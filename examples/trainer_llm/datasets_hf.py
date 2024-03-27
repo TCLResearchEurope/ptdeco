@@ -125,7 +125,7 @@ def prepare_slicegpt_dataloader(
     seed=42,
 ) -> torch.utils.data.DataLoader[dict[str, torch.Tensor]]:
 
-    separator = _normalize_separator(separator)
+    separator = _normalize_separator(separator, tokenizer)
 
     logger.info(f"Preparing slicegpt dataloader, sep={_escape_separator(separator)}")
 
