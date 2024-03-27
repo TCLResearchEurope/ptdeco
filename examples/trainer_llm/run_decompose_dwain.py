@@ -92,7 +92,7 @@ def log_linear_submodules(m: torch.nn.Module) -> None:
 
 
 def add_pad_token(
-    model: torch.nn.Module, tokenizer: PreTrainedTokenizer, model_name: str
+    model: torch.nn.Module, tokenizer: transformers.PreTrainedTokenizer, model_name: str
 ):
     if model_name in (
         "meta-llama/Llama-2-7b-hf",
@@ -114,7 +114,7 @@ def add_pad_token(
 
 
 def create_model_and_tokenizer(
-    config: configurator.DecomposeDWAINConfig, device: torch.Device, dtype: torch.dtype
+    config: configurator.DecomposeDWAINConfig, device: torch.device, dtype: torch.dtype
 ) -> tuple[transformers.AutoModelForCausalLM, transformers.PreTrainedTokenizer]:
     model_name = config.decomposed_model_name
     model_revision = config.decomposed_model_revision
@@ -152,7 +152,7 @@ def create_dataloaders(
         tokenizer=tokenizer,
         max_seqlen=config.decomposition_data_max_length,
         batch_size=config.decomposition_data_batch_size,
-        separator_name=config.decomposition_data_separator,
+        separator=config.decomposition_data_separator,
         seed=LOADER_SEED,
     )
 
@@ -162,7 +162,7 @@ def create_dataloaders(
         tokenizer=tokenizer,
         max_seqlen=config.perplexity_data_max_length,
         batch_size=config.perplexity_data_batch_size,
-        separator_name=config.perplexity_data_separator,
+        separator=config.perplexity_data_separator,
         nsamples=1000,
         seed=LOADER_SEED,
     )
@@ -232,7 +232,7 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
         device=device,
         dtype=dtype,
         blacklisted_module_names=config.blacklisted_module_names,
-        data_iterator=decomposition_dl,
+        data_iterator=make_inifinte_iterator(decomposition_dl),
         ft_iterator=decomposition_dl,
         metric_iterator=decomposition_dl,
         nsr_final_threshold=config.nsr_final_threshold,

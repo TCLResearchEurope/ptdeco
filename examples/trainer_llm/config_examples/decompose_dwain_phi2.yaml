@@ -12,13 +12,13 @@ decomposed_model_dtype: "torch.bfloat16"
 
 decomposition_data_name: "alpaca.train"
 decomposition_data_separator: "\n\n" # Normal pythonic string, no extra escaping needed
-decomposition_data_length: 2048
+decomposition_data_max_length: 2048
 decomposition_data_batch_size: 1
 
 perplexity_data_name: "wikitext2.test"
 perplexity_data_separator: "\n\n"  # Normal pythonic string, no extra escaping needed
 perplexity_data_max_length: 2048
-perplexity_data_data_batch_size: 1
+perplexity_data_batch_size: 1
 
 # Decomposition params
 
