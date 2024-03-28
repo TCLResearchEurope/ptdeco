@@ -368,7 +368,7 @@ def _process_module(
     num_data_steps: int,
     num_metric_steps: int,
     device: torch.device,
-    metric_iterator: Optional[collections.abc.Iterator[dict[str, torch.Tensor]]] = None,
+    metric_iterator: collections.abc.Iterator[dict[str, torch.Tensor]],
     num_params: int,
     min_rank: int = 32,
     trade_off_factor: float = 1.0,
@@ -377,11 +377,11 @@ def _process_module(
     decompose_in_float64: bool = True,
     u_matrix: Optional[torch.Tensor] = None,
 ) -> dict[str, Any]:
-    if metric_iterator is None:
-        metric_iterator = data_iterator
-        logger.warning(
-            "Using the same iterator to compute metrics and decompose layers."
-        )
+    # if metric_iterator is None:
+    #     metric_iterator = data_iterator
+    #     logger.warning(
+    #         "Using the same iterator to compute metrics and decompose layers."
+    #     )
     decomposed_submodule = root_module.get_submodule(decomposed_submodule_name)
     original_module = decomposed_submodule
     orig_weight = original_module.weight.clone()
@@ -484,7 +484,7 @@ def _process_module(
         )
 
         for _ in range(num_metric_steps):
-            input_dict = _to(next(data_iterator), device)
+            input_dict = _to(next(metric_iterator), device)
             nsr_sample, ppl_deco, ppl_orig = _compute_metrics(
                 input_dict=input_dict,
                 root_module=root_module,
@@ -880,8 +880,13 @@ def _precompute_covariance_matrix_decompositions_in_splits(
     device: torch.device
 ) -> dict[str, torch.Tensor]:
     u_dicts = []
-    # we split to prevent OOM works how llama2-7b and phi-2
+    # Splitting prevents OOM
     chunk_size = len(modules_to_decompose) // num_splits
+    if chunk_size == 0:
+        # Special case if num_splits > len(modules_to_decompose)
+        chunk_size = 1
+        num_splits = len(modules_to_decompose)
+
     num_partitions = (
         num_splits if len(modules_to_decompose) % num_splits == 0 else num_splits + 1
     )
@@ -900,6 +905,7 @@ def _precompute_covariance_matrix_decompositions_in_splits(
             )
         )
     u_dict = {k: v for d in u_dicts for k, v in d.items()}
+    assert len(u_dict) == len(modules_to_decompose)
     return u_dict
 
 
@@ -938,7 +944,10 @@ def decompose_in_place(
     )
     n = len(modules_to_decompose)
 
-    logger.info(f"There are {n} modules that can be decomposed")
+    msgs = [f"There are {n} linear modules that can be decomposed:"]
+    for i, module_name in enumerate(modules_to_decompose, start=1):
+        msgs.append(f"  {i}. {module_name}")
+    logger.info("\n".join(msgs))
 
     decompose_config = {}
     decomposed_submodules = []
