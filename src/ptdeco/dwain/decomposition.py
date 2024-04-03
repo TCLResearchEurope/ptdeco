@@ -5,13 +5,12 @@ import logging
 import time
 from typing import Any, Optional, cast
 
-import peft
 import torch
-import transformers  # type:ignore
 
 from .. import utils
 
 __all__ = [
+    "compute_loss",
     "decompose_in_place",
 ]
 
@@ -187,22 +186,6 @@ class CovarianceComputingLinearModule(torch.nn.Module):
         return u.to(self.weight.dtype).to("cpu")
 
 
-def _to(
-    o: torch.Tensor | dict[str, torch.Tensor], device: torch.device
-) -> torch.Tensor | dict[str, torch.Tensor]:
-    if isinstance(o, torch.Tensor):
-        return o.to(device)
-    elif isinstance(o, dict):
-        res = {}
-        for k, v in o.items():
-            if isinstance(v, torch.Tensor):
-                res[k] = v.to(device)
-            else:
-                res[k] = v
-        return res
-    raise ValueError(f"Unsupported type {type(o)}")
-
-
 def _accumulate_Ey_and_Eyyt(
     Ey: torch.Tensor,
     Eyyt: torch.Tensor,
@@ -246,7 +229,7 @@ def _compute_covariance_matrix_decomposition(
     Eyyt = torch.zeros((weight.shape[0], weight.shape[0]), dtype=dtype).to(device)
 
     for _ in range(num_data_steps):
-        inputs = _to(next(data_iterator), device)
+        inputs = utils.to_device(next(data_iterator), device)
         # TODO: ML check this call
         _ = root_module(inputs)
         x = decomposed_submodule.get_last_input()
@@ -290,11 +273,11 @@ def _compute_metrics(
 
     decomposed_submodule.set_weight(orig_weight)
     y_orig = root_module(input_dict)
-    loss_deco = _compute_loss(
+    loss_deco = compute_loss(
         logits=y_deco, labels=labels, attention_mask=attention_mask
     )
 
-    loss_orig = _compute_loss(
+    loss_orig = compute_loss(
         logits=y_orig, labels=labels, attention_mask=attention_mask
     )
 
@@ -377,11 +360,7 @@ def _process_module(
     decompose_in_float64: bool = True,
     u_matrix: Optional[torch.Tensor] = None,
 ) -> dict[str, Any]:
-    # if metric_iterator is None:
-    #     metric_iterator = data_iterator
-    #     logger.warning(
-    #         "Using the same iterator to compute metrics and decompose layers."
-    #     )
+
     decomposed_submodule = root_module.get_submodule(decomposed_submodule_name)
     original_module = decomposed_submodule
     orig_weight = original_module.weight.clone()
@@ -472,7 +451,8 @@ def _process_module(
         uk_matrix = (
             u_matrix[:, u_matrix.shape[1] - rank_new :].to(orig_dtype).to(device)
         )
-        U, V = orig_weight.T @ uk_matrix, uk_matrix.T
+        U = orig_weight.T @ uk_matrix
+        V = uk_matrix.T
         deco_weight = (U @ V).T
 
         nsr_new = 0.0
@@ -484,7 +464,7 @@ def _process_module(
         )
 
         for _ in range(num_metric_steps):
-            input_dict = _to(next(metric_iterator), device)
+            input_dict = utils.to_device(next(metric_iterator), device)
             nsr_sample, ppl_deco, ppl_orig = _compute_metrics(
                 input_dict=input_dict,
                 root_module=root_module,
@@ -588,88 +568,7 @@ def _add_meta_to_module_config(
     module_config[utils.modconfig.MODCONFIG_META_KEY] = meta
 
 
-def _finetune_decomposed_layers(
-    *,
-    model: torch.nn.Module,
-    device: torch.device,
-    ft_iterator: collections.abc.Iterator[dict[str, torch.Tensor]],
-    decomposed_submodules: list[str],
-    num_steps: int = 100,
-    lr: float = 0.0001,
-) -> torch.nn.Module:
-    if len(decomposed_submodules) == 0:
-        return model
-    for name, param in model.named_parameters():
-        # if not any([e in name for e in decomposed_submodules]):
-        #     # logger.info(f'Skipping parameter updates for name: {name}')
-        #     param.requires_grad = False
-        # else:
-        #     logger.info(f'Using param: {name} for gradient updates')
-        if any(
-            [e in name for e in decomposed_submodules]
-        ):  # and ('Wqkv' in name or 'out_proj' in name):
-            pass
-            # logger.info(f'Using param: {name} for gradient updates')
-        else:
-            param.requires_grad = False
-
-    optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
-
-    # lr scheduler
-    lr_scheduler = transformers.get_linear_schedule_with_warmup(
-        optimizer=optimizer,
-        num_warmup_steps=10,
-        num_training_steps=num_steps,
-    )
-    counter = 0
-    model.train()
-    total_loss = 0.0
-    for step in range(num_steps):
-        batch = _to(next(ft_iterator), device)
-        # TODO: ML remove this cast
-        batch = cast(dict[str, torch.Tensor], batch)
-        counter += 1
-        if step > num_steps:
-            break
-        optimizer.zero_grad()
-        input_ids = batch["input_ids"]
-        labels = batch["labels"]
-        attention_mask = batch["attention_mask"]
-        outputs = model({"input_ids": input_ids})
-        loss = _compute_loss(
-            logits=outputs.logits, labels=labels, attention_mask=attention_mask
-        )
-        loss.backward()
-        optimizer.step()
-        lr_scheduler.step()
-        total_loss += loss.item()
-
-        if step % 10 == 0:
-            logger.info(f"Step: {step}/{num_steps}, loss: {total_loss / counter}")
-    model.eval()
-    return model
-
-
-# def compute_loss_old(
-#     model: PreTrainedModel,
-#     logits: torch.Tensor,
-#     labels: torch.Tensor,
-# ):
-#     # !important
-#     loss_fc = torch.nn.CrossEntropyLoss()
-#     # Shift so that tokens < n predict n
-#     shift_logits = logits[..., :-1, :].contiguous()
-#     shift_labels = labels[..., 1:].contiguous()
-#     # Flatten the tokens
-
-#     shift_logits = shift_logits.view(-1, model.config.vocab_size)
-#     shift_labels = shift_labels.view(-1)
-#     # Enable model parallelism
-#     shift_labels = shift_labels.to(shift_logits.device)
-#     return loss_fc(shift_logits, shift_labels)
-
-
-def _compute_loss(
+def compute_loss(
     logits: torch.Tensor,
     labels: torch.Tensor,
     attention_mask: torch.Tensor,
@@ -684,122 +583,6 @@ def _compute_loss(
 
     loss = loss_fc(logits.view(-1, logits.shape[-1]), labels.view(-1))
     return loss
-
-
-def _strip_model_prefix(module_names: list[str]) -> list[str]:
-    res = []
-
-    for m in module_names:
-        if m.startswith("model."):
-            res.append(m[6:])
-        else:
-            res.append(m)
-    return res
-
-
-def _lora_finetune_decomposed_layers(
-    *,
-    model: torch.nn.Module,
-    device: torch.device,
-    ft_iterator: collections.abc.Iterator[dict[str, torch.Tensor]],
-    decomposed_submodules: list[str],
-    num_steps: int = 100,
-    lr: float = 0.0001,
-    num_last_decomposed_layers_to_finetune: int = 8,
-    min_rank_to_finetune: int = 32,
-    use_rank_pattern: bool = False,
-) -> torch.nn.Module:
-    decomposed_submodules_to_finetune = decomposed_submodules[
-        -num_last_decomposed_layers_to_finetune:
-    ]
-    for name, param in model.named_parameters():
-        if any(
-            [e in name for e in decomposed_submodules_to_finetune]
-        ):  # and ('Wqkv' in name or 'out_proj' in name):
-            logger.info(f"Enabling gradients for {name}")
-        else:
-            param.requires_grad = False
-    rank_pattern = {}
-    alpha_pattern = {}
-    target_modules = []
-    for module_name in decomposed_submodules_to_finetune:
-        first_module_name = f"{module_name}.0"
-        second_module_name = f"{module_name}.1"
-        rank = model.get_submodule(first_module_name).out_features
-        if rank >= min_rank_to_finetune:
-            rank_pattern[first_module_name] = rank // 16
-            rank_pattern[second_module_name] = rank // 16
-            alpha_pattern[first_module_name] = rank // 32
-            alpha_pattern[second_module_name] = rank // 32
-            target_modules.extend([first_module_name, second_module_name])
-
-    if len(rank_pattern) == 0:
-        logger.info("Skipping fine-tuning.")
-        return model
-
-    logger.info(f"Fine-tuning {len(rank_pattern)} modules.")
-
-    if not use_rank_pattern:
-        rank_pattern = {}
-        alpha_pattern = {}
-
-    else:
-        msg = "Using rank/alpha patterns. Watch out for overfitting on small datasets"
-        logger.warning(msg)
-
-    logger.info(f"Fine-tuning {len(target_modules)} modules.")
-
-    lora_config = peft.LoraConfig(
-        r=16,
-        target_modules=_strip_model_prefix(target_modules),
-        lora_alpha=8,
-        lora_dropout=0.05,
-        bias="none",
-        task_type="CAUSAL_LM",
-        rank_pattern=rank_pattern,
-        alpha_pattern=alpha_pattern,
-    )
-    peft_model = peft.get_peft_model(model.model, lora_config)
-
-    optimizer = torch.optim.AdamW(peft_model.parameters(), lr=lr)
-
-    # lr scheduler
-    lr_scheduler = transformers.get_linear_schedule_with_warmup(
-        optimizer=optimizer,
-        num_warmup_steps=10,
-        num_training_steps=num_steps,
-    )
-    counter = 0
-    peft_model.train()
-    total_loss = 0.0
-    for step in range(num_steps):
-        input_dict = _to(next(ft_iterator), device)
-        # TODO: ML remove this cast
-        input_dict = cast(dict[str, torch.Tensor], input_dict)
-        input_ids = input_dict["input_ids"]
-        labels = input_dict["labels"]
-        attention_mask = input_dict["attention_mask"]
-        counter += 1
-        if step > num_steps:
-            break
-        optimizer.zero_grad()
-        outputs = peft_model(input_ids=input_ids, labels=labels)
-        loss = _compute_loss(
-            logits=outputs.logits, labels=labels, attention_mask=attention_mask
-        )
-        total_loss += loss.item()
-        loss.backward()
-        optimizer.step()
-        lr_scheduler.step()
-
-        if step % 10 == 0:
-            logger.info(
-                f"Step: {step}/{num_steps}, loss: {total_loss / counter}, "
-                f"lr: {lr_scheduler.get_last_lr()}"
-            )
-    peft_model.eval()
-    model.model = peft_model.merge_and_unload()
-    return model
 
 
 def _check_if_decompose(
@@ -839,7 +622,7 @@ def _precompute_covariance_matrix_decompositions(
 
     with torch.no_grad():
         for _ in range(num_data_steps):
-            input_dict = _to(next(data_iterator), device)
+            input_dict = utils.to_device(next(data_iterator), device)
             # TODO: ML remove this cast
             input_dict = cast(dict[str, torch.Tensor], input_dict)
             input_ids = input_dict["input_ids"]
@@ -877,7 +660,7 @@ def _precompute_covariance_matrix_decompositions_in_splits(
     num_splits: int,
     num_data_steps: int,
     data_iterator: collections.abc.Iterator[dict[str, torch.Tensor]],
-    device: torch.device
+    device: torch.device,
 ) -> dict[str, torch.Tensor]:
     u_dicts = []
     # Splitting prevents OOM
@@ -914,22 +697,25 @@ def decompose_in_place(
     module: torch.nn.Module,
     device: torch.device,
     data_iterator: collections.abc.Iterator[dict[str, torch.Tensor]],
-    ft_iterator: collections.abc.Iterator[dict[str, torch.Tensor]],
-    metric_iterator: Optional[collections.abc.Iterator[dict[str, torch.Tensor]]] = None,
+    num_data_steps: int,
+    metric_iterator: collections.abc.Iterator[dict[str, torch.Tensor]],
+    num_metric_steps: int,
     blacklisted_module_names: Optional[list[str]] = None,
     nsr_final_threshold: float,
     ppl_diff_threshold: float,
-    num_data_steps: int,
-    num_metric_steps: int,
-    num_ft_steps: int,
-    ft_lr: float = 0.0001,
+    finetune_fn: collections.abc.Callable[
+        [torch.nn.Module, torch.device, list[str]], torch.nn.Module
+    ],
+    # num_ft_steps: int,
+    # ft_lr: float = 0.0001,
+    # run_finetuning: bool = True,
+    # lora_finetuning: bool = False,
+    # num_last_decomposed_layers_to_finetune: int = 8,
+    # use_rank_pattern: bool = False,
+    # ft_iterator: collections.abc.Iterator[dict[str, torch.Tensor]],
     min_rank: int = 32,
-    dtype: torch.dtype,
-    run_finetuning: bool = True,
-    lora_finetuning: bool = False,
-    num_last_decomposed_layers_to_finetune: int = 8,
+    # dtype: torch.dtype,
     trade_off_factor: float = 0.5,
-    use_rank_pattern: bool = False,
     decompose_in_float64: bool = True,
     precomputing_covariance_num_splits: int = 0,
 ) -> dict[str, Any]:
@@ -1010,32 +796,34 @@ def decompose_in_place(
             decomposed_submodules.append(submodule_name)
             utils.replace_submodule_in_place(module, submodule_name, new_module)
             num_decomposed_layers = len(decomposed_submodules)
-            if num_decomposed_layers > 0 and run_finetuning:
-                if lora_finetuning:
-                    n_layers = num_last_decomposed_layers_to_finetune
-                    module = _lora_finetune_decomposed_layers(
-                        model=module,
-                        device=device,
-                        ft_iterator=ft_iterator,
-                        decomposed_submodules=decomposed_submodules,
-                        num_last_decomposed_layers_to_finetune=n_layers,
-                        lr=ft_lr,
-                        num_steps=num_ft_steps,
-                        use_rank_pattern=use_rank_pattern,
-                    )
-                    utils.free_gpu_reserved_memory()
-                else:
-                    module = _finetune_decomposed_layers(
-                        model=module,
-                        device=device,
-                        ft_iterator=ft_iterator,
-                        decomposed_submodules=decomposed_submodules[
-                            -num_last_decomposed_layers_to_finetune:
-                        ],
-                        lr=ft_lr,
-                        num_steps=num_ft_steps,
-                    )
-                module.to(dtype)
+            if num_decomposed_layers > 0:
+                module = finetune_fn(
+                    module,
+                    device,
+                    decomposed_submodules,
+                )
+                utils.free_gpu_reserved_memory()
+
+            # if num_decomposed_layers > 0 and run_finetuning:
+            #     if lora_finetuning:
+            #         n_layers = num_last_decomposed_layers_to_finetune
+            #         module = _lora_finetune_decomposed_layers(
+            #             model=module,
+            #             device=device,
+            #             ft_iterator=ft_iterator,
+            #             decomposed_submodules=decomposed_submodules,
+            #             num_last_decomposed_layers_to_finetune=n_layers,
+            #             lr=ft_lr,
+            #             num_steps=num_ft_steps,
+            #             use_rank_pattern=use_rank_pattern,
+            #         )
+            #         utils.free_gpu_reserved_memory()
+            #     else:
+            #         module = _finetune_decomposed_layers(
+            #             model=module,
+            #             device=device,
+            #             ft_iterator=ft_iterator,
+            #             decomposed_submodules=decomposed_submodules,
             module_config = utils.get_module_config(new_module)
             _add_meta_to_module_config(module_config, result)
             decompose_config[submodule_name] = module_config
