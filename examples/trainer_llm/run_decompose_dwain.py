@@ -7,7 +7,7 @@ from typing import Any
 
 import ptdeco
 import torch
-import transformers
+import transformers  # type: ignore
 
 import configurator
 import datasets_hf
@@ -21,7 +21,7 @@ LOADER_SEED = 42
 logger = logging.getLogger(__name__)
 
 
-def setup_logging():
+def setup_logging() -> None:
     # TENSORFLOW style format
     fmt = "%(asctime)s.%(msecs)03d: %(levelname).1s %(name)s.py:%(lineno)d] %(message)s"
 
@@ -38,7 +38,9 @@ def setup_logging():
         logging.getLogger(module_name).setLevel(logging.INFO)
 
 
-def make_inifinte_iterator(dl):
+def make_inifinte_iterator(
+    dl: collections.abc.Iterable[Any],
+) -> collections.abc.Generator[Any, None, None]:
     while True:
         for x in dl:
             yield x
@@ -171,7 +173,7 @@ def make_finetune_fn(
             num_steps=config.finetuning_num_steps,
             lr=config.finetuning_lr,
             num_last_modules_to_finetune=config.finetuning_num_last_finetuned_modules,
-            use_rank_pattern=config.use_rank_pattern,
+            use_rank_pattern=config.finetuning_use_rank_pattern,
             min_rank_to_finetune=config.finetuning_lora_min_rank,
         )
     else:
@@ -239,7 +241,7 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
     decompose_config = ptdeco.dwain.decompose_in_place(
         module=model_wrapped,
         device=device,
-        dtype=dtype,
+        # dtype=dtype,
         blacklisted_module_names=config.blacklisted_module_names,
         data_iterator=decomposition_it,
         finetune_fn=finetune_fn,
@@ -328,7 +330,3 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
 
     with open(output_path / "summary.json", "wt") as f:
         json.dump(summary, f)
-
-
-if __name__ == "__main__":
-    main()
