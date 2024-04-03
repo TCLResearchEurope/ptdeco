@@ -45,30 +45,6 @@ def make_inifinte_iterator(dl):
             yield x
 
 
-# def make_padding_tokenizer(
-#     model: torch.nn.Module, tokenizer: transformers.PreTrainedTokenizer, model_name: str
-# ) -> transformers.PreTrainedTokenizer:
-#     if model_name in (
-#         "meta-llama/Llama-2-7b-hf",
-#         "microsoft/phi-2",
-#         "Qwen/Qwen1.5-1.8B",
-#         "Qwen/Qwen1.5-0.5B",
-#         "upstage/SOLAR-10.7B-v1.0",
-#         "mistralai/Mistral-7B-Instruct-v0.2",
-#     ):
-#         tokenizer.pad_token = (
-#             tokenizer.eos_token
-#         )  # Phi-2 and LLama2 models don't have a pad token by default
-#         model.config.pad_token_id = tokenizer.pad_token_id  # llama, phi
-#         logger.warning(f"Setting pad_token to eos_token")
-
-#     if model_name == "Qwen/Qwen-1_8B":
-#         tokenizer = transformers.AutoTokenizer.from_pretrained(
-#             "Qwen/Qwen-1.8B", trust_remote_code=True, pad_token="<|endoftext|>"
-#         )
-#     return tokenizer
-
-
 def conv_str_to_dtype(s: str) -> torch.dtype:
     if s == "torch.float32":
         return torch.float32
@@ -80,20 +56,19 @@ def conv_str_to_dtype(s: str) -> torch.dtype:
 
 
 def log_linear_submodules(m: torch.nn.Module) -> None:
-    res = ["Linear modules:"]
-    # for n, m in model_wrapped.named_modules():
-    #     if isinstance(m, torch.nn.Linear):
-    #         logger.info(f"{n}, {m.weight.shape}")
+    res = ["All Linear modules of the model:"]
 
+    i = 1
     for name, module in m.named_modules():
         if isinstance(module, torch.nn.Linear):
-            res.append(f"  - {name}  # {tuple(module.weight.shape)}")
+            res.append(f"  - {name}  # ({i}) {tuple(module.weight.shape)}")
+            i += 1
     logger.info("\n".join(res))
 
 
 def add_pad_token(
     model: torch.nn.Module, tokenizer: transformers.PreTrainedTokenizer, model_name: str
-):
+) -> None:
     if model_name in (
         "meta-llama/Llama-2-7b-hf",
         "microsoft/phi-2",
@@ -147,6 +122,12 @@ def create_dataloaders(
     torch.utils.data.DataLoader[dict[str, torch.Tensor]],
 ]:
     decomposition_ds = datasets_hf.get_dataset(config.decomposition_data_name)
+
+    logger.info(
+        f"Created decomposition ds {config.decomposition_data_name}, "
+        f"{len(decomposition_ds)} examples"
+    )
+
     decomposition_dl = datasets_hf.prepare_dataloader_v2(
         dataset=decomposition_ds,
         tokenizer=tokenizer,
@@ -157,6 +138,12 @@ def create_dataloaders(
     )
 
     perplexity_ds = datasets_hf.get_dataset(config.perplexity_data_name)
+
+    logger.info(
+        f"Created perplexity ds {config.perplexity_data_name}, "
+        f"{len(perplexity_ds)} examples"
+    )
+
     perplexity_dl = datasets_hf.prepare_slicegpt_dataloader(
         dataset=perplexity_ds,
         tokenizer=tokenizer,
@@ -227,14 +214,15 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
     model_wrapped = WrapperModule(model)
 
     num_layers = config.num_last_decomposed_layers_to_finetune
+    decomposition_it = make_inifinte_iterator(decomposition_dl)
     decompose_config = ptdeco.dwain.decompose_in_place(
         module=model_wrapped,
         device=device,
         dtype=dtype,
         blacklisted_module_names=config.blacklisted_module_names,
-        data_iterator=make_inifinte_iterator(decomposition_dl),
-        ft_iterator=decomposition_dl,
-        metric_iterator=decomposition_dl,
+        data_iterator=decomposition_it,
+        ft_iterator=decomposition_it,
+        metric_iterator=decomposition_it,
         nsr_final_threshold=config.nsr_final_threshold,
         ppl_diff_threshold=config.ppl_diff_threshold,
         num_data_steps=config.num_data_steps,
