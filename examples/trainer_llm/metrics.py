@@ -3,8 +3,12 @@ from typing import Any, Optional
 import logging
 import time
 
+import fvcore.nn  # type: ignore
+import lm_eval  # type: ignore
 import torch
+import transformers  # type: ignore
 
+import ptdeco
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +37,7 @@ def _map_tensors(
 
 
 def calc_perplexity(
-    model,
+    model: torch.nn.Module,
     testloader: torch.utils.data.DataLoader[dict[str, torch.Tensor]],
     device: torch.device,
     pad_token_id: int,
@@ -70,7 +74,7 @@ def calc_perplexity(
 
     t2 = time.perf_counter()
 
-    logging.info("Perplexity evaluation finished")
+    logging.info(f"Perplexity evaluation finished, it took {t2-t1:.2f}")
 
     return perplexity.item()
 
@@ -78,12 +82,10 @@ def calc_perplexity(
 def calc_lm_eval_metrics(
     model: torch.nn.Module,
     tasks: list[str],
-    tokenizer,
+    tokenizer: transformers.PreTrainedTokenizerBase,
     device: torch.device,
     suppress_initialize_tasks: bool = False,
 ) -> tuple[dict[str, Any], str]:
-
-    import lm_eval
 
     if not suppress_initialize_tasks:
         lm_eval.tasks.initialize_tasks()
@@ -119,8 +121,6 @@ def get_giga_flops(
     device: Optional[torch.device] = None,
     warnings_off: bool = False,
 ) -> float:
-    import ptdeco
-    import fvcore.nn
 
     try:
         if device is None:
