@@ -1,7 +1,6 @@
-from typing import Any
-
 import codecs
 import logging
+from typing import Any
 
 import datasets  # type: ignore
 import torch
