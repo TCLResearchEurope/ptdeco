@@ -1,19 +1,18 @@
-from typing import Any
+import collections.abc
 import json
 import logging
 import pathlib
 import time
-import sys
+from typing import Any
 
-import datasets
+import ptdeco
 import torch
 import transformers
-import ptdeco
 
 import configurator
 import datasets_hf
+import dwain_wrpper_module
 import metrics
-
 
 PPL_EVAL_VARIED_SEQLEN = False
 LOADER_SEED = 42
@@ -80,7 +79,7 @@ def add_pad_token(
             tokenizer.eos_token
         )  # Phi-2 and LLama2 models don't have a pad token by default
         model.config.pad_token_id = tokenizer.pad_token_id  # llama, phi
-        logger.info(f"Setting pad_token to eos_token")
+        logger.info("Setting pad_token to eos_token")
 
     if model_name == "Qwen/Qwen-1_8B":
         "https://github.com/QwenLM/Qwen/blob/main/tokenization_note.md"
@@ -88,7 +87,7 @@ def add_pad_token(
         tokenizer.eos_token = "<|endoftext|>"
 
 
-def create_model_and_tokenizer(
+def make_model_and_tokenizer(
     config: configurator.DecomposeDWAINConfig, device: torch.device, dtype: torch.dtype
 ) -> tuple[transformers.AutoModelForCausalLM, transformers.PreTrainedTokenizer]:
     model_name = config.decomposed_model_name
@@ -114,7 +113,7 @@ def create_model_and_tokenizer(
     return model, tokenizer
 
 
-def create_dataloaders(
+def make_dataloaders(
     config: configurator.DecomposeDWAINConfig,
     tokenizer: transformers.PreTrainedTokenizer,
 ) -> tuple[
@@ -156,6 +155,38 @@ def create_dataloaders(
     return decomposition_dl, perplexity_dl
 
 
+def make_finetune_fn(
+    config: configurator.DecomposeDWAINConfig,
+    ft_iterator: collections.abc.Iterator[dict[str, torch.Tensor]],
+) -> collections.abc.Callable[
+    [torch.nn.Module, torch.device, list[str]], torch.nn.Module
+]:
+    if config.finetuning_use_lora:
+        logger.info("Creating lora finetuning function")
+        return lambda m, device, decomposed_modules: dwain_wrpper_module.finetune_lora(
+            model=m,
+            device=device,
+            decomposed_modules=decomposed_modules,
+            ft_iterator=ft_iterator,
+            num_steps=config.finetuning_num_steps,
+            lr=config.finetuning_lr,
+            num_last_modules_to_finetune=config.finetuning_num_last_finetuned_modules,
+            use_rank_pattern=config.use_rank_pattern,
+            min_rank_to_finetune=config.finetuning_lora_min_rank,
+        )
+    else:
+        logger.info("Creating full finetuning function")
+        return lambda m, device, decomposed_modules: dwain_wrpper_module.finetune_full(
+            model=m,
+            device=device,
+            decomposed_modules=decomposed_modules,
+            ft_iterator=ft_iterator,
+            num_steps=config.finetuning_num_steps,
+            lr=config.finetuning_lr,
+            num_last_modules_to_finetune=config.finetuning_num_last_finetuned_modules,
+        )
+
+
 def save_model(
     output_path: pathlib.Path,
     decompose_config: dict[str, Any],
@@ -182,10 +213,10 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
         device = torch.device("cpu")
 
     # 2. CREATE MODEL
-    model, tokenizer = create_model_and_tokenizer(config, device, dtype)
+    model, tokenizer = make_model_and_tokenizer(config, device, dtype)
 
     # 3. PREPARE DATALOADERS
-    decomposition_dl, perplexity_dl = create_dataloaders(config, tokenizer)
+    decomposition_dl, perplexity_dl = make_dataloaders(config, tokenizer)
 
     # 4. LOG INITIAL STATISTICS
     with torch.no_grad():
@@ -199,41 +230,33 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
 
     # 5. DO ACTUAL DECOMPOSITION
 
-    class WrapperModule(torch.nn.Module):
-        def __init__(self, model):
-            super().__init__()
-            self.model = model
-            self.config = model.config
+    model_wrapped = dwain_wrpper_module.WrapperModule(model)
 
-        def forward(self, x):
-            return self.model(**x).logits
-
-        def prepare_inputs_for_generation(self, input_ids, **kwargs):
-            return self.model.prepare_inputs_for_generation(input_ids, **kwargs)
-
-    model_wrapped = WrapperModule(model)
-
-    num_layers = config.num_last_decomposed_layers_to_finetune
     decomposition_it = make_inifinte_iterator(decomposition_dl)
+
+    finetune_fn = make_finetune_fn(config, decomposition_it)
+
     decompose_config = ptdeco.dwain.decompose_in_place(
         module=model_wrapped,
         device=device,
         dtype=dtype,
         blacklisted_module_names=config.blacklisted_module_names,
         data_iterator=decomposition_it,
-        ft_iterator=decomposition_it,
+        finetune_fn=finetune_fn,
+        # finetuning
+        # ft_iterator=decomposition_it,
+        # ft_lr=config.ft_lr,
+        # num_ft_steps=config.num_ft_steps,
+        # num_last_decomposed_layers_to_finetune=num_layers,
+        # run_finetuning=config.run_finetuning,
+        # lora_finetuning=config.lora_finetuning,
         metric_iterator=decomposition_it,
         nsr_final_threshold=config.nsr_final_threshold,
         ppl_diff_threshold=config.ppl_diff_threshold,
         num_data_steps=config.num_data_steps,
         num_metric_steps=config.num_metric_steps,
-        num_ft_steps=config.num_ft_steps,
-        ft_lr=config.ft_lr,
         min_rank=config.min_rank,
         trade_off_factor=config.trade_off_factor,
-        num_last_decomposed_layers_to_finetune=num_layers,
-        run_finetuning=config.run_finetuning,
-        lora_finetuning=config.lora_finetuning,
         decompose_in_float64=config.decompose_in_float64,
         precomputing_covariance_num_splits=config.precomputing_covariance_num_splits,
     )
