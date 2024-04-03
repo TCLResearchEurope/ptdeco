@@ -5,6 +5,7 @@ from typing import Any
 import torch
 
 __all__ = [
+    "to_device",
     "get_gpu_reserved_memory_gb",
     "free_gpu_reserved_memory",
     "get_num_params",
@@ -17,6 +18,22 @@ __all__ = [
 
 
 logger = logging.getLogger(__name__)
+
+
+def to_device(
+    o: torch.Tensor | dict[str, torch.Tensor], device: torch.device
+) -> torch.Tensor | dict[str, torch.Tensor]:
+    if isinstance(o, torch.Tensor):
+        return o.to(device)
+    elif isinstance(o, dict):
+        res = {}
+        for k, v in o.items():
+            if isinstance(v, torch.Tensor):
+                res[k] = v.to(device)
+            else:
+                res[k] = v
+        return res
+    raise ValueError(f"Unsupported type {type(o)}")
 
 
 def get_gpu_reserved_memory_gb() -> float:
