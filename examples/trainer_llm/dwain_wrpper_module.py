@@ -25,7 +25,7 @@ class WrapperModule(torch.nn.Module):
         return self.model(**x).logits
 
     def prepare_inputs_for_generation(
-        self, input_ids: torch.Tensor, **kwargs: dict[str, Any]
+        self, input_ids: torch.Tensor, **kwargs: Any
     ) -> torch.Tensor:
         return self.model.prepare_inputs_for_generation(input_ids, **kwargs)
 
@@ -47,7 +47,7 @@ def finetune_full(
     device: torch.device,
     ft_iterator: collections.abc.Iterator[dict[str, torch.Tensor]],
     decomposed_modules: list[str],
-    num_last_decomposed_modules_to_finetune: int = 8,
+    num_last_modules_to_finetune: int = 8,
     num_steps: int = 100,
     lr: float = 0.0001,
 ) -> torch.nn.Module:
@@ -55,7 +55,7 @@ def finetune_full(
     if len(decomposed_modules) == 0:
         return model
     decomposed_modules_to_finetune = decomposed_modules[
-        -num_last_decomposed_modules_to_finetune:
+        -num_last_modules_to_finetune:
     ]
     for name, param in model.named_parameters():
         if not any(
