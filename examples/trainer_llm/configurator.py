@@ -1,7 +1,7 @@
 from typing import Optional
-from typing_extensions import Annotated
-import pydantic
 
+import pydantic
+from typing_extensions import Annotated
 
 DTYPES_PATTERN = r"^torch.float32$|^torch.bfloat16$|^torch.float16$"
 
@@ -52,11 +52,13 @@ class DecomposeDWAINConfig(pydantic.BaseModel):
 
     # Finetuning params
 
-    run_finetuning: bool
-    lora_finetuning: bool
-    ft_lr: float = 0.0001
-    num_ft_steps: int
-    num_last_decomposed_layers_to_finetune: int
+    finetuning_run: bool
+    finetuning_use_lora: bool
+    finetuning_lora_min_rank: int
+    finetuning_lr: float = 0.0001
+    finetuning_num_steps: int
+    finetuning_num_last_finetuned_modules: int
+    finetuning_use_rank_pattern: bool
 
     # lm_eval evaluation params
     lm_eval_tasks: Optional[list[str]]
