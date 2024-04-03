@@ -1,15 +1,17 @@
+from typing import Any
+
 import codecs
 import logging
 
 import datasets  # type: ignore
 import torch
-import transformers
+import transformers  # type: ignore
 
 logger = logging.getLogger(__name__)
 
 
 def get_dataset(dataset_and_split_name: str) -> datasets.Dataset:
-    ds_properties = {
+    ds_properties: dict[str, dict[str, Any]] = {
         "wikitext2": {"path": "wikitext", "config_name": "wikitext-2-raw-v1"},
         "alpaca": {
             "path": "tatsu-lab/alpaca",
@@ -57,7 +59,12 @@ def prepare_test_dataloader(
     logger.info("Preparing test dataloader")
 
     class TestDataset(torch.utils.data.Dataset):
-        def __init__(self, ds, tokenizer, seqlen=2048):
+        def __init__(
+            self,
+            ds: datasets.Dataset,
+            tokenizer: transformers.PreTrainedTokenizerBase,
+            seqlen: int = 2048,
+        ):
             # Tokenize entire dataset and reshape it into sequences of length seqlen.
 
             tokenized_ds = tokenizer("\n\n".join(ds["text"]), return_tensors="pt")
@@ -71,13 +78,13 @@ def prepare_test_dataloader(
             self.input_ids = input_ids
             self.attn_mask = attn_mask
 
-        def __getitem__(self, idx):
+        def __getitem__(self, idx: int) -> dict[str, Any]:
             return {
                 "input_ids": self.input_ids[idx],
                 "attention_mask": self.attn_mask[idx],
             }
 
-        def __len__(self):
+        def __len__(self) -> int:
             return len(self.input_ids)
 
     test_ds = TestDataset(dataset, tokenizer, max_seqlen)
@@ -88,7 +95,7 @@ def prepare_test_dataloader(
 
 def _normalize_separator(
     separator: str, tokenizer: transformers.PreTrainedTokenizerBase
-):
+) -> str:
 
     allowed_separators = {"\n\n", " ", "", "eos"}
 
@@ -100,7 +107,7 @@ def _normalize_separator(
     return separator
 
 
-def _escape_separator(separator: str) -> None:
+def _escape_separator(separator: str) -> str:
     return codecs.escape_encode(separator.encode("utf-8"))[0].decode("utf-8")
 
 
@@ -113,7 +120,7 @@ def prepare_slicegpt_dataloader(
     batch_size: int = 1,
     nsamples: int = 128,
     varied_seqlen: bool = False,
-    seed=42,
+    seed: int = 42,
 ) -> torch.utils.data.DataLoader[dict[str, torch.Tensor]]:
 
     separator = _normalize_separator(separator, tokenizer)
@@ -133,16 +140,18 @@ def prepare_slicegpt_dataloader(
         # Create a new dataset where each example is a concatenation of multiple
         # examples of total length = max_seqlen
         data_list = ds[data_name]
-        new_data_list = []
+        new_data_list: list[str] = []
         generator = torch.Generator()
         generator.manual_seed(seed)
 
         indices = list(range(len(data_list)))
 
         while len(new_data_list) < nsamples and len(indices) > 0:
-            start_idx = torch.randint(0, len(indices), (1,), generator=generator).item()
+            start_idx = int(
+                torch.randint(0, len(indices), (1,), generator=generator).item()
+            )
             idx = start_idx
-            tokens = []
+            tokens: list[str] = []
             while len(tokens) < max_seqlen and idx < len(indices):
                 item = data_list[indices[idx]]
                 sep = "" if not tokens else separator
@@ -157,7 +166,9 @@ def prepare_slicegpt_dataloader(
 
         ds = datasets.Dataset.from_dict({data_name: new_data_list})
 
-    def tokenize(data_batch):
+    def tokenize(
+        data_batch: dict[str, torch.Tensor]
+    ) -> transformers.tokenization_utils_base.BatchEncoding:
         # tokenize then pad each batch according to the longest sequence in the batch
         batch = tokenizer(
             data_batch[data_name],
@@ -173,9 +184,8 @@ def prepare_slicegpt_dataloader(
     ds.set_transform(tokenize)
     generator = torch.Generator()
     generator.manual_seed(seed)
-    sampler = torch.utils.data.SubsetRandomSampler(
-        torch.randperm(len(ds), generator=generator)[:nsamples]
-    )
+    indices = torch.randperm(len(ds), generator=generator)[:nsamples].tolist()
+    sampler = torch.utils.data.SubsetRandomSampler(indices)
 
     loader = torch.utils.data.DataLoader(ds, batch_size=batch_size, sampler=sampler)
     logger.info("Preparing slicegpt dataloader done")
@@ -188,7 +198,7 @@ def prepare_dataloader_v2(
     tokenizer: transformers.PreTrainedTokenizerBase,
     max_seqlen: int = 2048,
     batch_size: int = 1,
-    seed=42,
+    seed: int = 42,
     separator: str,
 ) -> torch.utils.data.DataLoader[dict[str, torch.Tensor]]:
 
@@ -210,7 +220,7 @@ def prepare_dataloader_v2(
     new_data_list = []
 
     idx = 0
-    buffer = []
+    buffer: list[int] = []
     while idx < len(data_list) - 1:
         while len(buffer) <= max_seqlen and idx < len(data_list) - 1:
             encoded = tokenizer(
@@ -228,7 +238,9 @@ def prepare_dataloader_v2(
 
     ds = datasets.Dataset.from_dict({data_name: new_data_list})
 
-    def tokenize(data_batch):
+    def tokenize(
+        data_batch: dict[str, torch.Tensor]
+    ) -> transformers.tokenization_utils_base.BatchEncoding:
         # tokenize then pad each batch according to the longest sequence in the batch
         batch = tokenizer(
             data_batch[data_name],
@@ -245,10 +257,8 @@ def prepare_dataloader_v2(
 
     gen = torch.Generator()
     gen.manual_seed(seed)
-
-    sampler = torch.utils.data.SubsetRandomSampler(
-        torch.randperm(len(ds), generator=gen)
-    )
+    indices = torch.randperm(len(ds), generator=gen).tolist()
+    sampler = torch.utils.data.SubsetRandomSampler(indices)
 
     loader = torch.utils.data.DataLoader(ds, batch_size=batch_size, sampler=sampler)
     logger.info("Preparing dataloader v2 done")
