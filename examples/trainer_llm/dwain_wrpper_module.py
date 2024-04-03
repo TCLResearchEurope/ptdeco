@@ -1,10 +1,10 @@
-from typing import cast
+from typing import Any, cast
 import collections.abc
 import logging
 
 import peft
 import torch
-import transformers
+import transformers  # type: ignore
 
 import ptdeco.utils
 
@@ -12,16 +12,21 @@ import ptdeco.utils
 logger = logging.getLogger(__name__)
 
 
+# A wrapper returning logits
+
+
 class WrapperModule(torch.nn.Module):
-    def __init__(self, model):
+    def __init__(self, model: torch.nn.Module):
         super().__init__()
         self.model = model
         self.config = model.config
 
-    def forward(self, x):
+    def forward(self, x: dict[str, torch.Tensor]) -> torch.Tensor:
         return self.model(**x).logits
 
-    def prepare_inputs_for_generation(self, input_ids, **kwargs):
+    def prepare_inputs_for_generation(
+        self, input_ids: torch.Tensor, **kwargs: dict[str, Any]
+    ) -> torch.Tensor:
         return self.model.prepare_inputs_for_generation(input_ids, **kwargs)
 
 
