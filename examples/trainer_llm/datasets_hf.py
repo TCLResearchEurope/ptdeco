@@ -32,11 +32,15 @@ def get_dataset(dataset_and_split_name: str) -> datasets.Dataset:
     )
 
     if dataset_name == "alpaca":
-        ds = ds["train"].train_test_split(test_size=0.2, seed=42)
-        temp_ds = ds.pop("test")
-        temp_ds = temp_ds.train_test_split(test_size=0.5, seed=42)
-        ds["test"] = temp_ds["train"]
-        ds["validation"] = temp_ds["test"]
+        if split_name == "full":
+            split_name = "train"
+        else:
+            # Alpaca does not have valid/test, so create custom valid/test 10% splits
+            ds = ds["train"].train_test_split(test_size=0.2, seed=42)
+            temp_ds = ds.pop("test")
+            temp_ds = temp_ds.train_test_split(test_size=0.5, seed=42)
+            ds["test"] = temp_ds["train"]
+            ds["validation"] = temp_ds["test"]
 
     if "cols_to_remove" in properties:
         ds = ds.remove_columns(properties["cols_to_remove"])
