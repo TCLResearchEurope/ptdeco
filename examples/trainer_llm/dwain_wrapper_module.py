@@ -92,9 +92,11 @@ def finetune_full(
         return model
     decomposed_modules_to_finetune = decomposed_modules[-num_last_modules_to_finetune:]
     for name, param in model.named_parameters():
-        if not any(
+        if any(
             [e in name for e in decomposed_modules_to_finetune]
         ):  # and ('Wqkv' in name or 'out_proj' in name):
+            logger.info(f"full fine-tuning - enabling gradients for {name}")
+        else:
             param.requires_grad = False
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
@@ -156,7 +158,7 @@ def finetune_lora(
         if any(
             [e in name for e in decomposed_submodules_to_finetune]
         ):  # and ('Wqkv' in name or 'out_proj' in name):
-            logger.info(f"Enabling gradients for {name}")
+            logger.info(f"lora fine-tuning - enabling gradients for {name}")
         else:
             param.requires_grad = False
     rank_pattern = {}
