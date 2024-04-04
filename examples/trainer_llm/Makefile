@@ -3,8 +3,8 @@ SHELL=bash
 MODULE_NAME=ptdeco
 VER_FILE=version.py
 
-PYTHON_LIB_FILES= configurator.py datasets_hf.py version.py \
-			      run_decompose_dwain.py
+PYTHON_LIB_FILES= configurator.py datasets_hf.py dwain_wrapper_module.py metrics.py \
+				  version.py run_decompose_dwain.py
 
 PYTHON_RUN_FILE=run.py
 
