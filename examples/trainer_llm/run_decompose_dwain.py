@@ -241,17 +241,9 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
     decompose_config = ptdeco.dwain.decompose_in_place(
         module=model_wrapped,
         device=device,
-        # dtype=dtype,
         blacklisted_module_names=config.blacklisted_module_names,
         data_iterator=decomposition_it,
         finetune_fn=finetune_fn,
-        # finetuning
-        # ft_iterator=decomposition_it,
-        # ft_lr=config.ft_lr,
-        # num_ft_steps=config.num_ft_steps,
-        # num_last_decomposed_layers_to_finetune=num_layers,
-        # run_finetuning=config.run_finetuning,
-        # lora_finetuning=config.lora_finetuning,
         metric_iterator=decomposition_it,
         nsr_final_threshold=config.nsr_final_threshold,
         ppl_diff_threshold=config.ppl_diff_threshold,
