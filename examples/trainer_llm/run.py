@@ -1,4 +1,10 @@
+import argparse
 import logging
+import pathlib
+import subprocess
+import sys
+import time
+from typing import Any
 
 # Some weird lib is calling logging.basicConfig on import, so we need to be brutal
 
@@ -29,19 +35,12 @@ def setup_logging() -> None:
 logger = logging.getLogger(__name__)
 setup_logging()
 
-import argparse
-import logging
-import pathlib
-import subprocess
-import sys
-import time
-from typing import Any
 
-import ptdeco
-import yaml
+import ptdeco  # noqa: E402
+import yaml  # noqa: E402
 
-import run_decompose_dwain
-import version
+import run_decompose_dwain  # noqa: E402
+import version  # noqa: E402
 
 
 REPRO_SUBDIR = "repro"
