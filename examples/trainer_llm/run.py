@@ -1,3 +1,34 @@
+import logging
+
+# Some weird lib is calling logging.basicConfig on import, so we need to be brutal
+
+
+def setup_logging() -> None:
+    fmt = (
+        "%(asctime)s.%(msecs)03d: %(levelname).1s "
+        + "%(name)s.py:%(lineno)d] %(message)s"
+    )
+    logging.basicConfig(
+        level=logging.WARNING,
+        format=fmt,
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+    module_names_verbose = [
+        __name__,
+        "configurator",
+        "datasets_hf",
+        "metrics",
+        "dwain_wrapper_module",
+        "run_decompose_dwain",
+        "ptdeco",
+    ]
+    for module_name in module_names_verbose:
+        logging.getLogger(module_name).setLevel(logging.INFO)
+
+
+logger = logging.getLogger(__name__)
+setup_logging()
+
 import argparse
 import logging
 import pathlib
@@ -12,7 +43,6 @@ import yaml
 import run_decompose_dwain
 import version
 
-logger = logging.getLogger(__name__)
 
 REPRO_SUBDIR = "repro"
 
@@ -31,27 +61,6 @@ def parse_args() -> argparse.Namespace:
     )
     args = arg_parser.parse_args()
     return args
-
-
-def setup_logging() -> None:
-    fmt = (
-        "%(asctime)s.%(msecs)03d: %(levelname).1s "
-        + "%(name)s.py:%(lineno)d] %(message)s"
-    )
-    logging.basicConfig(
-        level=logging.WARNING,
-        format=fmt,
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
-    module_names_verbose = [
-        __name__,
-        "ptdeco",
-        "builder",
-        "configurator",
-        "run_decompose_dwain",
-    ]
-    for module_name in module_names_verbose:
-        logging.getLogger(module_name).setLevel(logging.INFO)
 
 
 def seconds_to_hh_mm_ss_str(seconds: float) -> str:
@@ -118,7 +127,6 @@ def save_requirements(
 
 def main(args: argparse.Namespace) -> None:
     start = time.perf_counter()
-    setup_logging()
     output_path = pathlib.Path(args.output_path)
     output_path.mkdir(exist_ok=True, parents=True)
     copy_config(args.config, output_path)

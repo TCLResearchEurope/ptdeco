@@ -21,23 +21,6 @@ LOADER_SEED = 42
 logger = logging.getLogger(__name__)
 
 
-def setup_logging() -> None:
-    # TENSORFLOW style format
-    fmt = "%(asctime)s.%(msecs)03d: %(levelname).1s %(name)s.py:%(lineno)d] %(message)s"
-
-    # SIMPLER style format
-    # fmt = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    logging.basicConfig(
-        level=logging.WARNING,
-        format=fmt,
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
-    # Herer you put modules that you want more verbose logging
-
-    for module_name in [__name__, "datasets_hf", "metrics", "ptdeco"]:
-        logging.getLogger(module_name).setLevel(logging.INFO)
-
-
 def make_inifinte_iterator(
     dl: collections.abc.Iterable[Any],
 ) -> collections.abc.Generator[Any, None, None]:
