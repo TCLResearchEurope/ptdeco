@@ -125,7 +125,7 @@ def make_dataloaders(
     decomposition_ds = datasets_hf.get_dataset(config.decomposition_data_name)
 
     logger.info(
-        f"Created decomposition ds {config.decomposition_data_name}, "
+        f"Created decomposition dataset {config.decomposition_data_name}, "
         f"{len(decomposition_ds)} examples"
     )
 
@@ -141,7 +141,7 @@ def make_dataloaders(
     perplexity_ds = datasets_hf.get_dataset(config.perplexity_data_name)
 
     logger.info(
-        f"Created perplexity ds {config.perplexity_data_name}, "
+        f"Created perplexity dataset {config.perplexity_data_name}, "
         f"{len(perplexity_ds)} examples"
     )
 
