@@ -499,8 +499,6 @@ def _process_module(
             nsr_best = nsr_new
             ppl_best = ppl_new
             logger.info(f"Accepting rank {rank_best}/{full_rank}")
-        # else:
-        #     break
 
         msg_iter = f"{i=} {rank_new=} {nsr_new=:.6f} {ppl_new=:.6f} "
         msg_cur = f"{rank_best=} {nsr_best=:.6f} {ppl_best=:.6f}"
@@ -508,7 +506,6 @@ def _process_module(
         logger.info(f"deco ppl: {ppl_deco}, orig ppl: {ppl_orig}")
         i += 1
     assert U.numel() > 0 and V.numel() > 0
-    # decomposed_submodule.set_weight(orig_weight)
 
     proportion = rank_best / full_rank
     msg_metrics = f"{proportion=:.4f} nsr={nsr_best:.6f} ppl={ppl_best:.6f}"
@@ -814,27 +811,6 @@ def decompose_in_place(
                     decomposed_submodules,
                 )
                 utils.free_gpu_reserved_memory()
-
-            # if num_decomposed_layers > 0 and run_finetuning:
-            #     if lora_finetuning:
-            #         n_layers = num_last_decomposed_layers_to_finetune
-            #         module = _lora_finetune_decomposed_layers(
-            #             model=module,
-            #             device=device,
-            #             ft_iterator=ft_iterator,
-            #             decomposed_submodules=decomposed_submodules,
-            #             num_last_decomposed_layers_to_finetune=n_layers,
-            #             lr=ft_lr,
-            #             num_steps=num_ft_steps,
-            #             use_rank_pattern=use_rank_pattern,
-            #         )
-            #         utils.free_gpu_reserved_memory()
-            #     else:
-            #         module = _finetune_decomposed_layers(
-            #             model=module,
-            #             device=device,
-            #             ft_iterator=ft_iterator,
-            #             decomposed_submodules=decomposed_submodules,
             module_config = utils.get_module_config(new_module)
             _add_meta_to_module_config(module_config, result)
             decompose_config[submodule_name] = module_config
