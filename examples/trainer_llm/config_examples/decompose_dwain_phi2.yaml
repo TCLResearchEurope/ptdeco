@@ -38,6 +38,7 @@ precomputing_covariance_num_splits: 8
 
 finetuning_run: true
 finetuning_use_lora: true
+finetuning_lora_min_rank: 32
 finetuning_lr: 0.0001
 finetuning_num_steps: 10
 finetuning_num_last_finetuned_modules: 8
