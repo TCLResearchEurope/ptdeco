@@ -88,7 +88,6 @@ def prepare_test_dataloader(
 
     test_ds = TestDataset(dataset, tokenizer, max_seqlen)
     loader = torch.utils.data.DataLoader(test_ds, batch_size=batch_size)
-    logger.info("Preparing test dataloader done")
     return loader
 
 
@@ -187,7 +186,6 @@ def prepare_slicegpt_dataloader(
     sampler = torch.utils.data.SubsetRandomSampler(indices)
 
     loader = torch.utils.data.DataLoader(ds, batch_size=batch_size, sampler=sampler)
-    logger.info("Preparing slicegpt dataloader done")
     return loader
 
 
@@ -260,5 +258,4 @@ def prepare_dataloader_v2(
     sampler = torch.utils.data.SubsetRandomSampler(indices)
 
     loader = torch.utils.data.DataLoader(ds, batch_size=batch_size, sampler=sampler)
-    logger.info("Preparing dataloader v2 done")
     return loader
