@@ -1,6 +1,9 @@
 from typing import Any, cast
-import collections.abc
+
+import collections
+import json
 import logging
+import pathlib
 
 import peft
 import torch
@@ -18,16 +21,46 @@ logger = logging.getLogger(__name__)
 class WrapperModule(torch.nn.Module):
     def __init__(self, model: torch.nn.Module):
         super().__init__()
-        self.model = model
+        self.raw_model = model
         self.config = model.config
 
     def forward(self, x: dict[str, torch.Tensor]) -> torch.Tensor:
-        return self.model(**x).logits
+        return self.raw_model(**x).logits
 
     def prepare_inputs_for_generation(
         self, input_ids: torch.Tensor, **kwargs: Any
     ) -> torch.Tensor:
-        return self.model.prepare_inputs_for_generation(input_ids, **kwargs)
+        return self.raw_model.prepare_inputs_for_generation(input_ids, **kwargs)
+
+
+def _strip_prefix(d: dict[str, Any], ordered_dict: bool) -> dict[str, Any]:
+
+    PREFIX ="raw_model"
+
+    res : dict[str, Any] = {}
+    if ordered_dict:
+        res = collections.OrderedDict()
+
+    for k, v in d.items():
+        if k.startswith(PREFIX):
+            res[k[len(PREFIX):]] = v
+        else:
+            res[k] = v
+    return res
+
+
+def save_raw_model_decompose_config_and_state_dict(
+    output_path: pathlib.Path,
+    decompose_config: dict[str, Any],
+    state_dict: dict[str, torch.Tensor],
+) -> None:
+    out_decompose_config_path = output_path / "decompose_config.json"
+
+    with open(out_decompose_config_path, "wt") as f:
+        json.dump(_strip_prefix(decompose_config, ordered_dict=False), f)
+    out_decompose_state_dict_path = output_path / "decompose_state_dict.pt"
+
+    torch.save(state_dict, out_decompose_state_dict_path)
 
 
 def _strip_model_prefix(module_names: list[str]) -> list[str]:

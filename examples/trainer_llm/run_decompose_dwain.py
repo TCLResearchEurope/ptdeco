@@ -11,7 +11,7 @@ import transformers  # type: ignore
 
 import configurator
 import datasets_hf
-import dwain_wrpper_module
+import dwain_wrapper_module
 import metrics
 
 PPL_EVAL_VARIED_SEQLEN = False
@@ -148,7 +148,7 @@ def make_finetune_fn(
 ]:
     if config.finetuning_use_lora:
         logger.info("Creating lora finetuning function")
-        return lambda m, device, decomposed_modules: dwain_wrpper_module.finetune_lora(
+        return lambda m, device, decomposed_modules: dwain_wrapper_module.finetune_lora(
             model=m,
             device=device,
             decomposed_modules=decomposed_modules,
@@ -161,7 +161,7 @@ def make_finetune_fn(
         )
     else:
         logger.info("Creating full finetuning function")
-        return lambda m, device, decomposed_modules: dwain_wrpper_module.finetune_full(
+        return lambda m, device, decomposed_modules: dwain_wrapper_module.finetune_full(
             model=m,
             device=device,
             decomposed_modules=decomposed_modules,
@@ -170,19 +170,6 @@ def make_finetune_fn(
             lr=config.finetuning_lr,
             num_last_modules_to_finetune=config.finetuning_num_last_finetuned_modules,
         )
-
-
-def save_model(
-    output_path: pathlib.Path,
-    decompose_config: dict[str, Any],
-    state_dict: dict[str, torch.Tensor],
-) -> None:
-    out_decompose_config_path = output_path / "decompose_config.json"
-    with open(out_decompose_config_path, "wt") as f:
-        json.dump(decompose_config, f)
-    out_decompose_state_dict_path = output_path / "decompose_state_dict.pt"
-    # TODO Remove model prefix from state dict !!!
-    torch.save(state_dict, out_decompose_state_dict_path)
 
 
 def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
@@ -215,7 +202,7 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
 
     # 5. DO ACTUAL DECOMPOSITION
 
-    model_wrapped = dwain_wrpper_module.WrapperModule(model)
+    model_wrapped = dwain_wrapper_module.WrapperModule(model)
 
     decomposition_it = make_inifinte_iterator(decomposition_dl)
 
@@ -239,7 +226,9 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
     )
 
     # 6. SERIALIZE MODEL
-    save_model(output_path, decompose_config, model.state_dict())
+    dwain_wrapper_module.save_raw_model_decompose_config_and_state_dict(
+        output_path, decompose_config, model.state_dict()
+    )
 
     # 7. LOG FINAL STATISTICS
 
@@ -269,7 +258,7 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
     if config.lm_eval_tasks is not None and len(config.lm_eval_tasks) > 0:
         start = time.perf_counter()
         lm_eval_results, lm_eval_results_str = metrics.calc_lm_eval_metrics(
-            model=model_wrapped.model,
+            model=model_wrapped.raw_model,
             tokenizer=tokenizer,
             device=device,
             tasks=config.lm_eval_tasks,
