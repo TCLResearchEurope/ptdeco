@@ -146,24 +146,35 @@ class CovarianceComputingLinearModule(torch.nn.Module):
         self,
         weight: torch.nn.Parameter,
         bias: Optional[torch.nn.Parameter] = None,
-        use_float64: bool = False,
+        use_float64: bool = True,
     ):
         super().__init__()
         self.weight = weight
         self.bias = bias
         self.in_features = weight.shape[1]
         self.out_features = weight.shape[0]
-        self.cov = torch.zeros(
-            (self.out_features, self.out_features),
-            device=self.weight.device,
-            dtype=torch.float32,
-        )
+        if use_float64:
+            self.cov = torch.zeros(
+                (self.out_features, self.out_features),
+                device=self.weight.device,
+                dtype=torch.float64,
+            )
+        else:
+            self.cov = torch.zeros(
+                (self.out_features, self.out_features),
+                device=self.weight.device,
+                dtype=torch.float32,
+            )
         self.num_data_steps = 0
         self.use_float64 = use_float64
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         y = x @ self.weight.T
         y_reshaped = y.reshape(-1, self.out_features)
+        # if self.clip_value is not None:
+        #     y_reshaped = torch.clip(
+        #         y_reshaped, min=-self.clip_value, max=self.clip_value
+        #     )
         self.cov += (
             torch.einsum("bp,bq->pq", y_reshaped, y_reshaped) / y_reshaped.shape[0]
         )
@@ -177,11 +188,12 @@ class CovarianceComputingLinearModule(torch.nn.Module):
         damp = 0.01 * torch.mean(torch.diag(cov))
         diag = torch.arange(self.cov.shape[-1], device=cov.device)
         cov[diag, diag] = cov[diag, diag] + damp
-
+        logger.info(f"Covariance matrix dtype before cast {cov.dtype=}")
         if self.use_float64:
             cov = cov.to(torch.float64)
         else:
             cov = cov.to(torch.float32)
+        logger.info(f"Covariance matrix dtype after cast {cov.dtype=}")
         _, u = torch.linalg.eigh(cov)
         return u.to(self.weight.dtype).to("cpu")
 
