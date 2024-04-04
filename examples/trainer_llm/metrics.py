@@ -1,14 +1,12 @@
-from typing import Any, Optional
-
 import logging
 import time
+from typing import Any, Optional
 
 import fvcore.nn  # type: ignore
 import lm_eval  # type: ignore
+import ptdeco
 import torch
 import transformers  # type: ignore
-
-import ptdeco
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +29,8 @@ def _map_tensors(
     elif isinstance(obj, (list, tuple)):
         return type(obj)(_map_tensors(x, device, dtype) for x in obj)
     elif isinstance(obj, dict):
-        return {k: _map_tensors(v, device, dtype) for k, v in obj.items()}  # type: ignore
+        d = {k: _map_tensors(v, device, dtype) for k, v in obj.items()}  # type: ignore
+        return d
     else:
         return obj
 
