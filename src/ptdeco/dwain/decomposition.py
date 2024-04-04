@@ -724,15 +724,7 @@ def decompose_in_place(
     finetune_fn: collections.abc.Callable[
         [torch.nn.Module, torch.device, list[str]], torch.nn.Module
     ],
-    # num_ft_steps: int,
-    # ft_lr: float = 0.0001,
-    # run_finetuning: bool = True,
-    # lora_finetuning: bool = False,
-    # num_last_decomposed_layers_to_finetune: int = 8,
-    # use_rank_pattern: bool = False,
-    # ft_iterator: collections.abc.Iterator[dict[str, torch.Tensor]],
     min_rank: int = 32,
-    # dtype: torch.dtype,
     trade_off_factor: float = 0.5,
     decompose_in_float64: bool = True,
     precomputing_covariance_num_splits: int = 0,
@@ -764,7 +756,7 @@ def decompose_in_place(
             data_iterator=data_iterator,
             num_data_steps=num_data_steps,
             device=device,
-            decompose_in_float64=decompose_in_float64
+            decompose_in_float64=decompose_in_float64,
         )
     else:
         logger.info("Skipping precomputing convariance matrices")
