@@ -625,7 +625,7 @@ def _precompute_covariance_matrix_decompositions(
             bias=old_module.bias,
             decompose_in_float64=decompose_in_float64,
         )
-        logger.info(f"Replacing {submodule_name} by covariance computing wrapper.")
+        logger.info(f"Replacing {submodule_name} by covariance computing wrapper")
         utils.replace_submodule_in_place(
             root_module=module, submodule_name=submodule_name, new_submodule=new_module
         )
@@ -655,7 +655,7 @@ def _precompute_covariance_matrix_decompositions(
 
     # revert to original linears
     for submodule_name in submodule_names:
-        logger.info(f"Replacing {submodule_name} by original linear.")
+        logger.info(f"Replacing {submodule_name} by original linear")
         utils.replace_submodule_in_place(
             root_module=module,
             submodule_name=submodule_name,
