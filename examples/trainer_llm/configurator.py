@@ -46,7 +46,7 @@ class DecomposeDWAINConfig(pydantic.BaseModel):
     nsr_final_threshold: float
     min_proportion: float
     min_rank: int
-    blacklisted_module_names: Optional[list[str]] = None
+    blacklisted_module_names: Optional[list[str]]
     decompose_in_float64: bool
     precomputing_covariance_num_splits: int
 

@@ -80,7 +80,7 @@ def make_model_and_tokenizer(
     tokenizer = transformers.AutoTokenizer.from_pretrained(
         model_name, trust_remote_code=True
     )
-    logger.info(f"Creating {model_name} rev. {model_revision} with {dtype=}")
+    logger.info(f"Creating {model_name} revision={model_revision} with {dtype=}")
     model = transformers.AutoModelForCausalLM.from_pretrained(
         model_name,
         revision=model_revision,
@@ -208,10 +208,14 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
 
     finetune_fn = make_finetune_fn(config, decomposition_it)
 
+    blacklisted_module_names_wrapped = dwain_wrapper_module.add_prefix(
+        config.blacklisted_module_names
+    )
+
     decompose_config = ptdeco.dwain.decompose_in_place(
         module=model_wrapped,
         device=device,
-        blacklisted_module_names=config.blacklisted_module_names,
+        blacklisted_module_names=blacklisted_module_names_wrapped,
         data_iterator=decomposition_it,
         finetune_fn=finetune_fn,
         metric_iterator=decomposition_it,
