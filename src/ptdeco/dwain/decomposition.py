@@ -145,15 +145,15 @@ class CovarianceComputingLinearModule(torch.nn.Module):
     def __init__(
         self,
         weight: torch.nn.Parameter,
-        bias: Optional[torch.nn.Parameter] = None,
-        use_float64: bool = True,
+        bias: Optional[torch.nn.Parameter],
+        decompose_in_float64: bool,
     ):
         super().__init__()
         self.weight = weight
         self.bias = bias
         self.in_features = weight.shape[1]
         self.out_features = weight.shape[0]
-        if use_float64:
+        if decompose_in_float64:
             self.cov = torch.zeros(
                 (self.out_features, self.out_features),
                 device=self.weight.device,
@@ -166,7 +166,7 @@ class CovarianceComputingLinearModule(torch.nn.Module):
                 dtype=torch.float32,
             )
         self.num_data_steps = 0
-        self.use_float64 = use_float64
+        self.use_float64 = decompose_in_float64
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         y = x @ self.weight.T
@@ -609,11 +609,13 @@ def _check_if_decompose(
 
 
 def _precompute_covariance_matrix_decompositions(
+    *,
     module: torch.nn.Module,
     submodule_names: list[str],
     num_data_steps: int,
     data_iterator: collections.abc.Iterator[dict[str, torch.Tensor]],
     device: torch.device,
+    decompose_in_float64: bool,
 ) -> dict[str, torch.Tensor]:
     # replace all layers to be decomposed by covariance computing ones
     original_linears_dict = {}
@@ -624,6 +626,7 @@ def _precompute_covariance_matrix_decompositions(
         new_module = CovarianceComputingLinearModule(
             weight=old_module.weight,
             bias=old_module.bias,
+            decompose_in_float64=decompose_in_float64,
         )
         logger.info(f"Replacing {submodule_name} by covariance computing wrapper.")
         utils.replace_submodule_in_place(
@@ -667,15 +670,17 @@ def _precompute_covariance_matrix_decompositions(
 
 
 def _precompute_covariance_matrix_decompositions_in_splits(
+    *,
     module: torch.nn.Module,
     modules_to_decompose: list[str],
     num_splits: int,
     num_data_steps: int,
     data_iterator: collections.abc.Iterator[dict[str, torch.Tensor]],
     device: torch.device,
+    decompose_in_float64: bool,
 ) -> dict[str, torch.Tensor]:
     u_dicts = []
-    # Splitting prevents OOM
+
     chunk_size = len(modules_to_decompose) // num_splits
     if chunk_size == 0:
         # Special case if num_splits > len(modules_to_decompose)
@@ -697,6 +702,7 @@ def _precompute_covariance_matrix_decompositions_in_splits(
                 num_data_steps=num_data_steps,
                 data_iterator=data_iterator,
                 device=device,
+                decompose_in_float64=decompose_in_float64,
             )
         )
     u_dict = {k: v for d in u_dicts for k, v in d.items()}
@@ -758,6 +764,7 @@ def decompose_in_place(
             data_iterator=data_iterator,
             num_data_steps=num_data_steps,
             device=device,
+            decompose_in_float64=decompose_in_float64
         )
     else:
         logger.info("Skipping precomputing convariance matrices")
