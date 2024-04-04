@@ -470,7 +470,7 @@ def _process_module(
         nsr_new = 0.0
         ppl_new = 0.0
 
-        logger.warning(
+        logger.info(
             f"Current ppl diff threshold: {ppl_diff_threshold}, fraction of params "
             f"that can be removed: {fraction_of_params_to_be_removed}"
         )
