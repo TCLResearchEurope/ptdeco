@@ -26,10 +26,10 @@ class WrapperModule(torch.nn.Module):
     def forward(self, x: dict[str, torch.Tensor]) -> torch.Tensor:
         return self.raw_model(**x).logits
 
-    def prepare_inputs_for_generation(
-        self, input_ids: torch.Tensor, **kwargs: Any
-    ) -> torch.Tensor:
-        return self.raw_model.prepare_inputs_for_generation(input_ids, **kwargs)
+    # def prepare_inputs_for_generation(
+    #     self, input_ids: torch.Tensor, **kwargs: Any
+    # ) -> torch.Tensor:
+    #     return self.raw_model.prepare_inputs_for_generation(input_ids, **kwargs)
 
 
 def add_prefix(module_names: Optional[list[str]]) -> Optional[list[str]]:
@@ -38,10 +38,21 @@ def add_prefix(module_names: Optional[list[str]]) -> Optional[list[str]]:
     return [PREFIX + m_name for m_name in module_names]
 
 
-def strip_prefix(d: dict[str, Any], ordered_dict: bool) -> dict[str, Any]:
+def strip_prefix_list(module_names: list[str]) -> list[str]:
+    res = []
+
+    for m in module_names:
+        if m.startswith(PREFIX):
+            res.append(m[len(PREFIX) :])  # noqa: E203 black vs flake
+        else:
+            res.append(m)
+    return res
+
+
+def strip_prefix_dict(d: dict[str, Any]) -> dict[str, Any]:
 
     res: dict[str, Any] = {}
-    if ordered_dict:
+    if isinstance(d, collections.OrderedDict):
         res = collections.OrderedDict()
 
     for k, v in d.items():
@@ -60,21 +71,10 @@ def save_raw_model_decompose_config_and_state_dict(
     out_decompose_config_path = output_path / "decompose_config.json"
 
     with open(out_decompose_config_path, "wt") as f:
-        json.dump(strip_prefix(decompose_config, ordered_dict=False), f)
+        json.dump(strip_prefix_dict(decompose_config), f)
     out_decompose_state_dict_path = output_path / "decompose_state_dict.pt"
 
-    torch.save(state_dict, out_decompose_state_dict_path)
-
-
-def _strip_model_prefix(module_names: list[str]) -> list[str]:
-    res = []
-
-    for m in module_names:
-        if m.startswith("model."):
-            res.append(m[6:])
-        else:
-            res.append(m)
-    return res
+    torch.save(strip_prefix_dict(state_dict), out_decompose_state_dict_path)
 
 
 def finetune_full(
@@ -95,7 +95,8 @@ def finetune_full(
         if any(
             [e in name for e in decomposed_modules_to_finetune]
         ):  # and ('Wqkv' in name or 'out_proj' in name):
-            logger.info(f"full fine-tuning - enabling gradients for {name}")
+            msg = f"full fine-tuning - enabling grad for {name}, {param.requires_grad=}"
+            logger.info(msg)
         else:
             param.requires_grad = False
 
@@ -123,7 +124,7 @@ def finetune_full(
         attention_mask = batch["attention_mask"]
         outputs = model({"input_ids": input_ids})
         loss = ptdeco.dwain.compute_loss(
-            logits=outputs.logits, labels=labels, attention_mask=attention_mask
+            logits=outputs, labels=labels, attention_mask=attention_mask
         )
         loss.backward()
         optimizer.step()
@@ -155,10 +156,9 @@ def finetune_lora(
         -num_last_modules_to_finetune:
     ]
     for name, param in model.named_parameters():
-        if any(
-            [e in name for e in decomposed_submodules_to_finetune]
-        ):  # and ('Wqkv' in name or 'out_proj' in name):
-            logger.info(f"lora fine-tuning - enabling gradients for {name}")
+        if any([e in name for e in decomposed_submodules_to_finetune]):
+            msg = f"lora fine-tuning - enabling grad for {name}, {param.requires_grad=}"
+            logger.info(msg)
         else:
             param.requires_grad = False
     rank_pattern = {}
@@ -168,32 +168,40 @@ def finetune_lora(
         first_module_name = f"{module_name}.0"
         second_module_name = f"{module_name}.1"
         rank = model.get_submodule(first_module_name).out_features
+        status = "skipping"
         if rank >= min_rank_to_finetune:
+            status = "fine-tuning"
             rank_pattern[first_module_name] = rank // 16
             rank_pattern[second_module_name] = rank // 16
             alpha_pattern[first_module_name] = rank // 32
             alpha_pattern[second_module_name] = rank // 32
             target_modules.extend([first_module_name, second_module_name])
-
+        logger.info(f"{module_name} {status} - {rank=} {min_rank_to_finetune=}")
     if len(rank_pattern) == 0:
-        logger.info("Skipping fine-tuning.")
+        msg = f"Skipping fine-tuning - no modules with rank>={min_rank_to_finetune}"
+        logger.info(msg)
         return model
 
-    logger.info(f"Fine-tuning {len(rank_pattern)} modules.")
+    logger.info(f"Fine-tuning {len(rank_pattern)} modules")
 
     if not use_rank_pattern:
         rank_pattern = {}
         alpha_pattern = {}
-
     else:
         msg = "Using rank/alpha patterns. Watch out for overfitting on small datasets"
         logger.warning(msg)
+        rank_pattern = strip_prefix_dict(rank_pattern)
+        alpha_pattern = strip_prefix_dict(alpha_pattern)
+        for k, v in rank_pattern.items():
+            logger.info(f"rank_pattern[{k}] = {v}")
+        for k, v in alpha_pattern.items():
+            logger.info(f"alpha_pattern[{k}] = {v}")
 
-    logger.info(f"Fine-tuning {len(target_modules)} modules.")
+    logger.info(f"Fine-tuning {len(target_modules)} modules")
 
     lora_config = peft.LoraConfig(
         r=16,
-        target_modules=_strip_model_prefix(target_modules),
+        target_modules=strip_prefix_list(target_modules),
         lora_alpha=8,
         lora_dropout=0.05,
         bias="none",
@@ -201,7 +209,7 @@ def finetune_lora(
         rank_pattern=rank_pattern,
         alpha_pattern=alpha_pattern,
     )
-    peft_model = peft.get_peft_model(model.model, lora_config)
+    peft_model = peft.get_peft_model(model.raw_model, lora_config)
 
     optimizer = torch.optim.AdamW(peft_model.parameters(), lr=lr)
 
@@ -240,5 +248,5 @@ def finetune_lora(
                 f"lr: {lr_scheduler.get_last_lr()}"
             )
     peft_model.eval()
-    model.model = peft_model.merge_and_unload()
+    model.raw_model = peft_model.merge_and_unload()
     return model
