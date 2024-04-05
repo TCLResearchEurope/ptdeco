@@ -80,7 +80,9 @@ def make_model_and_tokenizer(
     tokenizer = transformers.AutoTokenizer.from_pretrained(
         model_name, trust_remote_code=True
     )
-    logger.info(f"Creating {model_name} revision={model_revision} with {dtype=}")
+    msg = f"Creating {model_name} revision={model_revision} with {dtype=} "
+    msg += f"grad_checkpointing={config.decomposed_model_enable_gradient_checkpointing}"
+    logger.info(msg)
     model = transformers.AutoModelForCausalLM.from_pretrained(
         model_name,
         revision=model_revision,
@@ -146,7 +148,7 @@ def make_finetune_fn(
 ) -> collections.abc.Callable[
     [torch.nn.Module, torch.device, list[str]], torch.nn.Module
 ]:
-    if config.finetuning_use_lora:
+    if config.finetuning_run and config.finetuning_use_lora:
         logger.info("Creating lora finetuning function")
         return lambda m, device, decomposed_modules: dwain_wrapper_module.finetune_lora(
             model=m,
@@ -159,7 +161,7 @@ def make_finetune_fn(
             use_rank_pattern=config.finetuning_use_rank_pattern,
             min_rank_to_finetune=config.finetuning_lora_min_rank,
         )
-    else:
+    elif config.finetuning_run and not config.finetuning_use_lora:
         logger.info("Creating full finetuning function")
         return lambda m, device, decomposed_modules: dwain_wrapper_module.finetune_full(
             model=m,
@@ -170,6 +172,9 @@ def make_finetune_fn(
             lr=config.finetuning_lr,
             num_last_modules_to_finetune=config.finetuning_num_last_finetuned_modules,
         )
+    else:
+        logger.info("Creating empty finetuning function")
+        return lambda m, device, decomposed_modules: m
 
 
 def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
