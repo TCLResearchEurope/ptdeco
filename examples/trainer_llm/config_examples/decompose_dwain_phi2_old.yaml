@@ -1,0 +1,184 @@
+task: "decompose_dwain"
+
+# Model specification
+
+decomposed_model_name: "microsoft/phi-2"
+decomposed_model_revision: "834565c23f9b28b96ccbeabe614dd906b6db551a"
+decomposed_model_enable_gradient_checkpointing: false
+decomposed_model_dtype: "torch.bfloat16"
+
+
+# Data handling params
+
+decomposition_data_name: "alpaca.train"
+decomposition_data_separator: "\n\n" # Normal pythonic string, no extra escaping needed
+decomposition_data_max_length: 2048
+decomposition_data_batch_size: 1
+
+perplexity_data_name: "wikitext2.test"
+perplexity_data_separator: "\n\n"  # Normal pythonic string, no extra escaping needed
+perplexity_data_max_length: 2048
+perplexity_data_batch_size: 1
+
+# Decomposition params
+
+decompose_in_float64: true
+num_data_steps: 2048
+num_metric_steps: 32
+trade_off_factor: 0.5
+proportion_threshold: 0.75
+ppl_diff_threshold: 0.005
+min_proportion: 0.25
+nsr_final_threshold: 1.0
+min_rank: 4
+precomputing_covariance_num_splits: 1
+
+
+# Fintetuning params
+
+finetuning_run: true
+finetuning_use_lora: true
+finetuning_lora_min_rank: 32
+finetuning_lr: 0.0001
+finetuning_num_steps: 50
+finetuning_num_last_finetuned_modules: 8
+finetuning_use_rank_pattern: false
+
+# lm_eval evaluation params
+lm_eval_tasks:
+  - arc_challenge
+  - arc_easy
+  - piqa
+  - hellaswag
+  - winogrande
+
+blacklisted_module_names:
+  # - transformer.h.0.mixer.Wqkv  # (1) (7680, 2560)
+  # - transformer.h.0.mixer.out_proj  # (2) (2560, 2560)
+  # - transformer.h.0.mlp.fc1  # (3) (10240, 2560)
+  # - transformer.h.0.mlp.fc2  # (4) (2560, 10240)
+  # - transformer.h.1.mixer.Wqkv  # (5) (7680, 2560)
+  # - transformer.h.1.mixer.out_proj  # (6) (2560, 2560)
+  # - transformer.h.1.mlp.fc1  # (7) (10240, 2560)
+  # - transformer.h.1.mlp.fc2  # (8) (2560, 10240)
+  # - transformer.h.2.mixer.Wqkv  # (9) (7680, 2560)
+  # - transformer.h.2.mixer.out_proj  # (10) (2560, 2560)
+  # - transformer.h.2.mlp.fc1  # (11) (10240, 2560)
+  # - transformer.h.2.mlp.fc2  # (12) (2560, 10240)
+  # - transformer.h.3.mixer.Wqkv  # (13) (7680, 2560)
+  # - transformer.h.3.mixer.out_proj  # (14) (2560, 2560)
+  # - transformer.h.3.mlp.fc1  # (15) (10240, 2560)
+  # - transformer.h.3.mlp.fc2  # (16) (2560, 10240)
+  # - transformer.h.4.mixer.Wqkv  # (17) (7680, 2560)
+  # - transformer.h.4.mixer.out_proj  # (18) (2560, 2560)
+  # - transformer.h.4.mlp.fc1  # (19) (10240, 2560)
+  # - transformer.h.4.mlp.fc2  # (20) (2560, 10240)
+  # - transformer.h.5.mixer.Wqkv  # (21) (7680, 2560)
+  # - transformer.h.5.mixer.out_proj  # (22) (2560, 2560)
+  # - transformer.h.5.mlp.fc1  # (23) (10240, 2560)
+  # - transformer.h.5.mlp.fc2  # (24) (2560, 10240)
+  # - transformer.h.6.mixer.Wqkv  # (25) (7680, 2560)
+  # - transformer.h.6.mixer.out_proj  # (26) (2560, 2560)
+  # - transformer.h.6.mlp.fc1  # (27) (10240, 2560)
+  # - transformer.h.6.mlp.fc2  # (28) (2560, 10240)
+  # - transformer.h.7.mixer.Wqkv  # (29) (7680, 2560)
+  # - transformer.h.7.mixer.out_proj  # (30) (2560, 2560)
+  # - transformer.h.7.mlp.fc1  # (31) (10240, 2560)
+  # - transformer.h.7.mlp.fc2  # (32) (2560, 10240)
+  # - transformer.h.8.mixer.Wqkv  # (33) (7680, 2560)
+  # - transformer.h.8.mixer.out_proj  # (34) (2560, 2560)
+  # - transformer.h.8.mlp.fc1  # (35) (10240, 2560)
+  # - transformer.h.8.mlp.fc2  # (36) (2560, 10240)
+  # - transformer.h.9.mixer.Wqkv  # (37) (7680, 2560)
+  # - transformer.h.9.mixer.out_proj  # (38) (2560, 2560)
+  # - transformer.h.9.mlp.fc1  # (39) (10240, 2560)
+  # - transformer.h.9.mlp.fc2  # (40) (2560, 10240)
+  # - transformer.h.10.mixer.Wqkv  # (41) (7680, 2560)
+  # - transformer.h.10.mixer.out_proj  # (42) (2560, 2560)
+  # - transformer.h.10.mlp.fc1  # (43) (10240, 2560)
+  # - transformer.h.10.mlp.fc2  # (44) (2560, 10240)
+  # - transformer.h.11.mixer.Wqkv  # (45) (7680, 2560)
+  # - transformer.h.11.mixer.out_proj  # (46) (2560, 2560)
+  # - transformer.h.11.mlp.fc1  # (47) (10240, 2560)
+  # - transformer.h.11.mlp.fc2  # (48) (2560, 10240)
+  # - transformer.h.12.mixer.Wqkv  # (49) (7680, 2560)
+  # - transformer.h.12.mixer.out_proj  # (50) (2560, 2560)
+  # - transformer.h.12.mlp.fc1  # (51) (10240, 2560)
+  # - transformer.h.12.mlp.fc2  # (52) (2560, 10240)
+  # - transformer.h.13.mixer.Wqkv  # (53) (7680, 2560)
+  # - transformer.h.13.mixer.out_proj  # (54) (2560, 2560)
+  # - transformer.h.13.mlp.fc1  # (55) (10240, 2560)
+  # - transformer.h.13.mlp.fc2  # (56) (2560, 10240)
+  # - transformer.h.14.mixer.Wqkv  # (57) (7680, 2560)
+  # - transformer.h.14.mixer.out_proj  # (58) (2560, 2560)
+  # - transformer.h.14.mlp.fc1  # (59) (10240, 2560)
+  # - transformer.h.14.mlp.fc2  # (60) (2560, 10240)
+  # - transformer.h.15.mixer.Wqkv  # (61) (7680, 2560)
+  # - transformer.h.15.mixer.out_proj  # (62) (2560, 2560)
+  # - transformer.h.15.mlp.fc1  # (63) (10240, 2560)
+  # - transformer.h.15.mlp.fc2  # (64) (2560, 10240)
+  # - transformer.h.16.mixer.Wqkv  # (65) (7680, 2560)
+  # - transformer.h.16.mixer.out_proj  # (66) (2560, 2560)
+  # - transformer.h.16.mlp.fc1  # (67) (10240, 2560)
+  # - transformer.h.16.mlp.fc2  # (68) (2560, 10240)
+  # - transformer.h.17.mixer.Wqkv  # (69) (7680, 2560)
+  # - transformer.h.17.mixer.out_proj  # (70) (2560, 2560)
+  # - transformer.h.17.mlp.fc1  # (71) (10240, 2560)
+  # - transformer.h.17.mlp.fc2  # (72) (2560, 10240)
+  # - transformer.h.18.mixer.Wqkv  # (73) (7680, 2560)
+  # - transformer.h.18.mixer.out_proj  # (74) (2560, 2560)
+  # - transformer.h.18.mlp.fc1  # (75) (10240, 2560)
+  # - transformer.h.18.mlp.fc2  # (76) (2560, 10240)
+  # - transformer.h.19.mixer.Wqkv  # (77) (7680, 2560)
+  # - transformer.h.19.mixer.out_proj  # (78) (2560, 2560)
+  # - transformer.h.19.mlp.fc1  # (79) (10240, 2560)
+  # - transformer.h.19.mlp.fc2  # (80) (2560, 10240)
+  # - transformer.h.20.mixer.Wqkv  # (81) (7680, 2560)
+  # - transformer.h.20.mixer.out_proj  # (82) (2560, 2560)
+  # - transformer.h.20.mlp.fc1  # (83) (10240, 2560)
+  # - transformer.h.20.mlp.fc2  # (84) (2560, 10240)
+  # - transformer.h.21.mixer.Wqkv  # (85) (7680, 2560)
+  # - transformer.h.21.mixer.out_proj  # (86) (2560, 2560)
+  # - transformer.h.21.mlp.fc1  # (87) (10240, 2560)
+  # - transformer.h.21.mlp.fc2  # (88) (2560, 10240)
+  # - transformer.h.22.mixer.Wqkv  # (89) (7680, 2560)
+  # - transformer.h.22.mixer.out_proj  # (90) (2560, 2560)
+  # - transformer.h.22.mlp.fc1  # (91) (10240, 2560)
+  # - transformer.h.22.mlp.fc2  # (92) (2560, 10240)
+  # - transformer.h.23.mixer.Wqkv  # (93) (7680, 2560)
+  # - transformer.h.23.mixer.out_proj  # (94) (2560, 2560)
+  # - transformer.h.23.mlp.fc1  # (95) (10240, 2560)
+  # - transformer.h.23.mlp.fc2  # (96) (2560, 10240)
+  # - transformer.h.24.mixer.Wqkv  # (97) (7680, 2560)
+  # - transformer.h.24.mixer.out_proj  # (98) (2560, 2560)
+  # - transformer.h.24.mlp.fc1  # (99) (10240, 2560)
+  # - transformer.h.24.mlp.fc2  # (100) (2560, 10240)
+  # - transformer.h.25.mixer.Wqkv  # (101) (7680, 2560)
+  # - transformer.h.25.mixer.out_proj  # (102) (2560, 2560)
+  # - transformer.h.25.mlp.fc1  # (103) (10240, 2560)
+  # - transformer.h.25.mlp.fc2  # (104) (2560, 10240)
+  # - transformer.h.26.mixer.Wqkv  # (105) (7680, 2560)
+  # - transformer.h.26.mixer.out_proj  # (106) (2560, 2560)
+  # - transformer.h.26.mlp.fc1  # (107) (10240, 2560)
+  # - transformer.h.26.mlp.fc2  # (108) (2560, 10240)
+  # - transformer.h.27.mixer.Wqkv  # (109) (7680, 2560)
+  # - transformer.h.27.mixer.out_proj  # (110) (2560, 2560)
+  # - transformer.h.27.mlp.fc1  # (111) (10240, 2560)
+  # - transformer.h.27.mlp.fc2  # (112) (2560, 10240)
+  # - transformer.h.28.mixer.Wqkv  # (113) (7680, 2560)
+  # - transformer.h.28.mixer.out_proj  # (114) (2560, 2560)
+  # - transformer.h.28.mlp.fc1  # (115) (10240, 2560)
+  # - transformer.h.28.mlp.fc2  # (116) (2560, 10240)
+  # - transformer.h.29.mixer.Wqkv  # (117) (7680, 2560)
+  # - transformer.h.29.mixer.out_proj  # (118) (2560, 2560)
+  # - transformer.h.29.mlp.fc1  # (119) (10240, 2560)
+  # - transformer.h.29.mlp.fc2  # (120) (2560, 10240)
+  # - transformer.h.30.mixer.Wqkv  # (121) (7680, 2560)
+  # - transformer.h.30.mixer.out_proj  # (122) (2560, 2560)
+  # - transformer.h.30.mlp.fc1  # (123) (10240, 2560)
+  # - transformer.h.30.mlp.fc2  # (124) (2560, 10240)
+  # - transformer.h.31.mixer.Wqkv  # (125) (7680, 2560)
+  # - transformer.h.31.mixer.out_proj  # (126) (2560, 2560)
+  # - transformer.h.31.mlp.fc1  # (127) (10240, 2560)
+  # - transformer.h.31.mlp.fc2  # (128) (2560, 10240)
+  - lm_head.linear  # (129) (51200, 2560)
