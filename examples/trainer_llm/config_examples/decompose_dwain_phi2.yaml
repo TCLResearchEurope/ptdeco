@@ -4,7 +4,7 @@ task: "decompose_dwain"
 
 decomposed_model_name: "microsoft/phi-2"
 decomposed_model_revision: "main"
-decomposed_model_enable_gradient_checkpointing: true
+decomposed_model_enable_gradient_checkpointing: false
 decomposed_model_dtype: "torch.bfloat16"
 
 
@@ -31,7 +31,7 @@ ppl_diff_threshold: 0.005
 min_proportion: 0.25
 nsr_final_threshold: 1.0
 min_rank: 4
-precomputing_covariance_num_splits: 8
+precomputing_covariance_num_splits: 1
 
 
 # Fintetuning params
@@ -40,7 +40,7 @@ finetuning_run: true
 finetuning_use_lora: true
 finetuning_lora_min_rank: 32
 finetuning_lr: 0.0001
-finetuning_num_steps: 10
+finetuning_num_steps: 50
 finetuning_num_last_finetuned_modules: 8
 finetuning_use_rank_pattern: false
 
