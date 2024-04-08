@@ -3,7 +3,7 @@
 import collections.abc
 import logging
 import time
-from typing import Any, Optional, cast
+from typing import Any, Optional
 
 import torch
 
@@ -635,12 +635,14 @@ def _precompute_covariance_matrix_decompositions(
     with torch.no_grad():
         for _ in range(num_data_steps):
             input_dict = utils.to_device(next(data_iterator), device)
-            # TODO: ML remove this cast
-            input_dict = cast(dict[str, torch.Tensor], input_dict)
-            input_ids = input_dict["input_ids"]
-            # labels = input_dict["labels"]
-            # _ = module(input_ids, labels=labels)
-            _ = module({"input_ids": input_ids})
+            _ = module(input_dict)
+            # input_dict = utils.to_device(next(data_iterator), device)
+            # # TODO: ML remove this cast
+            # input_dict = cast(dict[str, torch.Tensor], input_dict)
+            # input_ids = input_dict["input_ids"]
+            # # labels = input_dict["labels"]
+            # # _ = module(input_ids, labels=labels)
+            # _ = module({"input_ids": input_ids})
 
     utils.free_gpu_reserved_memory()
 
