@@ -11,11 +11,9 @@ import transformers  # type: ignore
 
 logger = logging.getLogger(__name__)
 
-
-# A wrapper returning logits
-
 PREFIX = "raw_model."
 
+# Model wrapper returning logits
 
 class WrapperModule(torch.nn.Module):
     def __init__(self, model: torch.nn.Module):
@@ -23,13 +21,8 @@ class WrapperModule(torch.nn.Module):
         self.raw_model = model
         self.config = model.config
 
-    def forward(self, x: dict[str, torch.Tensor]) -> torch.Tensor:
-        return self.raw_model(**x).logits
-
-    # def prepare_inputs_for_generation(
-    #     self, input_ids: torch.Tensor, **kwargs: Any
-    # ) -> torch.Tensor:
-    #     return self.raw_model.prepare_inputs_for_generation(input_ids, **kwargs)
+    def forward(self, x: dict[str, torch.Tensor], **kwargs: Any) -> torch.Tensor:
+        return self.raw_model(input_ids=x["input_ids"], **kwargs).logits
 
 
 def add_prefix(module_names: Optional[list[str]]) -> Optional[list[str]]:
@@ -119,10 +112,9 @@ def finetune_full(
         if step > num_steps:
             break
         optimizer.zero_grad()
-        input_ids = batch["input_ids"]
         labels = batch["labels"]
         attention_mask = batch["attention_mask"]
-        outputs = model({"input_ids": input_ids})
+        outputs = model(batch)
         loss = ptdeco.dwain.compute_loss(
             logits=outputs, labels=labels, attention_mask=attention_mask
         )
@@ -233,7 +225,7 @@ def finetune_lora(
         if step > num_steps:
             break
         optimizer.zero_grad()
-        outputs = peft_model(input_ids=input_ids, labels=labels)
+        outputs = peft_model(input_ids=input_ids)
         loss = ptdeco.dwain.compute_loss(
             logits=outputs.logits, labels=labels, attention_mask=attention_mask
         )
