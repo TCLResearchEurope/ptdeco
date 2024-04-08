@@ -34,10 +34,10 @@
 
 Currently, `ptdeco` implements two methods:
 
-* **lockd** - our custom method based on local knowledge distillation
+* **lockd** - method based on local knowledge distillation
   (lockd = **LOC**al **K**nowledge **D**istillation)
 
-* **falor** - described in [Compressing Transformers: Features Are Low-Rank, but Weights Are Not! by Yu Hao, Wu Jianxin (2023)](https://doi.org/10.1609/aaai.v37i9.26304)
+* **falor** - method inspired by [Compressing Transformers: Features Are Low-Rank, but Weights Are Not! by Yu Hao, Wu Jianxin (2023)](https://doi.org/10.1609/aaai.v37i9.26304)
   (falor = **F**eatures **Are** **LO**w **R**ank)
 
 **lockd** method requires short (~ 10 ImageNet epochs) knowledge distillation
