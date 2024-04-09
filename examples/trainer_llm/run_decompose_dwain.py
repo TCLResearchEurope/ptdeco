@@ -9,10 +9,12 @@ import ptdeco
 import torch
 import transformers  # type: ignore
 
+import builder
 import configurator
 import datasets_hf
 import dwain_wrapper_module
 import metrics
+import utils
 
 PPL_EVAL_VARIED_SEQLEN = False
 LOADER_SEED = 42
@@ -27,77 +29,6 @@ def make_inifinte_iterator(
     while True:
         for x in dl:
             yield x
-
-
-def conv_str_to_dtype(s: str) -> torch.dtype:
-    if s == "torch.float32":
-        return torch.float32
-    elif s == "torch.bfloat16":
-        return torch.bfloat16
-    elif s == "torch.float16":
-        return torch.float16
-    raise ValueError(f"Unknown dtype {s}")
-
-
-def log_linear_submodules(m: torch.nn.Module) -> None:
-    res = ["All Linear modules of the model:"]
-
-    i = 1
-    for name, module in m.named_modules():
-        if isinstance(module, torch.nn.Linear):
-            res.append(f"  - {name}  # ({i}) {tuple(module.weight.shape)}")
-            i += 1
-    logger.info("\n".join(res))
-
-
-def add_pad_token(
-    model: torch.nn.Module, tokenizer: transformers.PreTrainedTokenizer, model_name: str
-) -> None:
-    if model_name in (
-        "meta-llama/Llama-2-7b-hf",
-        "microsoft/phi-2",
-        "Qwen/Qwen1.5-1.8B",
-        "upstage/SOLAR-10.7B-v1.0",
-        "mistralai/Mistral-7B-Instruct-v0.2",
-    ):
-        tokenizer.pad_token = (
-            tokenizer.eos_token
-        )  # Phi-2 and LLama2 models don't have a pad token by default
-        model.config.pad_token_id = tokenizer.pad_token_id  # llama, phi
-        logger.info("Setting pad_token to eos_token")
-
-    if model_name == "Qwen/Qwen-1_8B":
-        "https://github.com/QwenLM/Qwen/blob/main/tokenization_note.md"
-        tokenizer.pad_token = "<|endoftext|>"
-        tokenizer.eos_token = "<|endoftext|>"
-
-
-def make_model_and_tokenizer(
-    config: configurator.DecomposeDWAINConfig, device: torch.device, dtype: torch.dtype
-) -> tuple[transformers.AutoModelForCausalLM, transformers.PreTrainedTokenizer]:
-    model_name = config.decomposed_model_name
-    model_revision = config.decomposed_model_revision
-    tokenizer = transformers.AutoTokenizer.from_pretrained(
-        model_name, trust_remote_code=True
-    )
-    msg = f"Creating {model_name} revision={model_revision} with {dtype=} "
-    msg += f"grad_checkpointing={config.decomposed_model_enable_gradient_checkpointing}"
-    logger.info(msg)
-    model = transformers.AutoModelForCausalLM.from_pretrained(
-        model_name,
-        revision=model_revision,
-        torch_dtype=dtype,
-        trust_remote_code=True,
-    )
-    if config.decomposed_model_enable_gradient_checkpointing:
-        model.gradient_checkpointing_enable()
-    add_pad_token(model=model, tokenizer=tokenizer, model_name=model_name)
-    dtype = conv_str_to_dtype(config.decomposed_model_dtype)
-    model.to(device)
-    model.to(dtype)
-    model.eval()
-    log_linear_submodules(model)
-    return model, tokenizer
 
 
 def make_dataloaders(
@@ -182,7 +113,7 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
     start = time.perf_counter()
     transformers.utils.logging.disable_progress_bar()
     config = configurator.DecomposeDWAINConfig(**config_raw)
-    dtype = conv_str_to_dtype(config.decomposed_model_dtype)
+    dtype = utils.conv_str_to_dtype(config.decomposed_model_dtype)
 
     if torch.cuda.is_available():
         device = torch.device("cuda")
@@ -190,7 +121,13 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
         device = torch.device("cpu")
 
     # 2. CREATE MODEL
-    model, tokenizer = make_model_and_tokenizer(config, device, dtype)
+    model, tokenizer = builder.make_model_and_tokenizer(
+        model_name=config.decomposed_model_name,
+        model_revision=config.decomposed_model_revision,
+        enable_gradient_checkpointing=config.decomposed_model_enable_gradient_checkpointing,
+        device=device,
+        dtype=dtype,
+    )
 
     # 3. PREPARE DATALOADERS
     decomposition_dl, perplexity_dl = make_dataloaders(config, tokenizer)
@@ -264,7 +201,7 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
     # 8. RUN BENCHMARK TASKS ON LM EVAL
     time_lm_eval = -1.0
 
-    if config.lm_eval_tasks is not None and len(config.lm_eval_tasks) > 0:
+    if config.lm_eval_tasks:
         start = time.perf_counter()
         lm_eval_results, lm_eval_results_str = metrics.calc_lm_eval_metrics(
             model=model_wrapped.raw_model,

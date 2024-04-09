@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Literal, Optional
 
 import pydantic
 from typing_extensions import Annotated
@@ -6,8 +6,37 @@ from typing_extensions import Annotated
 DTYPES_PATTERN = r"^torch.float32$|^torch.bfloat16$|^torch.float16$"
 
 
-class DecomposeDWAINConfig(pydantic.BaseModel):
-    task: str
+class _VersionConfig(pydantic.BaseModel):
+    ptdeco_trainer_llm_version: Optional[str] = None
+    ptdeco_version: Optional[str] = None
+
+
+class FinetuneConfig(_VersionConfig):
+    task: Literal["finetune"]
+
+    # Model specification
+
+    decomposed_model_name: str
+    decomposed_model_revision: str
+    decomposed_model_dtype: Annotated[
+        str, pydantic.StringConstraints(pattern=DTYPES_PATTERN)
+    ]
+    decomposed_model_enable_gradient_checkpointing: bool
+    decompose_config: str
+    decompose_state_dict: str
+
+    perplexity_data_name: str
+    perplexity_data_separator: str
+    perplexity_data_max_length: int
+    perplexity_data_batch_size: int
+
+    # lm_eval evaluation params
+    lm_eval_initial: bool
+    lm_eval_tasks: Optional[list[str]]
+
+
+class DecomposeDWAINConfig(_VersionConfig):
+    task: Literal["decompose_dwain"]
 
     # Model specification
 
@@ -28,13 +57,6 @@ class DecomposeDWAINConfig(pydantic.BaseModel):
     perplexity_data_separator: str
     perplexity_data_max_length: int
     perplexity_data_batch_size: int
-
-    # metric_separator: str
-    # metric_max_length: int
-    # metric_batch_size: int
-    # data_separator: str
-    # data_max_length: int
-    # data_batch_size: int
 
     # Decomposition params
 

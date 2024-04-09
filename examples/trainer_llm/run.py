@@ -21,11 +21,14 @@ def setup_logging() -> None:
     )
     module_names_verbose = [
         __name__,
+        "builder",
         "configurator",
         "datasets_hf",
         "metrics",
         "dwain_wrapper_module",
         "run_decompose_dwain",
+        "run_finetune",
+        "utils",
         "ptdeco",
     ]
     for module_name in module_names_verbose:
@@ -41,6 +44,7 @@ import torch  # noqa: E402
 import yaml  # noqa: E402
 
 import run_decompose_dwain  # noqa: E402
+import run_finetune  # noqa: E402
 import version  # noqa: E402
 
 REPRO_SUBDIR = "repro"
@@ -83,7 +87,7 @@ def copy_config(config_path: pathlib.Path, output_path: pathlib.Path) -> None:
         raise FileExistsError(msg)
     config_copy_path.parent.mkdir(exist_ok=True, parents=True)
     with open(config_path, "rt") as f_in, open(config_copy_path, "wt") as f_out:
-        f_out.write(f'ptdeco_trainer_version: "{version.__version__}"\n')
+        f_out.write(f'ptdeco_trainer_llm_version: "{version.__version__}"\n')
         f_out.write(f'ptdeco_version: "{ptdeco.__version__}"\n\n')
         for line in f_in:
             f_out.write(f"{line}")
@@ -142,8 +146,8 @@ def main(args: argparse.Namespace) -> None:
     if task == "decompose_dwain":
         run_decompose_dwain.main(config_raw=config, output_path=output_path)
     elif task == "finetune":
-        # TODO
-        pass
+        run_finetune.main(config_raw=config, output_path=output_path)
+
     else:
         if task is None:
             msg = "config.train_mode unspecified"
