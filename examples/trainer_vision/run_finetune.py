@@ -173,11 +173,11 @@ def filter_state_dict(
     return filtered_sd
 
 
-def create_decomposed_model(
+def make_decomposed_model(
     config_parsed: configurator.FinetuneConfig,
 ) -> tuple[torch.nn.Module, dict[str, Any]]:
     model_name = config_parsed.decompose_model_name
-    model = builder.create_model(model_name)
+    model = builder.make_model(model_name)
     with open(config_parsed.decompose_config, "rt") as f:
         decompose_config = json.load(f)
 
@@ -208,11 +208,11 @@ def create_decomposed_model(
     return model, decompose_config
 
 
-def create_teacher_student_models(
+def make_teacher_student_models(
     config_parsed: configurator.FinetuneConfig,
 ) -> tuple[torch.nn.Module, torch.nn.Module, dict[str, Any]]:
-    teacher_model = builder.create_model(config_parsed.decompose_model_name)
-    student_model, student_decompose_config = create_decomposed_model(config_parsed)
+    teacher_model = builder.make_model(config_parsed.decompose_model_name)
+    student_model, student_decompose_config = make_decomposed_model(config_parsed)
 
     b_c_h_w = (1, 3, int(config_parsed.input_h_w[0]), int(config_parsed.input_h_w[1]))
 
@@ -244,7 +244,7 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
         teacher_model,
         student_model,
         student_decompose_config,
-    ) = create_teacher_student_models(config_parsed)
+    ) = make_teacher_student_models(config_parsed)
 
     out_decompose_config_path = output_path / "decompose_config.json"
     with open(out_decompose_config_path, "wt") as f:

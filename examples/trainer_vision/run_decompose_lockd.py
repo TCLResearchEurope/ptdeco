@@ -174,7 +174,7 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
         )
     )
 
-    torch_wrapped_model = builder.create_model(config_parsed.decompose_model_name)
+    torch_wrapped_model = builder.make_model(config_parsed.decompose_model_name)
     builder.validate_module_names(
         torch_wrapped_model, config_parsed.blacklisted_modules
     )

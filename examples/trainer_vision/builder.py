@@ -70,7 +70,7 @@ def log_model_stats(
     stats_logger.info(msg)
 
 
-def create_model(model_name: str) -> torch.nn.Module:
+def make_model(model_name: str) -> torch.nn.Module:
     builder, model_name = model_name.split(".", maxsplit=1)
 
     logger.info(f"Creating model: {builder} {model_name}")

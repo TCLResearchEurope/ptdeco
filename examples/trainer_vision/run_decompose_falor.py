@@ -49,7 +49,7 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
 
     data_iterator = make_image_iterator(train_dataloader)
 
-    model = builder.create_model(config_parsed.decompose_model_name)
+    model = builder.make_model(config_parsed.decompose_model_name)
     builder.validate_module_names(model, config_parsed.blacklisted_modules)
 
     model.to(device)
