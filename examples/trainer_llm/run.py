@@ -37,6 +37,7 @@ setup_logging()
 
 
 import ptdeco  # noqa: E402
+import torch  # noqa: E402
 import yaml  # noqa: E402
 
 import run_decompose_dwain  # noqa: E402
@@ -134,6 +135,7 @@ def main(args: argparse.Namespace) -> None:
     )
     config = read_config(args.config)
     task = config.get("task")
+    logger.info(f"Using torch {torch.__version__}")
     logger.info(f"Using ptdeco LLM trainer {version.__version__}")
     logger.info(f"Using ptdeco {ptdeco.__version__}")
 
