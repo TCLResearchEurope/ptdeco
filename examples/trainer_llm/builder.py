@@ -51,6 +51,7 @@ def make_model_and_tokenizer(
     dtype: torch.dtype,
     decompose_config_path: Optional[str] = None,
     state_dict_path: Optional[str] = None,
+    log_linears: bool = False,
 ) -> tuple[transformers.AutoModelForCausalLM, transformers.PreTrainedTokenizer]:
     model_name = model_name
     model_revision = model_revision
@@ -83,5 +84,6 @@ def make_model_and_tokenizer(
         model.load_state_dict(sd)
         logger.info(f"Loaded state dict {state_dict_path}")
     model.eval()
-    _log_linear_submodules(model)
+    if log_linears:
+        _log_linear_submodules(model)
     return model, tokenizer

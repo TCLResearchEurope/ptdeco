@@ -121,12 +121,14 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
         device = torch.device("cpu")
 
     # 2. CREATE MODEL
+    egc = config.decomposed_model_enable_gradient_checkpointing
     model, tokenizer = builder.make_model_and_tokenizer(
         model_name=config.decomposed_model_name,
         model_revision=config.decomposed_model_revision,
-        enable_gradient_checkpointing=config.decomposed_model_enable_gradient_checkpointing,
+        enable_gradient_checkpointing=egc,
         device=device,
         dtype=dtype,
+        log_linears=True,
     )
 
     # 3. PREPARE DATALOADERS

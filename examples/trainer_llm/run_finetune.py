@@ -5,11 +5,11 @@ import time
 from typing import Any
 
 import torch
-import transformers
+import transformers  # type: ignore
 
 import builder
-import datasets_hf
 import configurator
+import datasets_hf
 import metrics
 import utils
 
@@ -56,12 +56,16 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
     else:
         device = torch.device("cpu")
 
+    egc = config.decomposed_model_enable_gradient_checkpointing
     model, tokenizer = builder.make_model_and_tokenizer(
         model_name=config.decomposed_model_name,
         model_revision=config.decomposed_model_revision,
-        enable_gradient_checkpointing=config.decomposed_model_enable_gradient_checkpointing,
+        decompose_config_path=config.decompose_config,
+        state_dict_path=config.decompose_state_dict,
+        enable_gradient_checkpointing=egc,
         device=device,
         dtype=dtype,
+        log_linears=True,
     )
 
     perplexity_dl = make_dataloaders(config, tokenizer)
