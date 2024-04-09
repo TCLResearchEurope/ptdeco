@@ -2,6 +2,7 @@ import collections
 import json
 import logging
 import pathlib
+import time
 from typing import Any, Optional, cast
 
 import peft
@@ -14,6 +15,7 @@ logger = logging.getLogger(__name__)
 PREFIX = "raw_model."
 
 # Model wrapper returning logits
+
 
 class WrapperModule(torch.nn.Module):
     def __init__(self, model: torch.nn.Module):
@@ -82,7 +84,10 @@ def finetune_full(
 ) -> torch.nn.Module:
 
     if len(decomposed_modules) == 0:
+        logger.info("Skipping full fine-tuning - empty list of decomposed modules")
         return model
+
+    start = time.perf_counter()
     decomposed_modules_to_finetune = decomposed_modules[-num_last_modules_to_finetune:]
     for name, param in model.named_parameters():
         if any(
@@ -126,6 +131,8 @@ def finetune_full(
         if step % 10 == 0:
             logger.info(f"Step: {step}/{num_steps}, loss: {total_loss / counter}")
     model.eval()
+    stop = time.perf_counter()
+    logger.info(f"Full fine-tuning took {stop-start:.2f} seconds")
     return model
 
 
@@ -141,8 +148,12 @@ def finetune_lora(
     min_rank_to_finetune: int = 32,
     use_rank_pattern: bool = False,
 ) -> torch.nn.Module:
+
     if len(decomposed_modules) == 0:
+        logger.info("Skipping lora fine-tuning - empty list of decomposed modules")
         return model
+
+    start = time.perf_counter()
 
     decomposed_submodules_to_finetune = decomposed_modules[
         -num_last_modules_to_finetune:
@@ -169,8 +180,9 @@ def finetune_lora(
             alpha_pattern[second_module_name] = rank // 32
             target_modules.extend([first_module_name, second_module_name])
         logger.info(f"{module_name} {status} - {rank=} {min_rank_to_finetune=}")
+
     if len(rank_pattern) == 0:
-        msg = f"Skipping fine-tuning - no modules with rank>={min_rank_to_finetune}"
+        msg = f"Skipping lora fine-tuning - no modules of rank>={min_rank_to_finetune}"
         logger.info(msg)
         return model
 
@@ -241,4 +253,7 @@ def finetune_lora(
             )
     peft_model.eval()
     model.raw_model = peft_model.merge_and_unload()
+    model.eval()
+    stop = time.perf_counter()
+    logger.info(f"Lora fine-tuning took {stop-start:.2f} seconds")
     return model
