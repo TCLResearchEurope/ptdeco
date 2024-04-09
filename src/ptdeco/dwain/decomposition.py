@@ -426,8 +426,6 @@ def _process_module(
     skip = False
     drop_in_params = 0
 
-    step_size = 256
-
     while rank_new > min_rank:
         rank_new = rank_new // 2
 
