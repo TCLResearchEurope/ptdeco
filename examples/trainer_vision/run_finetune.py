@@ -237,26 +237,26 @@ def get_callbacks(
     return [speed_monitor, lr_monitor, tb_callback]
 
 
-def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
-    config_parsed = configurator.FinetuneConfig(**config)
+def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
+    config = configurator.FinetuneConfig(**config_raw)
 
     (
         teacher_model,
         student_model,
         student_decompose_config,
-    ) = make_teacher_student_models(config_parsed)
+    ) = make_teacher_student_models(config)
 
     out_decompose_config_path = output_path / "decompose_config.json"
     with open(out_decompose_config_path, "wt") as f:
         json.dump(student_decompose_config, f)
 
     train_pipeline, valid_pipeline = datasets_dali.make_imagenet_pipelines(
-        imagenet_root_dir=config_parsed.imagenet_root_dir,
-        trn_image_classes_fname=config_parsed.trn_imagenet_classes_fname,
-        val_image_classes_fname=config_parsed.val_imagenet_classes_fname,
-        batch_size=config_parsed.batch_size,
-        normalization=config_parsed.normalization,
-        h_w=config_parsed.input_h_w,
+        imagenet_root_dir=config.imagenet_root_dir,
+        trn_image_classes_fname=config.trn_imagenet_classes_fname,
+        val_image_classes_fname=config.val_imagenet_classes_fname,
+        batch_size=config.batch_size,
+        normalization=config.normalization,
+        h_w=config.input_h_w,
     )
 
     train_dataloader = datasets_dali.DaliGenericIteratorWrapper(
@@ -279,14 +279,12 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
 
     device = composer.devices.DeviceGPU()
 
-    optimizers = configurator.get_optimizer(
-        model.student_model.parameters(), config_parsed
-    )
-    lr_schedulers = configurator.get_lr_scheduler(config_parsed)
-    algorithms = configurator.get_algorithms(config_parsed)
-    precision = configurator.get_precision(config_parsed)
-    compile_config = configurator.get_compile_config(config_parsed)
-    callbacks = get_callbacks(config_parsed, output_path)
+    optimizers = configurator.get_optimizer(model.student_model.parameters(), config)
+    lr_schedulers = configurator.get_lr_scheduler(config)
+    algorithms = configurator.get_algorithms(config)
+    precision = configurator.get_precision(config)
+    compile_config = configurator.get_compile_config(config)
+    callbacks = get_callbacks(config, output_path)
 
     evaluator = composer.Evaluator(
         dataloader=valid_dataloader,
@@ -299,7 +297,7 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
         model=model,
         train_dataloader=train_dataloader,
         eval_dataloader=evaluator,
-        max_duration=config_parsed.max_duration,
+        max_duration=config.max_duration,
         optimizers=optimizers,
         schedulers=lr_schedulers,
         device=device,

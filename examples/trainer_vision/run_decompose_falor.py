@@ -22,17 +22,17 @@ def make_image_iterator(
         yield d["inputs"].permute(0, 3, 1, 2)
 
 
-def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
-    config_parsed = configurator.DecomposeFALORConfig(**config)
-    b_c_h_w = (1, 3, *config_parsed.input_h_w)
+def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
+    config = configurator.DecomposeFALORConfig(**config_raw)
+    b_c_h_w = (1, 3, *config.input_h_w)
 
     train_pipeline, valid_pipeline = datasets_dali.make_imagenet_pipelines(
-        imagenet_root_dir=config_parsed.imagenet_root_dir,
-        trn_image_classes_fname=config_parsed.trn_imagenet_classes_fname,
-        val_image_classes_fname=config_parsed.val_imagenet_classes_fname,
-        batch_size=config_parsed.batch_size,
-        normalization=config_parsed.normalization,
-        h_w=config_parsed.input_h_w,
+        imagenet_root_dir=config.imagenet_root_dir,
+        trn_image_classes_fname=config.trn_imagenet_classes_fname,
+        val_image_classes_fname=config.val_imagenet_classes_fname,
+        batch_size=config.batch_size,
+        normalization=config.normalization,
+        h_w=config.input_h_w,
     )
     del valid_pipeline
 
@@ -49,8 +49,8 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
 
     data_iterator = make_image_iterator(train_dataloader)
 
-    model = builder.make_model(config_parsed.decompose_model_name)
-    builder.validate_module_names(model, config_parsed.blacklisted_modules)
+    model = builder.make_model(config.decompose_model_name)
+    builder.validate_module_names(model, config.blacklisted_modules)
 
     model.to(device)
     model_orig_stats = builder.get_model_stats(model, b_c_h_w)
@@ -59,12 +59,12 @@ def main(config: dict[str, Any], output_path: pathlib.Path) -> None:
         module=model,
         device=device,
         data_iterator=data_iterator,
-        proportion_threshold=config_parsed.proportion_threshold,
-        kl_final_threshold=config_parsed.kl_final_threshold,
-        nsr_final_threshold=config_parsed.nsr_final_threshold,
-        num_data_steps=config_parsed.num_data_steps,
-        num_metric_steps=config_parsed.num_metric_steps,
-        blacklisted_module_names=config_parsed.blacklisted_modules,
+        proportion_threshold=config.proportion_threshold,
+        kl_final_threshold=config.kl_final_threshold,
+        nsr_final_threshold=config.nsr_final_threshold,
+        num_data_steps=config.num_data_steps,
+        num_metric_steps=config.num_metric_steps,
+        blacklisted_module_names=config.blacklisted_modules,
     )
     model_deco_stats = builder.get_model_stats(model, b_c_h_w)
 

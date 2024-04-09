@@ -138,9 +138,9 @@ def main(args: argparse.Namespace) -> None:
     if task == "decompose_lockd":
         run_decompose_lockd.main(config=config, output_path=output_path)
     elif task == "decompose_falor":
-        run_decompose_falor.main(config=config, output_path=output_path)
+        run_decompose_falor.main(config_raw=config, output_path=output_path)
     elif task == "finetune":
-        run_finetune.main(config=config, output_path=output_path)
+        run_finetune.main(config_raw=config, output_path=output_path)
     else:
         if task is None:
             msg = "config.train_mode unspecified"
