@@ -368,7 +368,6 @@ def _process_module(
     min_rank: int = 32,
     trade_off_factor: float = 1.0,
     max_accepted_ppl_diff: float = 0.1,
-    use_drop_in_params_heuristic: bool = True,
     decompose_in_float64: bool = True,
     u_matrix: Optional[torch.Tensor] = None,
 ) -> dict[str, Any]:
@@ -427,34 +426,18 @@ def _process_module(
     skip = False
     drop_in_params = 0
 
-    if not use_drop_in_params_heuristic:
-        min_rank = full_rank // 4
-
-    else:
-        min_rank = min_rank
-
     step_size = 256
 
     while rank_new > min_rank:
-        if use_drop_in_params_heuristic:
-            rank_new = rank_new // 2
-        else:
-            rank_new = rank_new - step_size
+        rank_new = rank_new // 2
 
-        if use_drop_in_params_heuristic:
-            previous_params_in_module = _get_params_for_proportion(1.0, dim_in, dim_out)
-            current_params_in_module = _get_params_for_proportion(
-                rank_new / full_rank, dim_in, dim_out
-            )
-            drop_in_params = previous_params_in_module - current_params_in_module
-            fraction_of_params_to_be_removed = drop_in_params / num_params
-            ppl_diff_threshold = fraction_of_params_to_be_removed * trade_off_factor
-        else:
-            previous_params_in_module = 1.0 * dim_out * dim_in
-            current_params_in_module = (rank_new / full_rank) * dim_in * dim_out
-            drop_in_params = previous_params_in_module - current_params_in_module
-            fraction_of_params_to_be_removed = drop_in_params / num_params
-            ppl_diff_threshold = 0.05
+        previous_params_in_module = _get_params_for_proportion(1.0, dim_in, dim_out)
+        current_params_in_module = _get_params_for_proportion(
+            rank_new / full_rank, dim_in, dim_out
+        )
+        drop_in_params = previous_params_in_module - current_params_in_module
+        fraction_of_params_to_be_removed = drop_in_params / num_params
+        ppl_diff_threshold = fraction_of_params_to_be_removed * trade_off_factor
 
         if drop_in_params == 0:
             continue
@@ -783,7 +766,6 @@ def decompose_in_place(
                 num_params=num_params,
                 trade_off_factor=trade_off_factor,
                 min_rank=min_rank,
-                use_drop_in_params_heuristic=True,
                 decompose_in_float64=decompose_in_float64,
                 u_matrix=u_dict.pop(submodule_name) if len(u_dict) > 0 else None,
             )
