@@ -76,6 +76,7 @@ def make_model_and_tokenizer(
             decompose_config = json.load(f)
 
         ptdeco.utils.apply_decompose_config_in_place(model, decompose_config)
+        ptdeco.utils.free_gpu_reserved_memory()
         logger.info(f"Applied decompose config {decompose_config_path}")
     model.to(device)
     model.to(dtype)

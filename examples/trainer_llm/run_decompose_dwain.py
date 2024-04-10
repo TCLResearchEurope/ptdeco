@@ -16,9 +16,8 @@ import dwain_wrapper_module
 import metrics
 import utils
 
-PPL_EVAL_VARIED_SEQLEN = False
+PPL_N_SAMPLES = 1000
 LOADER_SEED = 42
-
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +66,7 @@ def make_dataloaders(
         max_seqlen=config.perplexity_data_max_length,
         batch_size=config.perplexity_data_batch_size,
         separator=config.perplexity_data_separator,
-        nsamples=1000,
+        nsamples=PPL_N_SAMPLES,
         seed=LOADER_SEED,
     )
     return decomposition_dl, perplexity_dl
@@ -110,6 +109,7 @@ def make_finetune_fn(
 
 def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
     # 1. SETUP
+
     start = time.perf_counter()
     transformers.utils.logging.disable_progress_bar()
     config = configurator.DecomposeDWAINConfig(**config_raw)
@@ -121,6 +121,7 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
         device = torch.device("cpu")
 
     # 2. CREATE MODEL
+
     egc = config.decomposed_model_enable_gradient_checkpointing
     model, tokenizer = builder.make_model_and_tokenizer(
         model_name=config.decomposed_model_name,
@@ -132,9 +133,11 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
     )
 
     # 3. PREPARE DATALOADERS
+
     decomposition_dl, perplexity_dl = make_dataloaders(config, tokenizer)
 
     # 4. LOG INITIAL STATISTICS
+
     with torch.no_grad():
         perplexity_orig = metrics.calc_perplexity(
             model, perplexity_dl, device, model.config.pad_token_id
@@ -147,6 +150,7 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
     # 5. DO ACTUAL DECOMPOSITION
 
     model_wrapped = dwain_wrapper_module.WrapperModule(model)
+    model_wrapped.eval()
 
     decomposition_it = make_inifinte_iterator(decomposition_dl)
 
@@ -174,6 +178,7 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
     )
 
     # 6. SERIALIZE MODEL
+
     dwain_wrapper_module.save_raw_model_decompose_config_and_state_dict(
         output_path, decompose_config, model.state_dict()
     )
@@ -201,6 +206,7 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
     )
 
     # 8. RUN BENCHMARK TASKS ON LM EVAL
+
     time_lm_eval = -1.0
 
     if config.lm_eval_tasks:
