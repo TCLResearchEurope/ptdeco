@@ -4,6 +4,9 @@ import pathlib
 import time
 from typing import Any
 
+
+import peft
+import ptdeco
 import torch
 import transformers  # type: ignore
 
@@ -13,24 +16,63 @@ import datasets_hf
 import metrics
 import utils
 
-PPL_EVAL_VARIED_SEQLEN = False
+PPL_N_SAMPLES = 1000
 LOADER_SEED = 42
 
 
 logger = logging.getLogger(__name__)
 
 
-def make_dataloaders(
+class CustomTrainer(transformers.Trainer):
+    def __init__(self, *args, train_loader=None, test_loader=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.loss_fn = torch.nn.CrossEntropyLoss(
+            ignore_index=self.model.config.pad_token_id
+        )
+        self.train_loader = train_loader
+        self.test_loader = test_loader
+
+    def get_train_dataloader(self) -> torch.utils.data.DataLoader:
+        return self.train_loader
+
+    def get_eval_dataloader(self, _) -> utils.utils.data.DataLoader:
+        return self.test_loader
+
+
+#    parser.add_argument('--learning-rate', type=float, default=2e-4)           # Mapped
+#    parser.add_argument('--weight-decay', type=float, default=1e-2)            # Mapped
+#    parser.add_argument('--adam-beta1', type=float, default=0.9)               # Mapped
+#    parser.add_argument('--adam-beta2', type=float, default=0.95)              # Mapped
+#    parser.add_argument('--adam-epsilon', type=float, default=1e-8)            # Mapped
+#    parser.add_argument('--max-grad-norm', type=float, default=1.0)
+#    parser.add_argument('--lr-scheduler-type', type=str, default="linear")     # Mapped
+#    parser.add_argument('--num-warmup-steps', type=int, default=400)           # Mapped
+#    parser.add_argument('--gradient-accumulation-steps', type=int, default=4)  # Mapped
+#    parser.add_argument('--early-stopping-patience', type=int, default=5)      # Mapped
+#
+#    parser.add_argument('--epochs', type=int, default=1)                       # Mapped
+#    parser.add_argument('--evaluation-strategy', type=str, default="steps")    # Mapped
+#    parser.add_argument('--eval-steps', type=int, default=500)                 # Mapped
+#    parser.add_argument('--save-steps', type=int, default=1000)                # Mapped
+#    parser.add_argument('--save-total-limit', type=int, default=1)             # Mapped
+#    parser.add_argument('--logging-steps', type=int, default=10)               # Mapped
+#
+#    parser.add_argument('--lora-alpha', type=float, default=32.0)              # Mapped
+#    parser.add_argument('--lora-dropout', type=float, default=0.1)             # Mapped
+#    parser.add_argument('--lora-r', type=int, default=8)                       # Mapped
+#    parser.add_argument('--lora-bias', type=str, default="none")
+
+
+def make_dataloader_perplexity(
     config: configurator.FinetuneConfig,
     tokenizer: transformers.PreTrainedTokenizer,
-) -> torch.utils.data.DataLoader[dict[str, torch.Tensor]]:
+) -> tuple[torch.utils.data.DataLoader, int]:
 
     perplexity_ds = datasets_hf.get_dataset(config.perplexity_data_name)
-
-    logger.info(
-        f"Created perplexity dataset {config.perplexity_data_name}, "
-        f"{len(perplexity_ds)} examples"
-    )
+    perplexity_n = len(perplexity_ds)
+    msg = f"Created perplexity dataset {config.perplexity_data_name}, "
+    msg += f"{perplexity_n} examples"
+    logger.info(msg)
 
     perplexity_dl = datasets_hf.prepare_slicegpt_dataloader(
         dataset=perplexity_ds,
@@ -38,14 +80,153 @@ def make_dataloaders(
         max_seqlen=config.perplexity_data_max_length,
         batch_size=config.perplexity_data_batch_size,
         separator=config.perplexity_data_separator,
-        nsamples=1000,
+        nsamples=PPL_N_SAMPLES,
         seed=LOADER_SEED,
     )
 
-    return perplexity_dl
+    return perplexity_dl, perplexity_n
+
+
+def make_dataloader_train(
+    config: configurator.FinetuneConfig,
+    tokenizer: transformers.PreTrainedTokenizer,
+) -> tuple[torch.utils.data.DataLoader, int]:
+
+    train_ds = datasets_hf.get_dataset(config.train_data_name)
+    train_n = len(train_ds)
+
+    logger.info(f"Created train dataset {config.train_data_name}, {train_n} examples")
+
+    train_dl = datasets_hf.prepare_slicegpt_dataloader(
+        dataset=train_ds,
+        tokenizer=tokenizer,
+        max_seqlen=config.train_data_max_length,
+        batch_size=config.train_data_batch_size,
+        seed=LOADER_SEED,
+    )
+
+    return train_dl, train_n
+
+
+def make_dataloader_train(
+    config: configurator.FinetuneConfig,
+    tokenizer: transformers.PreTrainedTokenizer,
+) -> tuple[torch.utils.data.DataLoader, int]:
+
+    test_ds = datasets_hf.get_dataset(config.test_data_name)
+    test_n = len(test_ds)
+
+    test_dl = datasets_hf.prepare_slicegpt_dataloader(
+        dataset=test_ds,
+        tokenizer=tokenizer,
+        max_seqlen=config.test_data_max_length,
+        batch_size=config.test_batch_size,
+        nsamples=config.test_data_n_samples,
+        varied_seqlen=False,
+        seed=LOADER_SEED,
+    )
+
+    return test_dl, test_n
+
+
+def make_dataloader_test(
+    config: configurator.FinetuneConfig, tokenizer: transformers.PreTrainedTokenizer
+) -> tuple[torch.utils.data.DataLoader, int]:
+    pass
+
+
+def make_optimizer_and_scheduler(
+    model: torch.nn.Module, n_train: int, config: configurator.FinetuneConfig
+) -> tuple[Any, Any]:
+    optimizer = torch.optim.AdamW(
+        params=model.parameters(),
+        lr=config.learning_rate,
+        betas=(config.adam_beta1, config.adam_beta2),
+        eps=config.adam_epsilon,
+        weight_decay=config.weight_decay,
+    )
+
+    eff_bs = config.train_batch_size * config.gradient_accumulation_steps
+    num_training_steps = config.epochs * ((n_train - 1) // eff_bs + 1)
+
+    kwargs_lr_scheduler = {
+        "optimizer": optimizer,
+        "num_warmup_steps": config.num_warmup_steps,
+        "num_training_steps": num_training_steps,
+    }
+    if config.lr_scheduler_type == "cosine_with_warmup":
+        lr_scheduler = transformers.get_cosine_schedule_with_warmup(
+            **kwargs_lr_scheduler
+        )
+    elif config.lr_scheduler_type == "linear_with_warmup":
+        lr_scheduler = transformers.get_linear_schedule_with_warmup(
+            **kwargs_lr_scheduler
+        )
+    else:
+        raise NotImplementedError
+
+    return optimizer, lr_scheduler
+
+
+def make_lora_config(
+    model: torch.nn.Module, config: configurator.FinetuneConfig
+) -> peft.LoraConfig:
+
+    with open(config.decompose_config, "rt") as f:
+        deco_config = json.load(f)
+
+    decomposed_module_names = list(deco_config.keys())
+    linear_decomposed_module_names = [f"{e}.0" for e in decomposed_module_names] + [
+        f"{e}.1" for e in decomposed_module_names
+    ]
+    non_decomposed_module_names = [
+        name
+        for name, module in model.named_modules()
+        if name not in linear_decomposed_module_names
+        and isinstance(module, torch.nn.Linear)
+        and "lm_head" not in name
+    ]
+
+    min_rank_to_finetune = 32
+    rank_pattern = {}
+    alpha_pattern = {}
+    target_modules = []
+    for decomposed_module_name in decomposed_module_names:
+        rank = deco_config[decomposed_module_name]["modules"]["0"]["out_features"]
+        if rank >= min_rank_to_finetune:
+            lora_rank = max(rank // 32, 8)
+            first_linear_name = f"{decomposed_module_name}.0"
+            second_linear_name = f"{decomposed_module_name}.1"
+            rank_pattern[first_linear_name] = lora_rank
+            rank_pattern[second_linear_name] = lora_rank
+            alpha_pattern[first_linear_name] = lora_rank // 2
+            alpha_pattern[second_linear_name] = lora_rank // 2
+            logger.info(
+                f"Setting lora rank to: {lora_rank} for {decomposed_module_name}"
+            )
+            target_modules.extend([first_linear_name, second_linear_name])
+        else:
+            logger.info(
+                f"Skipping fine-tuning {decomposed_module_name} -> rank is to low: {rank}"
+            )
+
+    if not config.finetune_only_decomposed:
+        target_modules += non_decomposed_module_names
+
+    return peft.LoraConfig(
+        r=config.lora_r,
+        lora_alpha=config.lora_alpha,
+        lora_dropout=config.lora_dropout,
+        task_type=peft.TaskType.CAUSAL_LM,
+        rank_pattern=rank_pattern,
+        alpha_pattern=alpha_pattern,
+        target_modules=target_modules,
+    )
 
 
 def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
+    # 1. SETUP
+
     start = time.perf_counter()
     transformers.utils.logging.disable_progress_bar()
     config = configurator.FinetuneConfig(**config_raw)
@@ -55,6 +236,8 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
         device = torch.device("cuda")
     else:
         device = torch.device("cpu")
+
+    # 2. CREATE MODEL
 
     egc = config.decomposed_model_enable_gradient_checkpointing
     model, tokenizer = builder.make_model_and_tokenizer(
@@ -68,7 +251,12 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
         log_linears=True,
     )
 
-    perplexity_dl = make_dataloaders(config, tokenizer)
+    # 3. INITIAL MODEL EVALUATION
+
+    perplexity_dl, _ = make_dataloader_perplexity(config, tokenizer)
+    train_dl, train_n = make_dataloader_train(config, tokenizer)
+    test_dl, _ = make_dataloader_test(config, tokenizer)
+
     with torch.no_grad():
         perplexity_initial = metrics.calc_perplexity(
             model, perplexity_dl, device, model.config.pad_token_id
@@ -92,3 +280,104 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
         logger.info(f"Initial lm_eval results saved to {lm_eval_path}")
         time_lm_eval = time.perf_counter() - start
         logger.info(f"Initial lm_eval took {time_lm_eval:.2f} s")
+
+    # 4. ACTUAL FINETUNING
+
+    lora_config = make_lora_config(model, config)
+
+    model = peft.get_peft_model(model, lora_config)
+    model.print_trainable_parameters()
+
+    optimizer, lr_scheduler = make_optimizer_and_scheduler(model, train_n, config)
+
+    training_args = transformers.TrainingArguments(
+        output_dir=output_path,
+        num_train_epochs=config.epochs,
+        per_device_train_batch_size=config.train_batch_size,
+        per_device_eval_batch_size=config.test_batch_size,
+        logging_steps=config.logging_steps,
+        save_steps=config.save_steps,
+        save_total_limit=config.save_total_limit,
+        disable_tqdm=True,
+        load_best_model_at_end=True,
+        eval_steps=config.eval_steps,
+        evaluation_strategy=config.eval_strategy,
+        metric_for_best_model="eval_loss",
+        greater_is_better=False,
+        gradient_checkpointing=config.decomposed_model_enable_gradient_checkpointing,
+        report_to=["tensorboard"],
+    )
+
+    es = transformers.EarlyStoppingCallback(
+        early_stopping_patience=config.early_stopping_patience
+    )
+    trainer = CustomTrainer(
+        model=model,
+        tokenizer=tokenizer,
+        train_loader=train_dl,
+        test_loader=test_dl,
+        args=training_args,
+        optimizers=(optimizer, lr_scheduler),
+        callbacks=[es],
+    )
+
+    # required to enable gradient_checkpointing
+    model.enable_input_require_grads()
+
+    ptdeco.utils.free_gpu_reserved_memory()
+
+    model.train()
+    trainer.train()
+    ptdeco.utils.free_gpu_reserved_memory()
+
+    # 5. SAVE TRAINING OUTPUTS
+
+    model = model.merge_and_unload()
+    ptdeco.utils.free_gpu_reserved_memory()
+
+    #     if args.output_path is None:
+    #         ptdeco_saving_path = f"{output_dir}/ptdeco_model_epochs_{args.epochs}"
+    #     else:
+    #         ptdeco_saving_path = args.output_path
+
+    #     os.makedirs(ptdeco_saving_path, exist_ok=True)
+    #     save_ptdeco_model(
+    #         model=model, decompose_config=deco_config, output_path=ptdeco_saving_path
+    #     )
+    #     # compute perplexity after finetuning
+    #     ppl_slice_gpt = evaluate_ppl(model, tokenizer, ppl_eval_loader, device=device)
+    #     stop = time.perf_counter()
+    #     post_model_stats = get_model_stats(
+    #         model=model,
+    #         b_t=(1, 512),
+    #     )
+    #     logger.info(f"Post finetuning model stats: {post_model_stats}")
+    #     logger.info(
+    #         f"Post finetuning ppl on {args.ppl_eval_dataset} validation: {ppl_slice_gpt}"
+    #     )
+
+    # 6. FINAL MODEL EVALUATION
+
+    with torch.no_grad():
+        perplexity_final = metrics.calc_perplexity(
+            model, perplexity_dl, device, model.config.pad_token_id
+        )
+    logger.info(f"{perplexity_final=}")
+
+    if config.lm_eval_initial and config.lm_eval_tasks:
+        start = time.perf_counter()
+
+        lm_eval_results, lm_eval_results_str = metrics.calc_lm_eval_metrics(
+            model=model,
+            tokenizer=tokenizer,
+            device=device,
+            tasks=config.lm_eval_tasks,
+        )
+        logger.info("\n" + lm_eval_results_str)
+        lm_eval_path = output_path / "lm_eval_final.json"
+        lm_eval_results["config"]["device"] = str(lm_eval_results["config"]["device"])
+        with open(lm_eval_path, "wt") as f:
+            json.dump(lm_eval_results, f)
+        logger.info(f"Final lm_eval results saved to {lm_eval_path}")
+        time_lm_eval = time.perf_counter() - start
+        logger.info(f"Final lm_eval took {time_lm_eval:.2f} s")
