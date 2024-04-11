@@ -139,13 +139,13 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
     # 4. LOG INITIAL STATISTICS
 
     with torch.no_grad():
-        perplexity_orig = metrics.calc_perplexity(
+        perplexity_initial = metrics.calc_perplexity(
             model, perplexity_dl, device, model.config.pad_token_id
         )
-    params_orig = metrics.get_params(model) / 1.0e6
-    gflops_orig = metrics.get_giga_flops(model, tensor_size=(1, 512))
+    params_initial = metrics.get_params(model) / 1.0e6
+    gflops_initial = metrics.get_giga_flops(model, tensor_size=(1, 512))
 
-    logger.info(f"{perplexity_orig=} {params_orig=} {gflops_orig=}")
+    logger.info(f"{perplexity_initial=} {params_initial=} {gflops_initial=}")
 
     # 5. DO ACTUAL DECOMPOSITION
 
@@ -191,12 +191,12 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
         )
     params_final = metrics.get_params(model) / 1.0e6
     gflops_final = metrics.get_giga_flops(model, tensor_size=(1, 512))
-    params_frac = params_final / params_orig * 100.0
-    gflops_frac = gflops_final / gflops_orig * 100.0
+    params_frac = params_final / params_initial * 100.0
+    gflops_frac = gflops_final / gflops_initial * 100.0
 
-    logger.info(f"{perplexity_orig=} -> {perplexity_final=}")
-    logger.info(f"{params_orig=} -> {params_final=} {params_frac:.2f}")
-    logger.info(f"{gflops_orig=} -> {gflops_final=} {gflops_frac:.2f}")
+    logger.info(f"{perplexity_initial=} -> {perplexity_final=}")
+    logger.info(f"{params_initial=} -> {params_final=} {params_frac:.2f}")
+    logger.info(f"{gflops_initial=} -> {gflops_final=} {gflops_frac:.2f}")
 
     stop = time.perf_counter()
     time_decomposition_and_perplex_eval = stop - start
@@ -233,13 +233,13 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
         device_str += " @ " + torch.cuda.get_device_name(device)
 
     summary = {
-        "perplexity_orig": perplexity_orig,
+        "perplexity_initial": perplexity_initial,
         "perplexity_final": perplexity_final,
-        "mparams_orig": params_orig,
+        "mparams_initial": params_initial,
         "mparams_final": params_final,
         "mparams_frac": params_frac,
-        "gflops_orig": gflops_orig,
-        "gflops_final": gflops_final,
+        "gflops_orig": gflops_initial,
+        "gflops_initial": gflops_final,
         "gflops_frac": gflops_frac,
         "time_decomposition_and_perplex_eval": time_decomposition_and_perplex_eval,
         "time_lm_eval": time_lm_eval,
