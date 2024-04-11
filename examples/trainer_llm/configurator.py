@@ -102,7 +102,7 @@ class DecomposeDWAINConfig(_VersionConfig):
     min_rank: int
     blacklisted_module_names: Optional[list[str]]
     decompose_in_float64: bool
-    precomputing_covariance_num_splits: int
+    precomputing_covariance_num_splits: Optional[int]
 
     # Finetuning params
 
