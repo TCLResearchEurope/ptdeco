@@ -180,7 +180,7 @@ def make_optimizer_and_scheduler(
 
 def make_lora_config(
     model: torch.nn.Module, config: configurator.FinetuneConfig
-) -> peft.LoraConfig:
+) -> Optional[peft.LoraConfig]:
 
     with open(config.decompose_config, "rt") as f:
         deco_config = json.load(f)
@@ -222,16 +222,18 @@ def make_lora_config(
 
     if not config.finetune_only_decomposed:
         target_modules += non_decomposed_module_names
-
-    return peft.LoraConfig(
-        r=config.lora_r,
-        lora_alpha=config.lora_alpha,
-        lora_dropout=config.lora_dropout,
-        task_type=peft.TaskType.CAUSAL_LM,
-        rank_pattern=rank_pattern,
-        alpha_pattern=alpha_pattern,
-        target_modules=target_modules,
-    )
+    if len(target_modules) > 0:
+        return peft.LoraConfig(
+            r=config.lora_r,
+            lora_alpha=config.lora_alpha,
+            lora_dropout=config.lora_dropout,
+            task_type=peft.TaskType.CAUSAL_LM,
+            rank_pattern=rank_pattern,
+            alpha_pattern=alpha_pattern,
+            target_modules=target_modules,
+        )
+    else:
+        return None
 
 
 def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
@@ -247,7 +249,7 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
     else:
         device = torch.device("cpu")
 
-    # 2. CREATE MODEL
+    # 2. CREATE MODEL AND LORA CONFIG
 
     egc = config.decomposed_model_enable_gradient_checkpointing
     model, tokenizer = builder.make_model_and_tokenizer(
@@ -262,6 +264,11 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
     )
     params_final = metrics.get_params(model) / 1.0e6
     gflops_final = metrics.get_giga_flops(model, tensor_size=(1, 512))
+
+    lora_config = make_lora_config(model, config)
+    if lora_config is None:
+        logger.warning("No modules to finetune found, exiting")
+        return
 
     # 3. INITIAL MODEL EVALUATION
 
@@ -296,7 +303,6 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
 
     # 4. ACTUAL FINETUNING
     start_finetune = time.perf_counter()
-    lora_config = make_lora_config(model, config)
 
     model = peft.get_peft_model(model, lora_config)
     model.print_trainable_parameters()
