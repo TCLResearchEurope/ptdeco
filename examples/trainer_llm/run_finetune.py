@@ -349,7 +349,7 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
     trainer.train()
     ptdeco.utils.free_gpu_reserved_memory()
     time_finetune = time.perf_counter() - start_finetune
-    logger.info("Finetuning took {time_finetune:.2f} s")
+    logger.info(f"Finetuning took {time_finetune:.2f} s")
 
     # 5. SAVE TRAINING OUTPUTS
 
