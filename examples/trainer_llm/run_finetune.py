@@ -48,30 +48,6 @@ class CustomTrainer(transformers.Trainer):
         return self.test_loader
 
 
-#    parser.add_argument('--learning-rate', type=float, default=2e-4)           # Mapped
-#    parser.add_argument('--weight-decay', type=float, default=1e-2)            # Mapped
-#    parser.add_argument('--adam-beta1', type=float, default=0.9)               # Mapped
-#    parser.add_argument('--adam-beta2', type=float, default=0.95)              # Mapped
-#    parser.add_argument('--adam-epsilon', type=float, default=1e-8)            # Mapped
-#    parser.add_argument('--max-grad-norm', type=float, default=1.0)
-#    parser.add_argument('--lr-scheduler-type', type=str, default="linear")     # Mapped
-#    parser.add_argument('--num-warmup-steps', type=int, default=400)           # Mapped
-#    parser.add_argument('--gradient-accumulation-steps', type=int, default=4)  # Mapped
-#    parser.add_argument('--early-stopping-patience', type=int, default=5)      # Mapped
-#
-#    parser.add_argument('--epochs', type=int, default=1)                       # Mapped
-#    parser.add_argument('--evaluation-strategy', type=str, default="steps")    # Mapped
-#    parser.add_argument('--eval-steps', type=int, default=500)                 # Mapped
-#    parser.add_argument('--save-steps', type=int, default=1000)                # Mapped
-#    parser.add_argument('--save-total-limit', type=int, default=1)             # Mapped
-#    parser.add_argument('--logging-steps', type=int, default=10)               # Mapped
-#
-#    parser.add_argument('--lora-alpha', type=float, default=32.0)              # Mapped
-#    parser.add_argument('--lora-dropout', type=float, default=0.1)             # Mapped
-#    parser.add_argument('--lora-r', type=int, default=8)                       # Mapped
-#    parser.add_argument('--lora-bias', type=str, default="none")
-
-
 def make_dataloader_perplexity(
     config: configurator.FinetuneConfig,
     tokenizer: transformers.PreTrainedTokenizer,
