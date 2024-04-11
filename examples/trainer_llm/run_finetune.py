@@ -2,6 +2,7 @@ import json
 import logging
 import pathlib
 import time
+import shutil
 from typing import Any, Optional
 
 
@@ -236,7 +237,7 @@ def make_lora_config(
 def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
     # 1. SETUP
 
-    start = time.perf_counter()
+    start_eval = time.perf_counter()
     transformers.utils.logging.disable_progress_bar()
     config = configurator.FinetuneConfig(**config_raw)
     dtype = utils.conv_str_to_dtype(config.decomposed_model_dtype)
@@ -259,6 +260,8 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
         dtype=dtype,
         log_linears=True,
     )
+    params_final = metrics.get_params(model) / 1.0e6
+    gflops_final = metrics.get_giga_flops(model, tensor_size=(1, 512))
 
     # 3. INITIAL MODEL EVALUATION
 
@@ -267,13 +270,14 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
     test_dl, _ = make_dataloader_test(config, tokenizer)
 
     with torch.no_grad():
-        perplexity_initial = metrics.calc_perplexity(
+        perplexity_orig = metrics.calc_perplexity(
             model, perplexity_dl, device, model.config.pad_token_id
         )
-    logger.info(f"{perplexity_initial=}")
+    logger.info(f"{perplexity_orig=}")
 
+    time_lm_eval_initial = -1.0
     if config.lm_eval_initial and config.lm_eval_tasks:
-        start = time.perf_counter()
+        start_eval = time.perf_counter()
 
         lm_eval_results, lm_eval_results_str = metrics.calc_lm_eval_metrics(
             model=model,
@@ -287,11 +291,11 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
         with open(lm_eval_path, "wt") as f:
             json.dump(lm_eval_results, f)
         logger.info(f"Initial lm_eval results saved to {lm_eval_path}")
-        time_lm_eval = time.perf_counter() - start
-        logger.info(f"Initial lm_eval took {time_lm_eval:.2f} s")
+        time_lm_eval_initial = time.perf_counter() - start_eval
+        logger.info(f"Initial lm_eval took {time_lm_eval_initial:.2f} s")
 
     # 4. ACTUAL FINETUNING
-
+    start_finetune = time.perf_counter()
     lora_config = make_lora_config(model, config)
 
     model = peft.get_peft_model(model, lora_config)
@@ -338,32 +342,15 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
     model.train()
     trainer.train()
     ptdeco.utils.free_gpu_reserved_memory()
+    time_finetune = time.perf_counter() - start_finetune
+    logger.info("Finetuning took {time_finetune:.2f} s")
 
     # 5. SAVE TRAINING OUTPUTS
 
     model = model.merge_and_unload()
     ptdeco.utils.free_gpu_reserved_memory()
-
-    #     if args.output_path is None:
-    #         ptdeco_saving_path = f"{output_dir}/ptdeco_model_epochs_{args.epochs}"
-    #     else:
-    #         ptdeco_saving_path = args.output_path
-
-    #     os.makedirs(ptdeco_saving_path, exist_ok=True)
-    #     save_ptdeco_model(
-    #         model=model, decompose_config=deco_config, output_path=ptdeco_saving_path
-    #     )
-    #     # compute perplexity after finetuning
-    #     ppl_slice_gpt = evaluate_ppl(model, tokenizer, ppl_eval_loader, device=device)
-    #     stop = time.perf_counter()
-    #     post_model_stats = get_model_stats(
-    #         model=model,
-    #         b_t=(1, 512),
-    #     )
-    #     logger.info(f"Post finetuning model stats: {post_model_stats}")
-    #     logger.info(
-    #         f"Post finetuning ppl on {args.ppl_eval_dataset} validation: {ppl_slice_gpt}"
-    #     )
+    shutil.copy2(config.decompose_config, output_path / "decompose_config.json")
+    torch.save(model.state_dict(), output_path / "decompose_state_dict.pt")
 
     # 6. FINAL MODEL EVALUATION
 
@@ -374,7 +361,7 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
     logger.info(f"{perplexity_final=}")
 
     if config.lm_eval_initial and config.lm_eval_tasks:
-        start = time.perf_counter()
+        start_eval = time.perf_counter()
 
         lm_eval_results, lm_eval_results_str = metrics.calc_lm_eval_metrics(
             model=model,
@@ -388,5 +375,25 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
         with open(lm_eval_path, "wt") as f:
             json.dump(lm_eval_results, f)
         logger.info(f"Final lm_eval results saved to {lm_eval_path}")
-        time_lm_eval = time.perf_counter() - start
-        logger.info(f"Final lm_eval took {time_lm_eval:.2f} s")
+        time_lm_eval_final = time.perf_counter() - start_eval
+        logger.info(f"Final lm_eval took {time_lm_eval_initial:.2f} s")
+
+        device_str = str(device)
+
+    # 7. SAVE SUMMARY
+
+    if "cuda" in device_str:
+        device_str += " @ " + torch.cuda.get_device_name(device)
+
+    summary = {
+        "perplexity_initial": perplexity_orig,
+        "perplexity_final": perplexity_final,
+        "mparams_final": params_final,
+        "gflops_final": gflops_final,
+        "time_finetune": time_finetune,
+        "time_lm_eval_initial": time_lm_eval_initial,
+        "time_lm_eval_final": time_lm_eval_final,
+        "device": device_str,
+    }
+    with open(output_path / "summary.json", "wt") as f:
+        json.dump(summary, f)
