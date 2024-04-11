@@ -360,7 +360,7 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
         )
     logger.info(f"{perplexity_final=}")
 
-    if config.lm_eval_initial and config.lm_eval_tasks:
+    if config.lm_eval_tasks:
         start_eval = time.perf_counter()
 
         lm_eval_results, lm_eval_results_str = metrics.calc_lm_eval_metrics(
@@ -368,6 +368,7 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
             tokenizer=tokenizer,
             device=device,
             tasks=config.lm_eval_tasks,
+            suppress_initialize_tasks=config.lm_eval_initial,
         )
         logger.info("\n" + lm_eval_results_str)
         lm_eval_path = output_path / "lm_eval_final.json"
