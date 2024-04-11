@@ -32,13 +32,16 @@
 
 ## Introduction
 
-Currently, `ptdeco` implements two methods:
+Currently, `ptdeco` implements the following methods:
 
-* **lockd** - method based on local knowledge distillation
+* **lockd** - method based on local knowledge distillation, tested on vision models
   (lockd = **LOC**al **K**nowledge **D**istillation)
 
-* **falor** - method inspired by [Compressing Transformers: Features Are Low-Rank, but Weights Are Not! by Yu Hao, Wu Jianxin (2023)](https://doi.org/10.1609/aaai.v37i9.26304)
+* **falor** - method based on low-rank decomposition of features inspired by [Compressing Transformers: Features Are Low-Rank, but Weights Are Not! by Yu Hao, Wu Jianxin (2023)](https://doi.org/10.1609/aaai.v37i9.26304), tested on vision models
   (falor = **F**eatures **Are** **LO**w **R**ank)
+
+* **dwain** - iterative method based on low-rank decomposition of features, tested on Large Language Models
+  (dwain =  **D**ecomposing **W**eights **A**lgorithm - an **I**terative tech**N**ique)
 
 **lockd** method requires short (~ 10 ImageNet epochs) knowledge distillation
 pretraining before decomposition is made. It can decompose linear layers and
@@ -47,6 +50,8 @@ convolutions.
 **falor** method does not require pretraining. Model decomposition lasts < 1
 GPU hour (depending on model size and parameters). It can decompose linear
 layers and 1x1 convolutions.
+
+**dwain** method does not require pretraining. It can decompose linear layers.
 
 ## Installation
 
