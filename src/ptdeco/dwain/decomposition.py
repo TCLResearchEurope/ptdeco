@@ -16,6 +16,8 @@ __all__ = [
 
 logger = logging.getLogger(__name__)
 
+EIGEN_DAMPEN_FACTOR = 0.01
+
 
 class WrappedDWAINModule(torch.nn.Module):
     def __init__(self) -> None:
@@ -141,6 +143,24 @@ class WrappedDWAINConv2d1x1(WrappedDWAINModule):
         return torch.nn.Sequential(conv_1, conv_2)
 
 
+def _update_Eyyt_in_place(Eyyt: torch.Tensor, y_reshaped: torch.Tensor) -> None:
+    # if self.clip_value is not None:
+    #     y_reshaped = torch.clip(
+    #         y_reshaped, min=-self.clip_value, max=self.clip_value
+    #     )
+    Eyyt += torch.einsum("bp,bq->pq", y_reshaped, y_reshaped) / y_reshaped.shape[0]
+
+
+def _get_eigenvectors(Eyyt: torch.Tensor, num_data_steps: int) -> torch.Tensor:
+    Eyyt = Eyyt / num_data_steps
+    damp = EIGEN_DAMPEN_FACTOR * torch.mean(torch.diag(Eyyt))
+    diag = torch.arange(Eyyt.shape[-1], device=Eyyt.device)
+    Eyyt[diag, diag] = Eyyt[diag, diag] + damp
+    logger.info(f"Covariance matrix dtype before eigh {Eyyt.dtype=}")
+    _, u = torch.linalg.eigh(Eyyt)
+    return u
+
+
 class CovarianceComputingLinearModule(torch.nn.Module):
     def __init__(
         self,
@@ -154,13 +174,13 @@ class CovarianceComputingLinearModule(torch.nn.Module):
         self.in_features = weight.shape[1]
         self.out_features = weight.shape[0]
         if decompose_in_float64:
-            self.cov = torch.zeros(
+            self.Eyyt = torch.zeros(
                 (self.out_features, self.out_features),
                 device=self.weight.device,
                 dtype=torch.float64,
             )
         else:
-            self.cov = torch.zeros(
+            self.Eyyt = torch.zeros(
                 (self.out_features, self.out_features),
                 device=self.weight.device,
                 dtype=torch.float32,
@@ -175,39 +195,15 @@ class CovarianceComputingLinearModule(torch.nn.Module):
         #     y_reshaped = torch.clip(
         #         y_reshaped, min=-self.clip_value, max=self.clip_value
         #     )
-        self.cov += (
-            torch.einsum("bp,bq->pq", y_reshaped, y_reshaped) / y_reshaped.shape[0]
-        )
+        _update_Eyyt_in_place(self.Eyyt, y_reshaped)
         if self.bias is not None:
             y += self.bias
         self.num_data_steps += 1
         return y
 
     def get_eigenvectors(self) -> torch.Tensor:
-        cov = self.cov / self.num_data_steps
-        damp = 0.01 * torch.mean(torch.diag(cov))
-        diag = torch.arange(self.cov.shape[-1], device=cov.device)
-        cov[diag, diag] = cov[diag, diag] + damp
-        logger.info(f"Covariance matrix dtype before cast {cov.dtype=}")
-        if self.use_float64:
-            cov = cov.to(torch.float64)
-        else:
-            cov = cov.to(torch.float32)
-        logger.info(f"Covariance matrix dtype after cast {cov.dtype=}")
-        _, u = torch.linalg.eigh(cov)
+        u = _get_eigenvectors(self.Eyyt, self.num_data_steps)
         return u.to(self.weight.dtype).to("cpu")
-
-
-def _accumulate_Ey_and_Eyyt(
-    Ey: torch.Tensor,
-    Eyyt: torch.Tensor,
-    weight: torch.Tensor,
-    x: torch.Tensor,
-) -> tuple[torch.Tensor, torch.Tensor]:
-    y = x @ weight.T
-    Eyyt += torch.einsum("bp,bq->pq", y, y) / y.shape[0]
-    Ey += y.mean(dim=0)
-    return Ey, Eyyt
 
 
 def _compute_covariance_matrix_decomposition(
@@ -218,43 +214,32 @@ def _compute_covariance_matrix_decomposition(
     weight: torch.Tensor,
     num_data_steps: int,
     device: torch.device,
-    use_mean: bool = True,
     decompose_in_float64: bool,
-    dampen: bool = True,
 ) -> torch.Tensor:
     root_module.eval()
     decomposed_submodule = root_module.get_submodule(decomposed_submodule_name)
     assert isinstance(decomposed_submodule, WrappedDWAINModule)
-
     if decompose_in_float64:
         logger.info("Using float64 for decomposition")
-        dtype = torch.float64
+        Eyyt = torch.zeros(
+            (weight.shape[0], weight.shape[0]), dtype=torch.float64, device=device
+        )
     else:
         logger.info("Using float32 for decomposition")
-        dtype = torch.float32
-
-    Ey = torch.zeros(weight.shape[0], dtype=dtype).to(device)
-    Eyyt = torch.zeros((weight.shape[0], weight.shape[0]), dtype=dtype).to(device)
+        Eyyt = torch.zeros(
+            (weight.shape[0], weight.shape[0]), dtype=torch.float32, device=device
+        )
 
     for _ in range(num_data_steps):
         inputs = utils.to_device(next(data_iterator), device)
         # TODO: ML check this call
         _ = root_module(inputs)
         x = decomposed_submodule.get_last_input()
-        Ey, Eyyt = _accumulate_Ey_and_Eyyt(Ey=Ey, Eyyt=Eyyt, weight=weight, x=x)
-    Ey /= num_data_steps
-    Eyyt /= num_data_steps
-    if use_mean and not dampen:
-        cov = Eyyt - torch.outer(Ey, Ey)
-    else:
-        cov = Eyyt
-    if dampen:
-        damp = 0.01 * torch.mean(torch.diag(cov))
-        diag = torch.arange(cov.shape[-1], device=cov.device)
-        cov[diag, diag] = cov[diag, diag] + damp
-    logger.info(f"Covariance matrix dtype is {cov.dtype}")
-    _, u = torch.linalg.eigh(cov)
-    del cov
+        y = x @ weight.T
+        _update_Eyyt_in_place(Eyyt, y)
+
+    u = _get_eigenvectors(Eyyt, num_data_steps)
+
     return u
 
 
@@ -404,7 +389,6 @@ def _process_module(
             weight=orig_weight,
             num_data_steps=num_data_steps,
             device=device,
-            use_mean=False,
             decompose_in_float64=decompose_in_float64,
         )
 
@@ -700,7 +684,7 @@ def decompose_in_place(
     min_rank: int = 32,
     trade_off_factor: float = 0.5,
     decompose_in_float64: bool = True,
-    precomputing_covariance_num_splits: int = 0,
+    precomputing_covariance_num_splits: Optional[int] = None,
 ) -> dict[str, Any]:
     start_time = time.perf_counter()
     num_params = utils.get_num_params(module)
@@ -721,7 +705,10 @@ def decompose_in_place(
     decompose_config = {}
     decomposed_submodules = []
 
-    if precomputing_covariance_num_splits > 0:
+    if (
+        precomputing_covariance_num_splits is not None
+        and precomputing_covariance_num_splits > 0
+    ):
         u_dict = _precompute_covariance_matrix_decompositions_in_splits(
             module=module,
             modules_to_decompose=modules_to_decompose,
