@@ -40,20 +40,18 @@ class FinetuneConfig(_VersionConfig):
     test_data_separator: str
     test_data_max_length: int
     test_data_batch_size: int
-    test_data_n_smaples: int
+    test_data_n_samples: int
 
     num_train_epochs: int
-    train_batch_size: int
-    eval_batch_size: int
     finetune_only_decomposed: bool
-    eval_startegy: str
+    eval_strategy: str
     eval_steps: int
     save_total_limit: int
     save_steps: int
     logging_steps: int
     early_stopping_patience: int
     learning_rate: float
-    weight_decayy: float
+    weight_decay: float
     adam_beta1: float
     adam_beta2: float
     adam_epsilon: float
@@ -61,7 +59,7 @@ class FinetuneConfig(_VersionConfig):
     num_warmup_steps: int
     gradient_accumulation_steps: int
     lora_r: int
-    lora_alpha: float
+    lora_alpha: int
     lora_dropout: float
 
     # lm_eval evaluation params

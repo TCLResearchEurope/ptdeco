@@ -2,7 +2,7 @@ import json
 import logging
 import pathlib
 import time
-from typing import Any
+from typing import Any, Optional
 
 
 import peft
@@ -24,7 +24,13 @@ logger = logging.getLogger(__name__)
 
 
 class CustomTrainer(transformers.Trainer):
-    def __init__(self, *args, train_loader=None, test_loader=None, **kwargs):
+    def __init__(
+        self,
+        *args: Any,
+        train_loader: torch.utils.data.DataLoader,
+        test_loader: torch.utils.data.DataLoader,
+        **kwargs: Any,
+    ):
         super().__init__(*args, **kwargs)
         self.loss_fn = torch.nn.CrossEntropyLoss(
             ignore_index=self.model.config.pad_token_id
@@ -35,7 +41,9 @@ class CustomTrainer(transformers.Trainer):
     def get_train_dataloader(self) -> torch.utils.data.DataLoader:
         return self.train_loader
 
-    def get_eval_dataloader(self, _) -> utils.utils.data.DataLoader:
+    def get_eval_dataloader(
+        self, eval_dataset: Optional[torch.utils.data.Dataset] = None
+    ) -> torch.utils.data.DataLoader:
         return self.test_loader
 
 
@@ -81,6 +89,7 @@ def make_dataloader_perplexity(
         batch_size=config.perplexity_data_batch_size,
         separator=config.perplexity_data_separator,
         nsamples=PPL_N_SAMPLES,
+        varied_seqlen=False,
         seed=LOADER_SEED,
     )
 
@@ -102,13 +111,16 @@ def make_dataloader_train(
         tokenizer=tokenizer,
         max_seqlen=config.train_data_max_length,
         batch_size=config.train_data_batch_size,
+        separator=config.train_data_separator,
+        nsamples=config.train_data_n_samples,
+        varied_seqlen=False,
         seed=LOADER_SEED,
     )
 
     return train_dl, train_n
 
 
-def make_dataloader_train(
+def make_dataloader_test(
     config: configurator.FinetuneConfig,
     tokenizer: transformers.PreTrainedTokenizer,
 ) -> tuple[torch.utils.data.DataLoader, int]:
@@ -116,23 +128,20 @@ def make_dataloader_train(
     test_ds = datasets_hf.get_dataset(config.test_data_name)
     test_n = len(test_ds)
 
+    logger.info(f"Created test dataset {config.test_data_name}, {test_n} examples")
+
     test_dl = datasets_hf.prepare_slicegpt_dataloader(
         dataset=test_ds,
         tokenizer=tokenizer,
         max_seqlen=config.test_data_max_length,
-        batch_size=config.test_batch_size,
+        batch_size=config.test_data_batch_size,
+        separator=config.test_data_separator,
         nsamples=config.test_data_n_samples,
         varied_seqlen=False,
         seed=LOADER_SEED,
     )
 
     return test_dl, test_n
-
-
-def make_dataloader_test(
-    config: configurator.FinetuneConfig, tokenizer: transformers.PreTrainedTokenizer
-) -> tuple[torch.utils.data.DataLoader, int]:
-    pass
 
 
 def make_optimizer_and_scheduler(
@@ -146,8 +155,8 @@ def make_optimizer_and_scheduler(
         weight_decay=config.weight_decay,
     )
 
-    eff_bs = config.train_batch_size * config.gradient_accumulation_steps
-    num_training_steps = config.epochs * ((n_train - 1) // eff_bs + 1)
+    eff_bs = config.train_data_batch_size * config.gradient_accumulation_steps
+    num_training_steps = config.num_train_epochs * ((n_train - 1) // eff_bs + 1)
 
     kwargs_lr_scheduler = {
         "optimizer": optimizer,
@@ -207,7 +216,7 @@ def make_lora_config(
             target_modules.extend([first_linear_name, second_linear_name])
         else:
             logger.info(
-                f"Skipping fine-tuning {decomposed_module_name} -> rank is to low: {rank}"
+                f"Skipping fine-tuning {decomposed_module_name} - rank is to low {rank}"
             )
 
     if not config.finetune_only_decomposed:
@@ -292,9 +301,9 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
 
     training_args = transformers.TrainingArguments(
         output_dir=output_path,
-        num_train_epochs=config.epochs,
-        per_device_train_batch_size=config.train_batch_size,
-        per_device_eval_batch_size=config.test_batch_size,
+        num_train_epochs=config.num_train_epochs,
+        per_device_train_batch_size=config.train_data_batch_size,
+        per_device_eval_batch_size=config.test_data_batch_size,
         logging_steps=config.logging_steps,
         save_steps=config.save_steps,
         save_total_limit=config.save_total_limit,
