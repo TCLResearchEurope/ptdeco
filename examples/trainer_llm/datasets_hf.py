@@ -123,7 +123,7 @@ def prepare_slicegpt_dataloader(
 
     separator = _normalize_separator(separator, tokenizer)
 
-    logger.info(f"Preparing slicegpt dataloader, sep={_escape_separator(separator)}")
+    logger.info(f"slicegpt dataloader - using sep={_escape_separator(separator)}")
 
     if not varied_seqlen and not nsamples:
         logger.warning(
@@ -132,6 +132,7 @@ def prepare_slicegpt_dataloader(
         )
 
     data_name = dataset.column_names[0]
+    logger.info(f"slicegpt dataloader - using data column={data_name}")
     ds = dataset.filter(lambda x: len(x[data_name]) > 0)
 
     if not varied_seqlen:
@@ -144,7 +145,7 @@ def prepare_slicegpt_dataloader(
 
         indices = list(range(len(data_list)))
 
-        while len(new_data_list) < nsamples and len(indices) > 0:
+        while (nsamples < 0 or len(new_data_list) < nsamples) and len(indices) > 0:
             start_idx = int(
                 torch.randint(0, len(indices), (1,), generator=generator).item()
             )
@@ -155,13 +156,14 @@ def prepare_slicegpt_dataloader(
                 sep = "" if not tokens else separator
                 tokens += tokenizer.tokenize(sep + item)
                 idx += 1
-
+            # logger.info(f"Used {idx-start_idx} examples")
             indices = indices[:start_idx] + indices[idx:]  # remove the used indices
 
             if len(tokens) >= max_seqlen:
                 tokens = tokens[:max_seqlen]  # truncate to max_seqlen
                 new_data_list.append(tokenizer.convert_tokens_to_string(tokens))
-
+        msg = f"slicegpt dataloader - created dataset of size {len(new_data_list)}"
+        logger.info(msg)
         ds = datasets.Dataset.from_dict({data_name: new_data_list})
 
     def tokenize(
@@ -199,7 +201,7 @@ def prepare_dataloader_v2(
     separator: str,
 ) -> torch.utils.data.DataLoader[dict[str, torch.Tensor]]:
 
-    logger.info(f"Preparing v2 dataloader, sep={_escape_separator(separator)}")
+    logger.info(f"v2 dataloader - using sep={_escape_separator(separator)}")
 
     separator = _normalize_separator(separator, tokenizer)
     eos_string = separator
