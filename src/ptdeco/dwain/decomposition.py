@@ -203,11 +203,8 @@ def _accumulate_Ey_and_Eyyt(
     Eyyt: torch.Tensor,
     weight: torch.Tensor,
     x: torch.Tensor,
-    normalize: bool = False,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     y = x @ weight.T
-    if normalize:
-        y /= torch.linalg.norm(y, dim=1, keepdim=True)
     Eyyt += torch.einsum("bp,bq->pq", y, y) / y.shape[0]
     Ey += y.mean(dim=0)
     return Ey, Eyyt
@@ -222,7 +219,6 @@ def _compute_covariance_matrix_decomposition(
     num_data_steps: int,
     device: torch.device,
     use_mean: bool = True,
-    normalize: bool = False,
     decompose_in_float64: bool,
     dampen: bool = True,
 ) -> torch.Tensor:
@@ -245,9 +241,7 @@ def _compute_covariance_matrix_decomposition(
         # TODO: ML check this call
         _ = root_module(inputs)
         x = decomposed_submodule.get_last_input()
-        Ey, Eyyt = _accumulate_Ey_and_Eyyt(
-            Ey=Ey, Eyyt=Eyyt, weight=weight, x=x, normalize=normalize
-        )
+        Ey, Eyyt = _accumulate_Ey_and_Eyyt(Ey=Ey, Eyyt=Eyyt, weight=weight, x=x)
     Ey /= num_data_steps
     Eyyt /= num_data_steps
     if use_mean and not dampen:
@@ -411,7 +405,6 @@ def _process_module(
             num_data_steps=num_data_steps,
             device=device,
             use_mean=False,
-            normalize=False,
             decompose_in_float64=decompose_in_float64,
         )
 
