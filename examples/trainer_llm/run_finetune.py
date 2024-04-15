@@ -123,7 +123,7 @@ def make_dataloader_test(
 
 def make_optimizer_and_scheduler(
     model: torch.nn.Module, n_train: int, config: configurator.FinetuneConfig
-) -> tuple[Any, Any]:
+) -> tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.LRScheduler]:
     optimizer = torch.optim.AdamW(
         params=model.parameters(),
         lr=config.learning_rate,
