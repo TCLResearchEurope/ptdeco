@@ -60,7 +60,7 @@ def make_dataloaders(
         f"{len(perplexity_ds)} examples"
     )
 
-    perplexity_dl = datasets_hf.prepare_slicegpt_dataloader(
+    perplexity_dl = datasets_hf.prepare_dataloader_v1(
         dataset=perplexity_ds,
         tokenizer=tokenizer,
         max_seqlen=config.perplexity_data_max_length,

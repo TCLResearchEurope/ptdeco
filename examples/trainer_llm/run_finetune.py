@@ -59,7 +59,7 @@ def make_dataloader_perplexity(
     msg += f"{perplexity_n} examples"
     logger.info(msg)
 
-    perplexity_dl = datasets_hf.prepare_slicegpt_dataloader(
+    perplexity_dl = datasets_hf.prepare_dataloader_v1(
         dataset=perplexity_ds,
         tokenizer=tokenizer,
         max_seqlen=config.perplexity_data_max_length,
@@ -83,7 +83,7 @@ def make_dataloader_train(
 
     logger.info(f"Created train dataset {config.train_data_name}, {train_n} examples")
 
-    train_dl = datasets_hf.prepare_slicegpt_dataloader(
+    train_dl = datasets_hf.prepare_dataloader_v1(
         dataset=train_ds,
         tokenizer=tokenizer,
         max_seqlen=config.train_data_max_length,
@@ -107,7 +107,7 @@ def make_dataloader_test(
 
     logger.info(f"Created test dataset {config.test_data_name}, {test_n} examples")
 
-    test_dl = datasets_hf.prepare_slicegpt_dataloader(
+    test_dl = datasets_hf.prepare_dataloader_v1(
         dataset=test_ds,
         tokenizer=tokenizer,
         max_seqlen=config.test_data_max_length,

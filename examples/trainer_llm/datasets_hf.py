@@ -46,51 +46,6 @@ def get_dataset(dataset_and_split_name: str) -> datasets.Dataset:
     return ds[split_name]
 
 
-def prepare_test_dataloader(
-    dataset: torch.utils.data.Dataset,
-    tokenizer: transformers.PreTrainedTokenizerBase,
-    max_seqlen: int = 2048,
-    batch_size: int = 1,
-) -> torch.utils.data.DataLoader[dict[str, torch.Tensor]]:
-
-    # TODO ML Remove it
-
-    logger.info("Preparing test dataloader")
-
-    class TestDataset(torch.utils.data.Dataset):
-        def __init__(
-            self,
-            ds: datasets.Dataset,
-            tokenizer: transformers.PreTrainedTokenizerBase,
-            seqlen: int = 2048,
-        ):
-            # Tokenize entire dataset and reshape it into sequences of length seqlen.
-
-            tokenized_ds = tokenizer("\n\n".join(ds["text"]), return_tensors="pt")
-            nsamples = tokenized_ds.input_ids.numel() // seqlen
-
-            input_ids = tokenized_ds.input_ids[0, : nsamples * seqlen]
-            input_ids = input_ids.reshape(nsamples, seqlen)
-            attn_mask = tokenized_ds.attention_mask[0, : nsamples * seqlen]
-            attn_mask = attn_mask.reshape(nsamples, seqlen)
-
-            self.input_ids = input_ids
-            self.attn_mask = attn_mask
-
-        def __getitem__(self, idx: int) -> dict[str, Any]:
-            return {
-                "input_ids": self.input_ids[idx],
-                "attention_mask": self.attn_mask[idx],
-            }
-
-        def __len__(self) -> int:
-            return len(self.input_ids)
-
-    test_ds = TestDataset(dataset, tokenizer, max_seqlen)
-    loader = torch.utils.data.DataLoader(test_ds, batch_size=batch_size)
-    return loader
-
-
 def _normalize_separator(
     separator: str, tokenizer: transformers.PreTrainedTokenizerBase
 ) -> str:
@@ -109,7 +64,7 @@ def _escape_separator(separator: str) -> str:
     return codecs.escape_encode(separator.encode("utf-8"))[0].decode("utf-8")
 
 
-def prepare_slicegpt_dataloader(
+def prepare_dataloader_v1(
     *,
     dataset: datasets.Dataset,
     tokenizer: transformers.PreTrainedTokenizerBase,
@@ -123,7 +78,7 @@ def prepare_slicegpt_dataloader(
 
     separator = _normalize_separator(separator, tokenizer)
 
-    logger.info(f"slicegpt dataloader - using sep={_escape_separator(separator)}")
+    logger.info(f"v1 dataloader - using sep={_escape_separator(separator)}")
 
     if not varied_seqlen and not nsamples:
         logger.warning(
@@ -132,7 +87,7 @@ def prepare_slicegpt_dataloader(
         )
 
     data_name = dataset.column_names[0]
-    logger.info(f"slicegpt dataloader - using data column={data_name}")
+    logger.info(f"v1 dataloader - using data column={data_name}")
     ds = dataset.filter(lambda x: len(x[data_name]) > 0)
 
     if not varied_seqlen:
@@ -162,7 +117,7 @@ def prepare_slicegpt_dataloader(
             if len(tokens) >= max_seqlen:
                 tokens = tokens[:max_seqlen]  # truncate to max_seqlen
                 new_data_list.append(tokenizer.convert_tokens_to_string(tokens))
-        msg = f"slicegpt dataloader - created dataset of size {len(new_data_list)}"
+        msg = f"v1 dataloader - created dataset of size {len(new_data_list)}"
         logger.info(msg)
         ds = datasets.Dataset.from_dict({data_name: new_data_list})
 
