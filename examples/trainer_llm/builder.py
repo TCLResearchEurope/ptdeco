@@ -74,10 +74,12 @@ def make_model_and_tokenizer(
 
 
 def apply_decompose_config_and_state_dict_in_place(
+    *,
     model: torch.nn.Module,
     decompose_config_path: str,
     state_dict_path: str,
     device: torch.device,
+    dtype: torch.dtype,
     log_linears: bool = False,
 ) -> None:
 
@@ -85,11 +87,14 @@ def apply_decompose_config_and_state_dict_in_place(
         decompose_config = json.load(f)
 
     ptdeco.utils.apply_decompose_config_in_place(model, decompose_config)
+    model.to(device)
+    model.to(dtype)
     ptdeco.utils.free_gpu_reserved_memory()
     logger.info(f"Applied decompose config {decompose_config_path}")
-
     sd = torch.load(state_dict_path, map_location=device)
+
     model.load_state_dict(sd)
+
     logger.info(f"Loaded state dict {state_dict_path}")
     model.eval()
 

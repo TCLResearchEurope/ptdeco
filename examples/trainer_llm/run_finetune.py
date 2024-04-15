@@ -235,15 +235,16 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
         dtype=dtype,
         log_linears=False,
     )
-
+    model.to(device)
     params_orig = metrics.get_params(model) / 1.0e6
     gflops_orig = metrics.get_giga_flops(model, tensor_size=(1, 512))
-    model.to(device)
+
     builder.apply_decompose_config_and_state_dict_in_place(
         model=model,
         decompose_config_path=config.decompose_config,
         state_dict_path=config.decompose_state_dict,
         device=device,
+        dtype=dtype,
         log_linears=True,
     )
 
