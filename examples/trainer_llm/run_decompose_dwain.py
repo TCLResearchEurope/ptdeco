@@ -127,10 +127,10 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
         model_name=config.decomposed_model_name,
         model_revision=config.decomposed_model_revision,
         enable_gradient_checkpointing=egc,
-        device=device,
         dtype=dtype,
         log_linears=True,
     )
+    model.to(device)
 
     # 3. PREPARE DATALOADERS
 

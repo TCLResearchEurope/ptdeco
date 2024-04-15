@@ -231,13 +231,22 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
     model, tokenizer = builder.make_model_and_tokenizer(
         model_name=config.decomposed_model_name,
         model_revision=config.decomposed_model_revision,
+        enable_gradient_checkpointing=egc,
+        dtype=dtype,
+        log_linears=False,
+    )
+
+    params_orig = metrics.get_params(model) / 1.0e6
+    gflops_orig = metrics.get_giga_flops(model, tensor_size=(1, 512))
+    model.to(device)
+    builder.apply_decompose_config_and_state_dict_in_place(
+        model=model,
         decompose_config_path=config.decompose_config,
         state_dict_path=config.decompose_state_dict,
-        enable_gradient_checkpointing=egc,
         device=device,
-        dtype=dtype,
         log_linears=True,
     )
+
     params_final = metrics.get_params(model) / 1.0e6
     gflops_final = metrics.get_giga_flops(model, tensor_size=(1, 512))
 
@@ -369,6 +378,8 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
         device_str += " @ " + torch.cuda.get_device_name(device)
 
     summary = {
+        "mparams_orig": params_orig,
+        "gflops_orig": gflops_orig,
         "perplexity_initial": perplexity_orig,
         "perplexity_final": perplexity_final,
         "mparams_final": params_final,

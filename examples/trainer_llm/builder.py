@@ -1,6 +1,5 @@
 import json
 import logging
-from typing import Optional
 
 import ptdeco.utils
 import torch
@@ -47,10 +46,7 @@ def make_model_and_tokenizer(
     model_name: str,
     model_revision: str,
     enable_gradient_checkpointing: bool,
-    device: torch.device,
     dtype: torch.dtype,
-    decompose_config_path: Optional[str] = None,
-    state_dict_path: Optional[str] = None,
     log_linears: bool = False,
 ) -> tuple[transformers.AutoModelForCausalLM, transformers.PreTrainedTokenizer]:
     model_name = model_name
@@ -70,21 +66,32 @@ def make_model_and_tokenizer(
     if enable_gradient_checkpointing:
         model.gradient_checkpointing_enable()
     _add_pad_token(model=model, tokenizer=tokenizer, model_name=model_name)
-
-    if decompose_config_path is not None:
-        with open(decompose_config_path, "rt") as f:
-            decompose_config = json.load(f)
-
-        ptdeco.utils.apply_decompose_config_in_place(model, decompose_config)
-        ptdeco.utils.free_gpu_reserved_memory()
-        logger.info(f"Applied decompose config {decompose_config_path}")
-    model.to(device)
-    model.to(dtype)
-    if state_dict_path is not None:
-        sd = torch.load(state_dict_path, map_location=device)
-        model.load_state_dict(sd)
-        logger.info(f"Loaded state dict {state_dict_path}")
-    model.eval()
     if log_linears:
         _log_linear_submodules(model)
+    model.to(dtype)
+    model.eval()
     return model, tokenizer
+
+
+def apply_decompose_config_and_state_dict_in_place(
+    model: torch.nn.Module,
+    decompose_config_path: str,
+    state_dict_path: str,
+    device: torch.device,
+    log_linears: bool = False,
+) -> None:
+
+    with open(decompose_config_path, "rt") as f:
+        decompose_config = json.load(f)
+
+    ptdeco.utils.apply_decompose_config_in_place(model, decompose_config)
+    ptdeco.utils.free_gpu_reserved_memory()
+    logger.info(f"Applied decompose config {decompose_config_path}")
+
+    sd = torch.load(state_dict_path, map_location=device)
+    model.load_state_dict(sd)
+    logger.info(f"Loaded state dict {state_dict_path}")
+    model.eval()
+
+    if log_linears:
+        _log_linear_submodules(model)
