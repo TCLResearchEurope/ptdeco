@@ -199,7 +199,7 @@ def _compute_decompositon_of_covariance_matrix(
         damp = EIGEN_DAMPEN_FACTOR * torch.mean(torch.diag(cov))
         diag = torch.arange(cov.shape[-1], device=cov.device)
         Eyyt[diag, diag] += damp
-    logger.info("{cov.dtype=}")
+    logger.info(f"{cov.dtype=}")
     _, u = torch.linalg.eigh(cov)
     return u
 
