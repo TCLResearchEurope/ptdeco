@@ -92,14 +92,16 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
     data_iterator = make_image_iterator(train_dataloader)
 
     model = builder.make_model(config.decompose_model_name)
-    t_val_start = time.perf_counter()
+    t_eval_start = time.perf_counter()
     accuracy_val_initial = calc_accuracy(
         model=model,
         valid_pipeline=valid_pipeline,
         device=device,
     )
-    t_val = time.perf_counter() - t_val_start
-    logger.info(f"Initial accuracy {accuracy_val_initial=}, eval took  {t_val:.2f} s")
+    t_eval_intial = time.perf_counter() - t_eval_start
+    logger.info(
+        f"Initial accuracy {accuracy_val_initial=}, eval took  {t_eval_intial:.2f} s"
+    )
 
     builder.validate_module_names(model, config.blacklisted_modules)
 
@@ -107,6 +109,7 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
     stats_initial = builder.get_model_stats(model, b_c_h_w)
     stats_initial["accuracy_val"] = accuracy_val_initial
 
+    t_decomposition_start = time.perf_counter()
     decompose_config = ptdeco.falor.decompose_in_place(
         module=model,
         device=device,
@@ -118,15 +121,19 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
         num_metric_steps=config.num_metric_steps,
         blacklisted_module_names=config.blacklisted_modules,
     )
+    t_decomposition = time.perf_counter() - t_decomposition_start
+
     stats_final = builder.get_model_stats(model, b_c_h_w)
-    t_val_start = time.perf_counter()
+    t_eval_start = time.perf_counter()
     accuracy_val_final = calc_accuracy(
         model=model,
         valid_pipeline=valid_pipeline,
         device=device,
     )
-    t_val = time.perf_counter() - t_val_start
-    logger.info(f"Final accuracy {accuracy_val_final=},  eval took  {t_val:.2f} s")
+    t_eval_final = time.perf_counter() - t_eval_start
+    logger.info(
+        f"Final accuracy {accuracy_val_final=},  eval took  {t_eval_final:.2f} s"
+    )
     stats_final["accuracy_val"] = accuracy_val_final
 
     out_decompose_config_path = output_path / "decompose_config.json"
@@ -137,3 +144,29 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
 
     builder.log_model_stats(logger, "Original model  :", stats_initial)
     builder.log_model_stats(logger, "Decomposed model:", stats_final)
+
+    device_str = str(device)
+    if "cuda" in device_str:
+        device_str += " @ " + torch.cuda.get_device_name(device)
+
+    summary = {
+        "accuracy_val_initial": accuracy_val_initial,
+        "accuracy_val_final": accuracy_val_final,
+        "mparams_initial": stats_initial["mparams"],
+        "mparams_final": stats_final["mparams"],
+        "mparams_frac": stats_final["mparams"] / stats_initial["mparams"] * 100.0,
+        "gflops_initial": stats_initial["gflops"],
+        "gflops_final": stats_final["gflops"],
+        "gflops_frac": stats_final["gflops"] / stats_initial["gflops"] * 100.0,
+        "kmapps_initial": stats_initial["kmapps"],
+        "kmapps_finall": stats_final["kmapps"],
+        # Should be the same as "gflops_frac", but we log it for completeness
+        "kmapps_frac": stats_final["kmapps"] / stats_initial["kmapps"] * 100.0,
+        "time_eval_initial": t_eval_intial,
+        "time_decomposition": t_decomposition,
+        "time_eval_final": t_eval_final,
+        "device": device_str,
+    }
+
+    with open(output_path / "summary.json", "wt") as f:
+        json.dump(summary, f)
