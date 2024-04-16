@@ -119,6 +119,9 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
         num_data_steps=config.num_data_steps,
         num_metric_steps=config.num_metric_steps,
         blacklisted_module_names=config.blacklisted_modules,
+        use_float64=config.use_float64,
+        use_mean=config.use_mean,
+        use_damping=config.use_damping,
     )
     t_decomposition = time.perf_counter() - t_decomposition_start
 

@@ -55,7 +55,9 @@ class DecomposeFALORConfig(_VersionConfig, _DataConfig):
     nsr_final_threshold: float
     num_data_steps: int
     num_metric_steps: int
-
+    use_mean: bool
+    use_float64: bool
+    use_damping: bool
     model_config = pydantic.ConfigDict(extra="forbid")
 
 
