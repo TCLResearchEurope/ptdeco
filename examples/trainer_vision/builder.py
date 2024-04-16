@@ -67,6 +67,9 @@ def log_model_stats(
     kmapps = model_stats["kmapps"]
     mparams = model_stats["mparams"]
     msg = f"{log_prefix} gflops={gflops:.2f} kmapps={kmapps:.2f} Mparams={mparams:.2f}"
+    acc = model_stats.get("accuracy_val")
+    if acc is not None:
+        msg += f" {100*acc:.2f}"
     stats_logger.info(msg)
 
 
