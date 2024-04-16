@@ -18,6 +18,8 @@ import torch
 
 from .. import utils
 
+EIGEN_DAMPEN_FACTOR = 0.01
+
 logger = logging.getLogger(__name__)
 
 __all__ = ["decompose_in_place"]
@@ -164,14 +166,20 @@ def _compute_decompositon_of_covariance_matrix(
     weight: torch.Tensor,
     num_data_steps: int,
     device: torch.device,
+    use_float64: bool,
+    use_mean: bool,
+    use_damping: bool,
 ) -> torch.Tensor:
     root_module.eval()
     decomposed_submodule = root_module.get_submodule(decomposed_submodule_name)
     assert isinstance(decomposed_submodule, WrappedFALORModule)
-
-    Ey = torch.zeros(weight.shape[0]).to(device)
-    Eyyt = torch.zeros((weight.shape[0], weight.shape[0])).to(device)
-
+    n_out = weight.shape[0]
+    if use_float64:
+        Ey = torch.zeros(n_out, dtype=torch.float64).to(device)
+        Eyyt = torch.zeros((n_out, n_out), dtype=torch.float64).to(device)
+    else:
+        Ey = torch.zeros(n_out, dtype=torch.float32).to(device)
+        Eyyt = torch.zeros((n_out, n_out), dtype=torch.float32).to(device)
     for i in range(num_data_steps):
         inputs = next(data_iterator).to(device)
         _ = root_module(inputs)
@@ -179,7 +187,19 @@ def _compute_decompositon_of_covariance_matrix(
         Ey, Eyyt = _accumulate_Ey_and_Eyyt(Ey=Ey, Eyyt=Eyyt, weight=weight, x=x)
     Ey /= num_data_steps
     Eyyt /= num_data_steps
-    cov = Eyyt - torch.outer(Ey, Ey)
+    if use_mean:
+        logger.info("Using mean for covariance")
+        cov = Eyyt - torch.outer(Ey, Ey)
+    else:
+        logger.info("Not using mean for covariance")
+        cov = Eyyt
+    if use_damping:
+        # https://stats.stackexchange.com/questions/390532/adding-a-small-constant-to-the-diagonals-of-a-matrix-to-stabilize
+        logger.info("Using damping")
+        damp = EIGEN_DAMPEN_FACTOR * torch.mean(torch.diag(cov))
+        diag = torch.arange(cov.shape[-1], device=cov.device)
+        Eyyt[diag, diag] += damp
+    logger.info("{cov.dtype=}")
     _, u = torch.linalg.eigh(cov)
     return u
 
@@ -256,6 +276,9 @@ def _process_module(
     num_data_steps: int,
     num_metric_steps: int,
     device: torch.device,
+    use_float64: bool,
+    use_mean: bool,
+    use_damping: bool,
 ) -> dict[str, Any]:
     decomposed_submodule = root_module.get_submodule(decomposed_submodule_name)
     decomposed_type = utils.get_type_name(decomposed_submodule)
@@ -289,6 +312,9 @@ def _process_module(
         weight=orig_weight,
         num_data_steps=num_data_steps,
         device=device,
+        use_float64=use_float64,
+        use_mean=use_mean,
+        use_damping=use_damping,
     )
 
     U, V = torch.empty(0), torch.empty(0)
@@ -390,6 +416,9 @@ def decompose_in_place(
     kl_final_threshold: float,
     num_data_steps: int,
     num_metric_steps: int,
+    use_float64: bool,
+    use_mean: bool,
+    use_damping: bool,
 ) -> dict[str, Any]:
     start_time = time.perf_counter()
 
@@ -419,6 +448,9 @@ def decompose_in_place(
                 num_data_steps=num_data_steps,
                 num_metric_steps=num_metric_steps,
                 device=device,
+                use_float64=use_float64,
+                use_mean=use_mean,
+                use_damping=use_damping,
             )
         results_all[submodule_name] = result
 
