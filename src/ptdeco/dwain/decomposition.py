@@ -14,9 +14,9 @@ __all__ = [
     "decompose_in_place",
 ]
 
-logger = logging.getLogger(__name__)
-
 EIGEN_DAMPEN_FACTOR = 0.01
+
+logger = logging.getLogger(__name__)
 
 
 class WrappedDWAINModule(torch.nn.Module):
@@ -153,6 +153,7 @@ def _update_Eyyt_in_place(Eyyt: torch.Tensor, y_reshaped: torch.Tensor) -> None:
 
 def _get_eigenvectors(Eyyt: torch.Tensor, num_data_steps: int) -> torch.Tensor:
     Eyyt = Eyyt / num_data_steps
+    # https://stats.stackexchange.com/questions/390532/adding-a-small-constant-to-the-diagonals-of-a-matrix-to-stabilize
     damp = EIGEN_DAMPEN_FACTOR * torch.mean(torch.diag(Eyyt))
     diag = torch.arange(Eyyt.shape[-1], device=Eyyt.device)
     Eyyt[diag, diag] = Eyyt[diag, diag] + damp
