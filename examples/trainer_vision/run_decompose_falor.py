@@ -93,15 +93,14 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
 
     model = builder.make_model(config.decompose_model_name)
     t_eval_start = time.perf_counter()
-    accuracy_val_initial = calc_accuracy(
+    accuracy_val_initial = 100.0 * calc_accuracy(
         model=model,
         valid_pipeline=valid_pipeline,
         device=device,
     )
     t_eval_intial = time.perf_counter() - t_eval_start
-    logger.info(
-        f"Initial accuracy {accuracy_val_initial=}, eval took  {t_eval_intial:.2f} s"
-    )
+    s = f"Initial accuracy {accuracy_val_initial:.2f}, eval took {t_eval_intial:.2f} s"
+    logger.info(s)
 
     builder.validate_module_names(model, config.blacklisted_modules)
 
@@ -125,15 +124,14 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
 
     stats_final = builder.get_model_stats(model, b_c_h_w)
     t_eval_start = time.perf_counter()
-    accuracy_val_final = calc_accuracy(
+    accuracy_val_final = 100.0 * calc_accuracy(
         model=model,
         valid_pipeline=valid_pipeline,
         device=device,
     )
     t_eval_final = time.perf_counter() - t_eval_start
-    logger.info(
-        f"Final accuracy {accuracy_val_final=},  eval took  {t_eval_final:.2f} s"
-    )
+    s = f"Final accuracy {accuracy_val_final:.2f},  eval took  {t_eval_final:.2f} s"
+    logger.info(s)
     stats_final["accuracy_val"] = accuracy_val_final
 
     out_decompose_config_path = output_path / "decompose_config.json"
