@@ -73,15 +73,37 @@ def log_model_stats(
     stats_logger.info(msg)
 
 
-def make_model(model_name: str) -> torch.nn.Module:
+def make_model(
+    model_name: str, log_linears_an_conv1x1: bool = False
+) -> torch.nn.Module:
     builder, model_name = model_name.split(".", maxsplit=1)
 
     logger.info(f"Creating model: {builder} {model_name}")
 
     if builder == "timm":
-        return timm.create_model(model_name, pretrained=True)
+        model = timm.create_model(model_name, pretrained=True)
     else:
         raise ValueError(f"Unknown model builder {builder}")
+
+    if log_linears_an_conv1x1:
+        n_linears = 0
+        n_conv1x1 = 0
+        i = 1
+        for name, module in model.named_modules():
+            i = n_linears + n_conv1x1 + 1
+            if isinstance(module, torch.nn.Linear):
+                logger.info(f"  - {name} # ({i}) linear {tuple(module.weight.shape)}")
+                n_linears += 1
+            elif (
+                isinstance(module, torch.nn.Conv2d)
+                and module.kernel_size[0] == 1
+                and module.kernel_size[1] == 1
+                and module.groups == 1
+            ):
+                n_conv1x1 += 1
+                logger.info(f"  - {name} # ({i}) conv1x1 {tuple(module.weight.shape)}")
+    logger.info(f"Decomposeabel module statistics {n_linears=} {n_conv1x1=}")
+    return model
 
 
 def validate_module_names(model: torch.nn.Module, module_names: list[str]) -> None:

@@ -91,7 +91,7 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
 
     data_iterator = make_image_iterator(train_dataloader)
 
-    model = builder.make_model(config.decompose_model_name)
+    model = builder.make_model(config.decompose_model_name, log_linears_an_conv1x1=True)
     t_eval_start = time.perf_counter()
     accuracy_val_initial = 100.0 * calc_accuracy(
         model=model,
