@@ -1,8 +1,9 @@
 """Implementation of the FALOR method (FAL = Features Are LOw-Rank)
 
+Inspired by the paper:
+
 Compressing transformers: features are low-rank, but weights are not!,
 Hao Yu, Jianxin Wu, AAAI Conference on Artificial Intelligence (2023)
-
 
 https://doi.org/10.1609/aaai.v37i9.26304
 
@@ -22,7 +23,7 @@ EIGEN_DAMPEN_FACTOR = 0.01
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["decompose_in_place"]
+__all__ = ["decompose_in_place", "is_decomposeable_module"]
 
 
 class WrappedFALORModule(torch.nn.Module):
@@ -383,7 +384,7 @@ def _process_module(
     }
 
 
-def _is_decomposeable_module(module: torch.nn.Module) -> bool:
+def is_decomposeable_module(module: torch.nn.Module) -> bool:
     return isinstance(module, torch.nn.Linear) or (
         isinstance(module, torch.nn.Conv2d)
         and module.kernel_size[0] == 1
@@ -394,7 +395,7 @@ def _is_decomposeable_module(module: torch.nn.Module) -> bool:
 
 def _get_decomposeable_submodule_names(module: torch.nn.Module) -> list[str]:
     return [
-        name for name, mod in module.named_modules() if _is_decomposeable_module(mod)
+        name for name, mod in module.named_modules() if is_decomposeable_module(mod)
     ]
 
 
