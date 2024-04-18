@@ -92,6 +92,9 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
     data_iterator = make_image_iterator(train_dataloader)
 
     model = builder.make_model(config.decompose_model_name, log_linears_an_conv1x1=True)
+    builder.validate_module_names(model, config.blacklisted_modules)
+    model.to(device)
+
     t_eval_start = time.perf_counter()
     accuracy_val_initial = 100.0 * calc_accuracy(
         model=model,
@@ -99,14 +102,15 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
         device=device,
     )
     t_eval_intial = time.perf_counter() - t_eval_start
-    s = f"Initial accuracy {accuracy_val_initial:.2f}, eval took {t_eval_intial:.2f} s"
-    logger.info(s)
 
-    builder.validate_module_names(model, config.blacklisted_modules)
-
-    model.to(device)
     stats_initial = builder.get_model_stats(model, b_c_h_w)
+    stats_initial.update(
+        builder.get_decomposeable_model_stats(
+            model, b_c_h_w, ptdeco.falor.is_decomposeable_module
+        )
+    )
     stats_initial["accuracy_val"] = accuracy_val_initial
+    builder.log_model_stats(logger, "Original model:", stats_initial)
 
     t_decomposition_start = time.perf_counter()
     decompose_config = ptdeco.falor.decompose_in_place(
@@ -154,9 +158,13 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
         "accuracy_val_initial": accuracy_val_initial,
         "accuracy_val_final": accuracy_val_final,
         "mparams_initial": stats_initial["mparams"],
+        # number of parameters in decomposeable operations
+        "mparams_initial_decomposeable": stats_initial["mparams_decomposeable"],
         "mparams_final": stats_final["mparams"],
         "mparams_frac": stats_final["mparams"] / stats_initial["mparams"] * 100.0,
         "gflops_initial": stats_initial["gflops"],
+        # number of gflops in decomposeable operations
+        "gflops_initial_decomposeable": stats_initial["gflops_decomposeable"],
         "gflops_final": stats_final["gflops"],
         "gflops_frac": stats_final["gflops"] / stats_initial["gflops"] * 100.0,
         "kmapps_initial": stats_initial["kmapps"],

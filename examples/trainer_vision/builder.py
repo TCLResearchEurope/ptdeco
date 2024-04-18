@@ -37,6 +37,36 @@ def get_fpops(
     raise ValueError(f"Unknown {units=}")
 
 
+def get_fpops_dict(
+    model: torch.nn.Module,
+    b_c_h_w: tuple[int, int, int, int],
+    units: str = "gflops",
+    device: Optional[torch.device] = None,
+    warnings_off: bool = False,
+) -> dict[str, float]:
+    if device is None:
+        device = ptdeco.utils.get_default_device(model)
+    x = torch.rand(size=b_c_h_w, device=device)
+    fca = fvcore.nn.FlopCountAnalysis(model, x)
+
+    if warnings_off:
+        fca.unsupported_ops_warnings(False)
+
+    # NOTE FV.CORE computes MACs not FLOPs !!!!
+    # Hence 2.0 * here for proper GIGA FLOPS
+
+    flops_raw_dict = fca.by_module()
+
+    if units.lower() == "gflops":
+        factor = 1.0e9 / 2
+    elif units.lower() == "kmapps":
+        factor = b_c_h_w[-1] / b_c_h_w[-2] / 1024.0 / 2
+    else:
+        raise ValueError(f"Unknown {units=}")
+    flops_dict = {k: v / factor for k, v in flops_raw_dict.items()}
+    return flops_dict
+
+
 def get_params(m: torch.nn.Module, only_trainable: bool = False) -> int:
     parameters = list(m.parameters())
     if only_trainable:
@@ -53,23 +83,51 @@ def get_model_stats(
     if device is None:
         device = ptdeco.utils.get_default_device(model)
     model.eval()
+    gflops = get_fpops(model, b_c_h_w=b_c_h_w, units="gflops", device=device)
+    kmapps = get_fpops(model, b_c_h_w=b_c_h_w, units="kmapps", device=device)
+    mparams = get_params(model) / 1.0e6
+
+    return {"gflops": gflops, "kmapps": kmapps, "mparams": mparams}
+
+
+def get_decomposeable_model_stats(
+    model: torch.nn.Module,
+    b_c_h_w: tuple[int, int, int, int],
+    is_decomposeable_fn: collections.abc.Callable[[torch.nn.Module], bool],
+    device: Optional[torch.device] = None,
+) -> dict[str, float]:
+    fpops_dict = get_fpops_dict(model, b_c_h_w=b_c_h_w, units="gflops", device=device)
+    gflops_decomposeable = 0.0
+    params_decomposeable = 0
+    for name, m in model.named_modules():
+        if is_decomposeable_fn(m):
+            gflops_decomposeable += fpops_dict[name]
+            params_decomposeable += get_params(m)
     return {
-        "gflops": get_fpops(model, b_c_h_w=b_c_h_w, units="gflops", device=device),
-        "kmapps": get_fpops(model, b_c_h_w=b_c_h_w, units="kmapps", device=device),
-        "mparams": get_params(model) / 1.0e6,
+        "gflops_decomposeable": gflops_decomposeable,
+        "mparams_decomposeable": params_decomposeable / 1.0e6,
     }
 
 
 def log_model_stats(
-    stats_logger: logging.Logger, log_prefix: str, model_stats: dict[str, Any]
+    stats_logger: logging.Logger,
+    log_prefix: str,
+    model_stats: dict[str, Any],
 ) -> None:
     gflops = model_stats["gflops"]
+    msg = f"{log_prefix} gflops={gflops:.2f}"
+    acc = model_stats.get("accuracy_val")
     kmapps = model_stats["kmapps"]
     mparams = model_stats["mparams"]
-    msg = f"{log_prefix} gflops={gflops:.2f} kmapps={kmapps:.2f} Mparams={mparams:.2f}"
-    acc = model_stats.get("accuracy_val")
+    msg += f" kmapps={kmapps:.2f} Mparams={mparams:.2f}"
     if acc is not None:
-        msg += f" {100*acc:.2f}"
+        msg += f" acc={acc:.2f}"
+    gflops_deco = model_stats.get("gflops_decomposeable")
+    if gflops_deco is not None:
+        msg += f" gflops_deco={gflops_deco:.2f}"
+    mparams_deco = model_stats.get("mparams_decomposeable")
+    if mparams_deco:
+        msg += f" mparams_deco={mparams_deco:.2f}"
     stats_logger.info(msg)
 
 
@@ -102,7 +160,7 @@ def make_model(
             ):
                 n_conv1x1 += 1
                 logger.info(f"  - {name} # ({i}) conv1x1 {tuple(module.weight.shape)}")
-    logger.info(f"Decomposeabel module statistics {n_linears=} {n_conv1x1=}")
+    logger.info(f"Decomposeable module statistics {n_linears=} {n_conv1x1=}")
     return model
 
 
