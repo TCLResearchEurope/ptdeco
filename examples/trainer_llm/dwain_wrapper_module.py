@@ -3,7 +3,7 @@ import json
 import logging
 import pathlib
 import time
-from typing import Any, Optional, cast
+from typing import Any, Optional
 
 import peft
 import ptdeco.utils
@@ -25,6 +25,22 @@ class WrapperModule(torch.nn.Module):
 
     def forward(self, x: dict[str, torch.Tensor], **kwargs: Any) -> torch.Tensor:
         return self.raw_model(input_ids=x["input_ids"], **kwargs).logits
+
+
+def ce_loss(input_dict: dict[str, torch.Tensor], output: torch.Tensor) -> torch.Tensor:
+    labels = input_dict["labels"]
+    attention_mask = input_dict["attention_mask"]
+    labels = labels[..., 1:].contiguous()
+    output = output[..., :-1, :].contiguous()
+    attention_mask = attention_mask[..., :-1]
+
+    # ignore padding tokens when computing the loss
+    output = output * attention_mask.unsqueeze(-1)
+
+    loss = torch.nn.functional.cross_entropy(
+        output.view(-1, output.shape[-1]), labels.view(-1)
+    )
+    return loss
 
 
 def add_prefix(module_names: Optional[list[str]]) -> Optional[list[str]]:
@@ -111,18 +127,12 @@ def finetune_full(
     total_loss = 0.0
     for step in range(num_steps):
         batch = ptdeco.utils.to_device(next(ft_iterator), device)
-        # TODO: ML remove this cast
-        batch = cast(dict[str, torch.Tensor], batch)
         counter += 1
         if step > num_steps:
             break
         optimizer.zero_grad()
-        labels = batch["labels"]
-        attention_mask = batch["attention_mask"]
         outputs = model(batch)
-        loss = ptdeco.dwain.compute_loss(
-            logits=outputs, labels=labels, attention_mask=attention_mask
-        )
+        loss = ce_loss(batch, outputs)
         loss.backward()
         optimizer.step()
         lr_scheduler.step()
@@ -228,19 +238,14 @@ def finetune_lora(
     total_loss = 0.0
     for step in range(num_steps):
         input_dict = ptdeco.utils.to_device(next(ft_iterator), device)
-        # TODO: ML remove this cast
-        input_dict = cast(dict[str, torch.Tensor], input_dict)
         input_ids = input_dict["input_ids"]
-        labels = input_dict["labels"]
-        attention_mask = input_dict["attention_mask"]
         counter += 1
         if step > num_steps:
             break
         optimizer.zero_grad()
-        outputs = peft_model(input_ids=input_ids)
-        loss = ptdeco.dwain.compute_loss(
-            logits=outputs.logits, labels=labels, attention_mask=attention_mask
-        )
+        outputs = peft_model(input_ids=input_ids).logits
+        loss = ce_loss(input_dict, outputs)
+
         total_loss += loss.item()
         loss.backward()
         optimizer.step()
