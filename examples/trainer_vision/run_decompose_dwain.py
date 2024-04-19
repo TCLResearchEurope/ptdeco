@@ -32,6 +32,11 @@ def no_finetune(
     return m
 
 
+def ce_loss(input_dict: dict[str, torch.Tensor], output: torch.Tensor) -> torch.Tensor:
+    target = input_dict["targets"]
+    return torch.nn.functional.cross_entropy(input=output, target=target)
+
+
 class WrapperModule(torch.nn.Module):
     def __init__(self, model: torch.nn.Module):
         super().__init__()
@@ -101,6 +106,7 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
         device=device,
         blacklisted_module_names=config.blacklisted_module_names,
         data_iterator=decomposition_it,
+        loss_fn=ce_loss,
         finetune_fn=no_finetune,
         metric_iterator=decomposition_it,
         nsr_final_threshold=config.nsr_final_threshold,
