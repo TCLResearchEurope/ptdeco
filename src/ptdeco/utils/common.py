@@ -1,6 +1,6 @@
 import gc
 import logging
-from typing import Any
+from typing import Any, TypeVar
 
 import torch
 
@@ -19,10 +19,10 @@ __all__ = [
 
 logger = logging.getLogger(__name__)
 
+T = TypeVar("T", torch.Tensor, dict[str, torch.Tensor])
 
-def to_device(
-    o: torch.Tensor | dict[str, torch.Tensor], device: torch.device
-) -> torch.Tensor | dict[str, torch.Tensor]:
+
+def to_device(o: T, device: torch.device) -> T:
     if isinstance(o, torch.Tensor):
         return o.to(device)
     elif isinstance(o, dict):
