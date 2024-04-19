@@ -1,0 +1,29 @@
+task: decompose_dwain
+
+# Dataset setup
+
+imagenet_root_dir: /nas/datasets/vision/ImageNet/pod_download/data/fix
+trn_imagenet_classes_fname: /nas/datasets/vision/ImageNet/pod_download/data/train_es.txt
+val_imagenet_classes_fname: /nas/datasets/vision/ImageNet/pod_download/data/val.txt
+batch_size: 80
+normalization: imagenet
+input_h_w: [224, 224]
+
+# Model setup
+
+decompose_model_name: timm.swinv2_cr_tiny_ns_224.sw_in1k
+
+# Decomposition setup
+
+decompose_in_float64: true
+num_data_steps: 8
+num_metric_steps: 8
+trade_off_factor: 0.5
+proportion_threshold: 0.75
+ppl_diff_threshold: 0.005
+min_proportion: 0.25
+nsr_final_threshold: 1.0
+min_rank: 4
+precomputing_covariance_num_splits: 1
+blacklisted_module_names: []
+
