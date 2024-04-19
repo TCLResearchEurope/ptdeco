@@ -297,7 +297,6 @@ def _compute_metrics(
     root_module.eval()
 
     decomposed_submodule.set_weight(deco_weight)
-
     y_deco = root_module(input_dict)
 
     decomposed_submodule.set_weight(orig_weight)
@@ -305,7 +304,7 @@ def _compute_metrics(
 
     loss_deco = loss_fn(input_dict, y_deco)
 
-    loss_orig = loss_fn(input_dict, y_deco)
+    loss_orig = loss_fn(input_dict, y_orig)
 
     nsr_final = utils.calc_per_channel_noise_to_signal_ratio(
         y=y_orig, x=y_deco, non_channel_dim=(0, 1), mode="mean"
