@@ -165,6 +165,7 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
         device=device,
         blacklisted_module_names=blacklisted_module_names_wrapped,
         data_iterator=decomposition_it,
+        loss_fn=dwain_wrapper_module.ce_loss,
         finetune_fn=finetune_fn,
         metric_iterator=decomposition_it,
         nsr_final_threshold=config.nsr_final_threshold,
