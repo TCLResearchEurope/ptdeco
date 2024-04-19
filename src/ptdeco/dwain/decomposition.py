@@ -438,7 +438,6 @@ def _process_module(
     rank_best = full_rank
     rank_new = full_rank
     nsr_best, ppl_best = 0.0, 0.0
-    skip = False
     drop_in_params = 0
 
     while rank_new > min_rank:
@@ -453,6 +452,7 @@ def _process_module(
         ppl_diff_threshold = fraction_of_params_to_be_removed * trade_off_factor
 
         if drop_in_params == 0:
+            logger.info(f"{i=} {rank_new=} does not lead to params drop, skipping")
             continue
 
         # TODO: ML U@V in full precision and then cast to orig_dtype
@@ -502,19 +502,23 @@ def _process_module(
         logger.info(f"{msg_prefix} {msg_iter} {msg_cur}")
         logger.info(f"deco ppl: {ppl_deco}, orig ppl: {ppl_orig}")
         i += 1
-    assert U.numel() > 0 and V.numel() > 0
 
-    proportion = rank_best / full_rank
-    msg_metrics = f"{proportion=:.4f} nsr={nsr_best:.6f} ppl={ppl_best:.6f}"
-    logger.info(f"{msg_prefix} iter=FINAL rank={rank_best} {msg_metrics}")
+    decomposition_occurred = U.numel() > 0 and V.numel() > 0
 
-    decompose_decision = _check_if_decompose(
-        proportion=proportion,
-        in_features=dim_in,
-        out_features=dim_out,
-    )
+    if decomposition_occurred:
+        proportion = rank_best / full_rank
+        msg_metrics = f"{proportion=:.4f} nsr={nsr_best:.6f} ppl={ppl_best:.6f}"
+        logger.info(f"{msg_prefix} iter=FINAL rank={rank_best} {msg_metrics}")
 
-    if full_rank != rank_best and not skip and decompose_decision:
+        decompose_decision = _check_if_decompose(
+            proportion=proportion,
+            in_features=dim_in,
+            out_features=dim_out,
+        )
+    else:
+        decompose_decision = False
+
+    if decomposition_occurred and full_rank != rank_best and decompose_decision:
         uk_matrix = (
             u_matrix[:, u_matrix.shape[1] - rank_best :].to(orig_dtype).to(device)
         )
@@ -524,17 +528,19 @@ def _process_module(
         )
         new_decomposed_submodule.to(orig_device)
         new_decomposed_submodule.to(orig_dtype)
-    else:
-        logger.info(f"{msg_prefix} Module decomposed to full rank, not decomposing")
-        new_decomposed_submodule = None
-        _unwrap_in_place(root_module, decomposed_submodule_name)
-
-    previous_params_in_module = _get_params_for_proportion(1.0, dim_in, dim_out)
-    current_params_in_module = _get_params_for_proportion(proportion, dim_in, dim_out)
-    if decompose_decision:
+        previous_params_in_module = _get_params_for_proportion(1.0, dim_in, dim_out)
+        current_params_in_module = _get_params_for_proportion(
+            proportion, dim_in, dim_out
+        )
         drop_in_params = previous_params_in_module - current_params_in_module
     else:
+        proportion = 1.0
+        nsr_new = 0.0
+        ppl_new = 0.0
+        logger.info(f"{msg_prefix} Skipping module decomposition")
         drop_in_params = 0
+        new_decomposed_submodule = None
+        _unwrap_in_place(root_module, decomposed_submodule_name)
 
     return {
         "proportion": proportion,
