@@ -61,6 +61,26 @@ class DecomposeFALORConfig(_VersionConfig, _DataConfig):
     model_config = pydantic.ConfigDict(extra="forbid")
 
 
+class DecomposeDWAINConfig(_VersionConfig, _DataConfig):
+    task: Literal["decompose_dwain"]
+    decompose_model_name: str
+
+    # Decomposition params
+    blacklisted_module_names: Optional[list[str]]
+    num_data_steps: int
+    num_metric_steps: int
+    trade_off_factor: float
+    proportion_threshold: float
+    ppl_diff_threshold: float
+    nsr_final_threshold: float
+    min_proportion: float
+    min_rank: int
+    decompose_in_float64: bool
+    precomputing_covariance_num_splits: Optional[int]
+
+    model_config = pydantic.ConfigDict(extra="forbid")
+
+
 class FinetuneConfig(_VersionConfig, _DataConfig, _TrainConfig):
     task: Literal["finetune"]
     decompose_model_name: str

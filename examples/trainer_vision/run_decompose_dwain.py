@@ -15,19 +15,34 @@ import configurator
 import datasets_dali
 import metrics
 
-
 logger = logging.getLogger(__name__)
 
 
 def make_image_iterator(
     train_dataloader: collections.abc.Iterator[dict[str, torch.Tensor]],
-) -> collections.abc.Iterator[torch.Tensor]:
+) -> collections.abc.Iterator[dict[str, torch.Tensor]]:
     for d in train_dataloader:
-        yield d["inputs"].permute(0, 3, 1, 2)
+        d["inputs"] = d["inputs"].permute(0, 3, 1, 2)
+        yield d
+
+
+def no_finetune(
+    m: torch.nn.Module, device: torch.device, decomposed_modules: list[str]
+) -> torch.nn.Module:
+    return m
+
+
+class WrapperModule(torch.nn.Module):
+    def __init__(self, model: torch.nn.Module):
+        super().__init__()
+        self.raw_model = model
+
+    def forward(self, x: dict[str, torch.Tensor], **kwargs: Any) -> torch.Tensor:
+        return self.raw_model(x["inputs"])
 
 
 def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
-    config = configurator.DecomposeFALORConfig(**config_raw)
+    config = configurator.DecomposeDWAINConfig(**config_raw)
     b_c_h_w = (1, 3, *config.input_h_w)
 
     train_pipeline, valid_pipeline = datasets_dali.make_imagenet_pipelines(
@@ -54,10 +69,11 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
             valid_pipeline, ["inputs", "targets"]
         )
     )
-    data_iterator = make_image_iterator(train_dataloader)
+
+    decomposition_it = make_image_iterator(train_dataloader)
 
     model = builder.make_model(config.decompose_model_name, log_linears_an_conv1x1=True)
-    builder.validate_module_names(model, config.blacklisted_modules)
+    builder.validate_module_names(model, config.blacklisted_module_names)
     model.to(device)
 
     t_eval_start = time.perf_counter()
@@ -77,21 +93,26 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
     stats_initial["accuracy_val"] = accuracy_val_initial
     builder.log_model_stats(logger, "Original model:", stats_initial)
 
+    model_wrapped = WrapperModule(model)
+
     t_decomposition_start = time.perf_counter()
-    decompose_config = ptdeco.falor.decompose_in_place(
-        module=model,
+    decompose_config = ptdeco.dwain.decompose_in_place(
+        module=model_wrapped,
         device=device,
-        data_iterator=data_iterator,
-        proportion_threshold=config.proportion_threshold,
-        kl_final_threshold=config.kl_final_threshold,
+        blacklisted_module_names=config.blacklisted_module_names,
+        data_iterator=decomposition_it,
+        finetune_fn=no_finetune,
+        metric_iterator=decomposition_it,
         nsr_final_threshold=config.nsr_final_threshold,
+        ppl_diff_threshold=config.ppl_diff_threshold,
         num_data_steps=config.num_data_steps,
         num_metric_steps=config.num_metric_steps,
-        blacklisted_module_names=config.blacklisted_modules,
-        use_float64=config.use_float64,
-        use_mean=config.use_mean,
-        use_damping=config.use_damping,
+        min_rank=config.min_rank,
+        trade_off_factor=config.trade_off_factor,
+        decompose_in_float64=config.decompose_in_float64,
+        precomputing_covariance_num_splits=config.precomputing_covariance_num_splits,
     )
+
     t_decomposition = time.perf_counter() - t_decomposition_start
 
     stats_final = builder.get_model_stats(model, b_c_h_w)

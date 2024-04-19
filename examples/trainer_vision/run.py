@@ -11,6 +11,7 @@ import yaml
 
 import run_decompose_falor
 import run_decompose_lockd
+import run_decompose_dwain
 import run_finetune
 import version
 
@@ -52,6 +53,7 @@ def setup_logging() -> None:
         "configurator",
         "run_decompose_lockd",
         "run_decompose_falor",
+        "run_decompose_dwain",
         "run_finetune",
     ]
     for module_name in module_names_verbose:
@@ -139,6 +141,8 @@ def main(args: argparse.Namespace) -> None:
         run_decompose_lockd.main(config=config, output_path=output_path)
     elif task == "decompose_falor":
         run_decompose_falor.main(config_raw=config, output_path=output_path)
+    elif task == "decompose_dwain":
+        run_decompose_dwain.main(config_raw=config, output_path=output_path)
     elif task == "finetune":
         run_finetune.main(config_raw=config, output_path=output_path)
     else:

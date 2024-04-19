@@ -164,12 +164,17 @@ def make_model(
     return model
 
 
-def validate_module_names(model: torch.nn.Module, module_names: list[str]) -> None:
-    known_module_names = {name for name, _ in model.named_modules()}
-    unknown_modules = [name for name in module_names if name not in known_module_names]
-    if unknown_modules:
-        msg = ", ".join(unknown_modules)
-        raise ValueError(f"Unknown module names specified: {msg}")
+def validate_module_names(
+    model: torch.nn.Module, module_names: Optional[list[str]]
+) -> None:
+    if module_names is not None:
+        known_module_names = {name for name, _ in model.named_modules()}
+        unknown_modules = [
+            name for name in module_names if name not in known_module_names
+        ]
+        if unknown_modules:
+            msg = ", ".join(unknown_modules)
+            raise ValueError(f"Unknown module names specified: {msg}")
 
 
 def log_state_dict_keys_stats(
