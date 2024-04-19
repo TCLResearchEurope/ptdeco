@@ -10,7 +10,6 @@ import torch
 from .. import utils
 
 __all__ = [
-    "compute_loss",
     "decompose_in_place",
 ]
 
@@ -283,16 +282,17 @@ def _compute_covariance_matrix_decomposition(
 
 def _compute_metrics(
     *,
-    input_dict: torch.Tensor | dict[str, torch.Tensor],
+    input_dict: dict[str, torch.Tensor],
     root_module: torch.nn.Module,
     decomposed_submodule: torch.nn.Module,
     orig_weight: torch.Tensor,
     deco_weight: torch.Tensor,
+    loss_fn: collections.abc.Callable[
+        [dict[str, torch.Tensor], torch.Tensor], torch.Tensor
+    ],
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     assert isinstance(input_dict, dict)
     assert isinstance(decomposed_submodule, WrappedDWAINModule)
-
-    targets = input_dict["targets"]
 
     root_module.eval()
 
@@ -303,8 +303,9 @@ def _compute_metrics(
     decomposed_submodule.set_weight(orig_weight)
     y_orig = root_module(input_dict)
 
-    loss_deco = torch.nn.functional.cross_entropy(input=y_deco, target=targets)
-    loss_orig = torch.nn.functional.cross_entropy(input=y_orig, target=targets)
+    loss_deco = loss_fn(input_dict, y_deco)
+
+    loss_orig = loss_fn(input_dict, y_deco)
 
     nsr_final = utils.calc_per_channel_noise_to_signal_ratio(
         y=y_orig, x=y_deco, non_channel_dim=(0, 1), mode="mean"
@@ -371,6 +372,9 @@ def _process_module(
     root_module: torch.nn.Module,
     decomposed_submodule_name: str,
     data_iterator: collections.abc.Iterator[dict[str, torch.Tensor]],
+    loss_fn: collections.abc.Callable[
+        [dict[str, torch.Tensor], torch.Tensor], torch.Tensor
+    ],
     nsr_final_threshold: float,
     ppl_diff_threshold: float,
     num_data_steps: int,
@@ -475,6 +479,7 @@ def _process_module(
                 decomposed_submodule=decomposed_submodule,
                 orig_weight=orig_weight,
                 deco_weight=deco_weight,
+                loss_fn=loss_fn,
             )
             ppl_diff_sample = (ppl_deco - ppl_orig) / ppl_orig
             nsr_new += nsr_sample.item()
@@ -567,23 +572,6 @@ def _add_meta_to_module_config(
 ) -> None:
     meta = {k: v for k, v in module_deco_results.items() if k != "decomposed_module"}
     module_config[utils.modconfig.MODCONFIG_META_KEY] = meta
-
-
-def compute_loss(
-    logits: torch.Tensor,
-    labels: torch.Tensor,
-    attention_mask: torch.Tensor,
-) -> torch.Tensor:
-    loss_fc = torch.nn.CrossEntropyLoss()
-    labels = labels[..., 1:].contiguous()
-    logits = logits[..., :-1, :].contiguous()
-    attention_mask = attention_mask[..., :-1]
-
-    # ignore padding tokens when computing the loss
-    logits = logits * attention_mask.unsqueeze(-1)
-
-    loss = loss_fc(logits.view(-1, logits.shape[-1]), labels.view(-1))
-    return loss
 
 
 def _check_if_decompose(
@@ -706,6 +694,9 @@ def decompose_in_place(
     module: torch.nn.Module,
     device: torch.device,
     data_iterator: collections.abc.Iterator[dict[str, torch.Tensor]],
+    loss_fn: collections.abc.Callable[
+        [dict[str, torch.Tensor], torch.Tensor], torch.Tensor
+    ],
     num_data_steps: int,
     metric_iterator: collections.abc.Iterator[dict[str, torch.Tensor]],
     num_metric_steps: int,
@@ -769,6 +760,7 @@ def decompose_in_place(
                 root_module=module,
                 decomposed_submodule_name=submodule_name,
                 data_iterator=data_iterator,
+                loss_fn=loss_fn,
                 metric_iterator=metric_iterator,
                 nsr_final_threshold=nsr_final_threshold,
                 ppl_diff_threshold=ppl_diff_threshold,
