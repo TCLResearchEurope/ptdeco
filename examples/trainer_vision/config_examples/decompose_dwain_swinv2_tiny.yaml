@@ -25,5 +25,5 @@ min_proportion: 0.25
 nsr_final_threshold: 1.0
 min_rank: 4
 precomputing_covariance_num_splits: 1
-blacklisted_module_names: []
+blacklisted_modules: []
 
