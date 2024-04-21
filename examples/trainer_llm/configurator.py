@@ -66,6 +66,8 @@ class FinetuneConfig(_VersionConfig):
     lm_eval_initial: bool
     lm_eval_tasks: Optional[list[str]]
 
+    model_config = pydantic.ConfigDict(extra="forbid")
+
 
 class DecomposeDWAINConfig(_VersionConfig):
     task: Literal["decompose_dwain"]
@@ -116,3 +118,5 @@ class DecomposeDWAINConfig(_VersionConfig):
 
     # lm_eval evaluation params
     lm_eval_tasks: Optional[list[str]]
+
+    model_config = pydantic.ConfigDict(extra="forbid")
