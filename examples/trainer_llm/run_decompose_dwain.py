@@ -157,7 +157,7 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
     finetune_fn = make_finetune_fn(config, decomposition_it)
 
     blacklisted_module_names_wrapped = dwain_wrapper_module.add_prefix(
-        config.blacklisted_module_names
+        config.blacklisted_modules
     )
 
     decompose_config = ptdeco.dwain.decompose_in_place(

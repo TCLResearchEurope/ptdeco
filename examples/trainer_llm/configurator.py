@@ -100,7 +100,7 @@ class DecomposeDWAINConfig(_VersionConfig):
     nsr_final_threshold: float
     min_proportion: float
     min_rank: int
-    blacklisted_module_names: Optional[list[str]]
+    blacklisted_modules: list[str]
     decompose_in_float64: bool
     precomputing_covariance_num_splits: Optional[int]
 
