@@ -31,7 +31,7 @@ ppl_diff_threshold: 0.005
 min_proportion: 0.25
 nsr_final_threshold: 1.0
 min_rank: 4
-precomputing_covariance_num_splits: 1
+precomputing_covariance_num_splits: 8
 
 
 # Fintetuning params
@@ -52,7 +52,7 @@ lm_eval_tasks:
   - hellaswag
   - winogrande
 
-blacklisted_module_names:
+blacklisted_modules:
   # - transformer.h.0.mixer.Wqkv  # (1) (7680, 2560)
   # - transformer.h.0.mixer.out_proj  # (2) (2560, 2560)
   # - transformer.h.0.mlp.fc1  # (3) (10240, 2560)
