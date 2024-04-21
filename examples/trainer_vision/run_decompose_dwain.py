@@ -78,7 +78,7 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
     decomposition_it = make_image_iterator(train_dataloader)
 
     model = builder.make_model(config.decompose_model_name, log_linears_an_conv1x1=True)
-    builder.validate_module_names(model, config.blacklisted_module_names)
+    builder.validate_module_names(model, config.blacklisted_modules)
     model.to(device)
 
     t_eval_start = time.perf_counter()
@@ -104,7 +104,7 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
     decompose_config = ptdeco.dwain.decompose_in_place(
         module=model_wrapped,
         device=device,
-        blacklisted_module_names=config.blacklisted_module_names,
+        blacklisted_module_names=config.blacklisted_modules,
         data_iterator=decomposition_it,
         loss_fn=ce_loss,
         finetune_fn=no_finetune,

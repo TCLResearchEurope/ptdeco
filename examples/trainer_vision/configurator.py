@@ -66,7 +66,7 @@ class DecomposeDWAINConfig(_VersionConfig, _DataConfig):
     decompose_model_name: str
 
     # Decomposition params
-    blacklisted_module_names: Optional[list[str]]
+    blacklisted_modules: list[str]
     num_data_steps: int
     num_metric_steps: int
     trade_off_factor: float
