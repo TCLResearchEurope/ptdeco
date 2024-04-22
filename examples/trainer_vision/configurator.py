@@ -78,6 +78,11 @@ class DecomposeDWAINConfig(_VersionConfig, _DataConfig):
     decompose_in_float64: bool
     precomputing_covariance_num_splits: Optional[int]
 
+    finetuning_run: bool
+    finetuning_lr: float
+    finetuning_num_steps: int
+    finetuning_num_last_finetuned_modules: int
+
     model_config = pydantic.ConfigDict(extra="forbid")
 
 

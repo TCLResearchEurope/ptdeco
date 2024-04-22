@@ -51,6 +51,7 @@ def setup_logging() -> None:
         "ptdeco",
         "builder",
         "configurator",
+        "dwain_wrapper_module",
         "run_decompose_lockd",
         "run_decompose_falor",
         "run_decompose_dwain",

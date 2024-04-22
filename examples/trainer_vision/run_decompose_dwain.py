@@ -13,6 +13,7 @@ import torch
 import builder
 import configurator
 import datasets_dali
+import dwain_wrapper_module
 import metrics
 
 logger = logging.getLogger(__name__)
@@ -32,18 +33,26 @@ def no_finetune(
     return m
 
 
-def ce_loss(input_dict: dict[str, torch.Tensor], output: torch.Tensor) -> torch.Tensor:
-    target = input_dict["targets"]
-    return torch.nn.functional.cross_entropy(input=output, target=target)
-
-
-class WrapperModule(torch.nn.Module):
-    def __init__(self, model: torch.nn.Module):
-        super().__init__()
-        self.raw_model = model
-
-    def forward(self, x: dict[str, torch.Tensor], **kwargs: Any) -> torch.Tensor:
-        return self.raw_model(x["inputs"])
+def make_finetune_fn(
+    config: configurator.DecomposeDWAINConfig,
+    ft_iterator: collections.abc.Iterator[dict[str, torch.Tensor]],
+) -> collections.abc.Callable[
+    [torch.nn.Module, torch.device, list[str]], torch.nn.Module
+]:
+    if config.finetuning_run:
+        logger.info("Creating full finetuning function")
+        return lambda m, device, decomposed_modules: dwain_wrapper_module.finetune_full(
+            model=m,
+            device=device,
+            decomposed_modules=decomposed_modules,
+            ft_iterator=ft_iterator,
+            num_steps=config.finetuning_num_steps,
+            lr=config.finetuning_lr,
+            num_last_modules_to_finetune=config.finetuning_num_last_finetuned_modules,
+        )
+    else:
+        logger.info("Creating empty finetuning function")
+        return lambda m, device, decomposed_modules: m
 
 
 def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
@@ -98,16 +107,19 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
     stats_initial["accuracy_val"] = accuracy_val_initial
     builder.log_model_stats(logger, "Original model:", stats_initial)
 
-    model_wrapped = WrapperModule(model)
+    model_wrapped = dwain_wrapper_module.WrapperModule(model)
 
     t_decomposition_start = time.perf_counter()
+
+    finetune_fn = make_finetune_fn(config, decomposition_it)
+
     decompose_config = ptdeco.dwain.decompose_in_place(
         module=model_wrapped,
         device=device,
         blacklisted_module_names=config.blacklisted_modules,
         data_iterator=decomposition_it,
-        loss_fn=ce_loss,
-        finetune_fn=no_finetune,
+        loss_fn=dwain_wrapper_module.ce_loss,
+        finetune_fn=finetune_fn,
         metric_iterator=decomposition_it,
         nsr_final_threshold=config.nsr_final_threshold,
         ppl_diff_threshold=config.ppl_diff_threshold,
