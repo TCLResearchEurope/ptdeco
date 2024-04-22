@@ -243,43 +243,6 @@ def _compute_covariance_matrix_decomposition(
     return u
 
 
-# def _compute_metrics(
-#     *,
-#     input_dict: torch.Tensor | dict[str, torch.Tensor],
-#     root_module: torch.nn.Module,
-#     decomposed_submodule: torch.nn.Module,
-#     orig_weight: torch.Tensor,
-#     deco_weight: torch.Tensor,
-# ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-#     assert isinstance(input_dict, dict)
-#     assert isinstance(decomposed_submodule, WrappedDWAINModule)
-#     x = input_dict["input_ids"]
-#     attention_mask = input_dict["attention_mask"]
-
-#     root_module.eval()
-
-#     decomposed_submodule.set_weight(deco_weight)
-#     labels = x.clone()
-#     y_deco = root_module(input_dict)
-
-#     decomposed_submodule.set_weight(orig_weight)
-#     y_orig = root_module(input_dict)
-#     loss_deco = compute_loss(
-#         logits=y_deco, labels=labels, attention_mask=attention_mask
-#     )
-
-#     loss_orig = compute_loss(
-#         logits=y_orig, labels=labels, attention_mask=attention_mask
-#     )
-
-#     nsr_final = utils.calc_per_channel_noise_to_signal_ratio(
-#         y=y_orig, x=y_deco, non_channel_dim=(0, 1), mode="mean"
-#     )
-#     ppl_deco = torch.exp(loss_deco).mean()
-#     ppl_orig = torch.exp(loss_orig).mean()
-#     return nsr_final, ppl_deco, ppl_orig
-
-
 def _compute_metrics(
     *,
     input_dict: dict[str, torch.Tensor],
