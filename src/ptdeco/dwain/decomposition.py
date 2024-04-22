@@ -387,6 +387,7 @@ def _process_module(
     decompose_in_float64: bool = True,
     u_matrix: Optional[torch.Tensor] = None,
 ) -> dict[str, Any]:
+    indent = "    "
 
     decomposed_submodule = root_module.get_submodule(decomposed_submodule_name)
     original_module = decomposed_submodule
@@ -451,7 +452,8 @@ def _process_module(
         ppl_diff_threshold = fraction_of_params_to_be_removed * trade_off_factor
 
         if drop_in_params == 0:
-            logger.info(f"{i=} {rank_new=} does not lead to params drop, skipping")
+            msg = f"{indent}{i=} {rank_new=} does not lead to params drop, skipping"
+            logger.info(msg)
             continue
 
         # TODO: ML U@V in full precision and then cast to orig_dtype
@@ -464,11 +466,8 @@ def _process_module(
 
         nsr_new = 0.0
         ppl_new = 0.0
-
-        logger.info(
-            f"Current ppl diff threshold: {ppl_diff_threshold}, fraction of params "
-            f"that can be removed: {fraction_of_params_to_be_removed}"
-        )
+        log_data = f"{ppl_diff_threshold:.6f} {fraction_of_params_to_be_removed=:.4f}"
+        logger.info(f"{indent}{i=} {log_data}")
 
         for _ in range(num_metric_steps):
             input_dict = utils.to_device(next(metric_iterator), device)
@@ -494,12 +493,12 @@ def _process_module(
             rank_best = rank_new
             nsr_best = nsr_new
             ppl_best = ppl_new
-            logger.info(f"Accepting rank {rank_best}/{full_rank}")
+            logger.info(f"{indent}{i=} ACCEPTING rank {rank_best}/{full_rank}")
 
         msg_iter = f"{i=} {rank_new=} {nsr_new=:.6f} {ppl_new=:.6f} "
         msg_cur = f"{rank_best=} {nsr_best=:.6f} {ppl_best=:.6f}"
-        logger.info(f"{msg_prefix} {msg_iter} {msg_cur}")
-        logger.info(f"deco ppl: {ppl_deco}, orig ppl: {ppl_orig}")
+        logger.info(f"{indent}{msg_iter} {msg_cur}")
+        logger.info(f"{indent}{i=} {ppl_deco=:.6f}, {ppl_orig=:.6f}")
         i += 1
 
     decomposition_occurred = U.numel() > 0 and V.numel() > 0
@@ -507,7 +506,7 @@ def _process_module(
     if decomposition_occurred:
         proportion = rank_best / full_rank
         msg_metrics = f"{proportion=:.4f} nsr={nsr_best:.6f} ppl={ppl_best:.6f}"
-        logger.info(f"{msg_prefix} iter=FINAL rank={rank_best} {msg_metrics}")
+        logger.info(f"{indent}i=FINAL rank={rank_best}/{full_rank} {msg_metrics}")
 
         decompose_decision = _check_if_decompose(
             proportion=proportion,
@@ -621,13 +620,6 @@ def _precompute_covariance_matrix_decompositions(
         for _ in range(num_data_steps):
             input_dict = utils.to_device(next(data_iterator), device)
             _ = module(input_dict)
-            # input_dict = utils.to_device(next(data_iterator), device)
-            # # TODO: ML remove this cast
-            # input_dict = cast(dict[str, torch.Tensor], input_dict)
-            # input_ids = input_dict["input_ids"]
-            # # labels = input_dict["labels"]
-            # # _ = module(input_ids, labels=labels)
-            # _ = module({"input_ids": input_ids})
 
     utils.free_gpu_reserved_memory()
 
@@ -726,6 +718,7 @@ def decompose_in_place(
         module, blacklisted_module_names
     )
     n = len(modules_to_decompose)
+    n_decomposed = 0
 
     msgs = [f"There are {n} linear modules that can be decomposed:"]
     for i, module_name in enumerate(modules_to_decompose, start=1):
@@ -755,11 +748,11 @@ def decompose_in_place(
     utils.free_gpu_reserved_memory()
 
     for i, submodule_name in enumerate(reversed(modules_to_decompose)):
-        msg_prefix = f"{submodule_name}: module {i} of {n}"
-        logger.info(f"{msg_prefix}, processing")
+        msg = f"PROCESSING {submodule_name} MODULE {i} OUT OF {n}"
+        logger.info(f"{msg}")
         with torch.no_grad():
             old_module = module.get_submodule(submodule_name)
-            msg = f"{submodule_name} START MEM={utils.get_gpu_reserved_memory_gb():.2f}"
+            msg = f"start reserved gpu mem={utils.get_gpu_reserved_memory_gb():.2f} GB"
             logger.info(msg)
             result = _process_module(
                 root_module=module,
@@ -778,18 +771,14 @@ def decompose_in_place(
                 decompose_in_float64=decompose_in_float64,
                 u_matrix=u_dict.pop(submodule_name) if len(u_dict) > 0 else None,
             )
-            msg = f"{submodule_name} STOP MEM={utils.get_gpu_reserved_memory_gb():.2f}"
+            msg = f"stop reserved gpu mem={utils.get_gpu_reserved_memory_gb():.2f} GB"
             logger.info(msg)
         current_params -= result["drop_in_params"]
-        logger.info(f"Current params in M: {current_params / 1e6}")
+        logger.info(f"CURRENT PARAMS IN M: {current_params / 1e6}")
         new_module = result["decomposed_module"]
 
-        if new_module is None:
-            logger.info(f"{msg_prefix}, skipped as decomposed to full rank")
-            continue
-
         proportion = result["proportion"]
-        if _check_if_decompose(
+        if new_module is not None and _check_if_decompose(
             proportion=proportion,
             in_features=old_module.in_features,
             out_features=old_module.out_features,
@@ -807,12 +796,13 @@ def decompose_in_place(
             module_config = utils.get_module_config(new_module)
             _add_meta_to_module_config(module_config, result)
             decompose_config[submodule_name] = module_config
-            logger.info(
-                f"Decomposed {submodule_name}, with rank proportion: {proportion}"
-            )
+            logger.info(f"{submodule_name} decomposed with rank {proportion=:.4f}")
+            n_decomposed += 1
+        else:
+            f"{submodule_name} not decomposed"
         utils.free_gpu_reserved_memory()
 
     stop_time = time.perf_counter()
-
+    logger.info(f"Decomposed {n_decomposed} out of {n} modules")
     logger.info(f"Decomposition took {stop_time - start_time:.1f} seconds")
     return decompose_config
