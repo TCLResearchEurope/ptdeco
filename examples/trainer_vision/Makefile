@@ -3,7 +3,7 @@ SHELL=bash
 MODULE_NAME=ptdeco
 VER_FILE=version.py
 
-PYTHON_LIB_FILES= configurator.py builder.py version.py datasets_dali.py metrics.py \
+PYTHON_LIB_FILES= configurator.py builder.py version.py datasets_dali.py dwain_wrapper_module.py metrics.py \
 			      run_decompose_falor.py run_decompose_lockd.py run_decompose_dwain.py \
                   run_finetune.py
 
