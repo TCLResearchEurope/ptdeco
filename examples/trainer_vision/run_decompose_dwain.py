@@ -145,12 +145,9 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
     logger.info(s)
     stats_final["accuracy_val"] = accuracy_val_final
 
-    out_decompose_config_path = output_path / "decompose_config.json"
-    with open(out_decompose_config_path, "wt") as f:
-        json.dump(decompose_config, f)
-    out_decompose_state_dict_path = output_path / "decompose_state_dict.pt"
-    torch.save(model.state_dict(), out_decompose_state_dict_path)
-
+    dwain_wrapper_module.save_raw_model_decompose_config_and_state_dict(
+        output_path, decompose_config, model.state_dict()
+    )
     builder.log_model_stats(logger, "Original model  :", stats_initial)
     builder.log_model_stats(logger, "Decomposed model:", stats_final)
 

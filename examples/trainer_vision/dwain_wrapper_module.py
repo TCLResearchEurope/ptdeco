@@ -1,12 +1,15 @@
 import collections
-import time
+import json
 import logging
+import pathlib
+import time
 from typing import Any
 
 import torch
 
 import ptdeco
 
+PREFIX = "raw_model."
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +26,34 @@ class WrapperModule(torch.nn.Module):
 def ce_loss(input_dict: dict[str, torch.Tensor], output: torch.Tensor) -> torch.Tensor:
     target = input_dict["targets"]
     return torch.nn.functional.cross_entropy(input=output, target=target)
+
+
+def strip_prefix_dict(d: dict[str, Any]) -> dict[str, Any]:
+
+    res: dict[str, Any] = {}
+    if isinstance(d, collections.OrderedDict):
+        res = collections.OrderedDict()
+
+    for k, v in d.items():
+        if k.startswith(PREFIX):
+            res[k[len(PREFIX) :]] = v  # noqa: E203 black vs flake
+        else:
+            res[k] = v
+    return res
+
+
+def save_raw_model_decompose_config_and_state_dict(
+    output_path: pathlib.Path,
+    decompose_config: dict[str, Any],
+    state_dict: dict[str, torch.Tensor],
+) -> None:
+    out_decompose_config_path = output_path / "decompose_config.json"
+
+    with open(out_decompose_config_path, "wt") as f:
+        json.dump(strip_prefix_dict(decompose_config), f)
+    out_decompose_state_dict_path = output_path / "decompose_state_dict.pt"
+
+    torch.save(strip_prefix_dict(state_dict), out_decompose_state_dict_path)
 
 
 def finetune_full(
@@ -43,9 +74,7 @@ def finetune_full(
     start = time.perf_counter()
     decomposed_modules_to_finetune = decomposed_modules[-num_last_modules_to_finetune:]
     for name, param in model.named_parameters():
-        if any(
-            [e in name for e in decomposed_modules_to_finetune]
-        ):
+        if any([e in name for e in decomposed_modules_to_finetune]):
             msg = f"full fine-tuning - enabling grad for {name}, {param.requires_grad=}"
             logger.info(msg)
         else:
