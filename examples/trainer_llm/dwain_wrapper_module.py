@@ -10,11 +10,12 @@ import ptdeco.utils
 import torch
 import transformers  # type: ignore
 
-logger = logging.getLogger(__name__)
-
 PREFIX = "raw_model."
 
-# Model wrapper returning logits
+logger = logging.getLogger(__name__)
+
+
+# Model wrapper operating on dicts and returning logits
 
 
 class WrapperModule(torch.nn.Module):
@@ -24,6 +25,8 @@ class WrapperModule(torch.nn.Module):
         self.config = model.config
 
     def forward(self, x: dict[str, torch.Tensor], **kwargs: Any) -> torch.Tensor:
+        # By default take only inputs_ids kyes - use the rest of the data only if
+        # explicitly given as keys
         return self.raw_model(input_ids=x["input_ids"], **kwargs).logits
 
 
