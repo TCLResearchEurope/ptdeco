@@ -9,9 +9,7 @@ import torch
 
 from .. import utils
 
-__all__ = [
-    "decompose_in_place",
-]
+__all__ = ["decompose_in_place", "is_decomposeable_module"]
 
 EIGEN_DAMPEN_FACTOR = 0.01
 
@@ -458,10 +456,11 @@ def _process_module(
             ppl_best = ppl_new
             logger.info(f"{indent}{i=} ACCEPTING rank {rank_best}/{full_rank}")
 
-        msg_iter = f"{i=} {rank_new=} {nsr_new=:.6f} {ppl_new=:.6f} "
+        msg_iter = f"{i=} {rank_new=}/{full_rank} {nsr_new=:.6f} {ppl_new=:.6f} "
         msg_cur = f"{rank_best=} {nsr_best=:.6f} {ppl_best=:.6f}"
         logger.info(f"{indent}{msg_iter} {msg_cur}")
         logger.info(f"{indent}{i=} {ppl_deco=:.6f}, {ppl_orig=:.6f}")
+        logger.info(f"{indent}---")
         i += 1
 
     decomposition_occurred = U.numel() > 0 and V.numel() > 0
@@ -512,7 +511,7 @@ def _process_module(
     }
 
 
-def _is_decomposeable_module(module: torch.nn.Module) -> bool:
+def is_decomposeable_module(module: torch.nn.Module) -> bool:
     return isinstance(module, torch.nn.Linear) or (
         isinstance(module, torch.nn.Conv2d)
         and module.kernel_size[0] == 1
@@ -526,7 +525,7 @@ def _get_decomposeable_submodule_names(
 ) -> list[str]:
     res = []
     for name, mod in module.named_modules():
-        if _is_decomposeable_module(mod):
+        if is_decomposeable_module(mod):
             if name in blacklisted_module_names:
                 logger.info(f"Skipping blacklisted module {name}")
             else:
