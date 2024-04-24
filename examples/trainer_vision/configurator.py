@@ -24,6 +24,7 @@ class _DataConfig(pydantic.BaseModel):
 
 
 class _TrainConfig(pydantic.BaseModel):
+    finetune_only_decomposed: bool
     lr: float
     lr_t_warmup: str
     max_duration: str

@@ -237,6 +237,17 @@ def get_callbacks(
     return [speed_monitor, lr_monitor, tb_callback]
 
 
+def get_decomposed_parameters(
+    m: torch.nn.Module, decompose_config: dict[str, Any]
+) -> list[torch.nn.Parameter]:
+    res = []
+
+    for submodule_name in decompose_config:
+        submodule = m.get_submodule(submodule_name)
+        res.extend(list(submodule.parameters()))
+    return res
+
+
 def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
     config = configurator.FinetuneConfig(**config_raw)
 
@@ -278,8 +289,17 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
     )
 
     device = composer.devices.DeviceGPU()
+    if config.finetune_only_decomposed:
+        logger.info("Fine-tuning ONLY DECOMPOSED layers")
+        parameters = get_decomposed_parameters(
+            model.student_model, student_decompose_config
+        )
+    else:
+        # "listify" to make mypy happy
+        parameters = list(model.student_model.parameters())
+        logger.info("Fine-tuning ALL layers")
 
-    optimizers = configurator.get_optimizer(model.student_model.parameters(), config)
+    optimizers = configurator.get_optimizer(parameters, config)
     lr_schedulers = configurator.get_lr_scheduler(config)
     algorithms = configurator.get_algorithms(config)
     precision = configurator.get_precision(config)
