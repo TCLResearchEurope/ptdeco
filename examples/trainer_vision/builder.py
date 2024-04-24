@@ -37,6 +37,29 @@ def get_fpops(
     raise ValueError(f"Unknown {units=}")
 
 
+def get_params(m: torch.nn.Module, only_trainable: bool = False) -> int:
+    parameters = list(m.parameters())
+    if only_trainable:
+        parameters = [p for p in parameters if p.requires_grad]
+    unique = {p.data_ptr(): p for p in parameters}.values()
+    return sum(p.numel() for p in unique)
+
+
+def get_model_stats(
+    model: torch.nn.Module,
+    b_c_h_w: tuple[int, int, int, int],
+    device: Optional[torch.device] = None,
+) -> dict[str, float]:
+    if device is None:
+        device = ptdeco.utils.get_default_device(model)
+    model.eval()
+    gflops = get_fpops(model, b_c_h_w=b_c_h_w, units="gflops", device=device)
+    kmapps = get_fpops(model, b_c_h_w=b_c_h_w, units="kmapps", device=device)
+    mparams = get_params(model) / 1.0e6
+
+    return {"gflops": gflops, "kmapps": kmapps, "mparams": mparams}
+
+
 def get_fpops_dict(
     model: torch.nn.Module,
     b_c_h_w: tuple[int, int, int, int],
@@ -65,29 +88,6 @@ def get_fpops_dict(
         raise ValueError(f"Unknown {units=}")
     flops_dict = {k: v / factor for k, v in flops_raw_dict.items()}
     return flops_dict
-
-
-def get_params(m: torch.nn.Module, only_trainable: bool = False) -> int:
-    parameters = list(m.parameters())
-    if only_trainable:
-        parameters = [p for p in parameters if p.requires_grad]
-    unique = {p.data_ptr(): p for p in parameters}.values()
-    return sum(p.numel() for p in unique)
-
-
-def get_model_stats(
-    model: torch.nn.Module,
-    b_c_h_w: tuple[int, int, int, int],
-    device: Optional[torch.device] = None,
-) -> dict[str, float]:
-    if device is None:
-        device = ptdeco.utils.get_default_device(model)
-    model.eval()
-    gflops = get_fpops(model, b_c_h_w=b_c_h_w, units="gflops", device=device)
-    kmapps = get_fpops(model, b_c_h_w=b_c_h_w, units="kmapps", device=device)
-    mparams = get_params(model) / 1.0e6
-
-    return {"gflops": gflops, "kmapps": kmapps, "mparams": mparams}
 
 
 def get_decomposeable_model_stats(
@@ -160,7 +160,7 @@ def make_model(
             ):
                 n_conv1x1 += 1
                 logger.info(f"  - {name} # ({i}) conv1x1 {tuple(module.weight.shape)}")
-    logger.info(f"Decomposeable module statistics {n_linears=} {n_conv1x1=}")
+        logger.info(f"Decomposeable module statistics {n_linears=} {n_conv1x1=}")
     return model
 
 

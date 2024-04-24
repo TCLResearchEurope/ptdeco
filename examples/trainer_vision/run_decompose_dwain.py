@@ -101,7 +101,7 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
     stats_initial = builder.get_model_stats(model, b_c_h_w)
     stats_initial.update(
         builder.get_decomposeable_model_stats(
-            model, b_c_h_w, ptdeco.falor.is_decomposeable_module
+            model, b_c_h_w, ptdeco.dwain.is_decomposeable_module
         )
     )
     stats_initial["accuracy_val"] = accuracy_val_initial

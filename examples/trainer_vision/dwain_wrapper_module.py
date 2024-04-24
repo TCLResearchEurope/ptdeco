@@ -82,7 +82,6 @@ def finetune_full(
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
 
-    # lr scheduler
     # lr_scheduler = transformers.get_linear_schedule_with_warmup(
     #     optimizer=optimizer,
     #     num_warmup_steps=10,
@@ -106,6 +105,8 @@ def finetune_full(
 
         if step % 10 == 0:
             logger.info(f"Step: {step}/{num_steps}, loss: {total_loss / counter}")
+            total_loss = 0.0
+            counter = 0
     model.eval()
     stop = time.perf_counter()
     logger.info(f"Full fine-tuning took {stop-start:.2f} seconds")
