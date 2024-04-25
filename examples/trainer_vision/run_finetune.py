@@ -217,15 +217,15 @@ def make_teacher_student_models(
     teacher_model = builder.make_model(config_parsed.decompose_model_name)
     student_model, student_decompose_config = make_decomposed_model(config_parsed)
 
-    b_c_h_w = (1, 3, int(config_parsed.input_h_w[0]), int(config_parsed.input_h_w[1]))
+    # b_c_h_w = (1, 3, int(config_parsed.input_h_w[0]), int(config_parsed.input_h_w[1]))
 
-    teacher_model_stats = builder.get_model_stats(teacher_model, b_c_h_w)
+    # teacher_model_stats = builder.get_model_stats(teacher_model, b_c_h_w)
 
-    student_model_stats = builder.get_model_stats(student_model, b_c_h_w)
-    student_model.train()
+    # student_model_stats = builder.get_model_stats(student_model, b_c_h_w)
+    # student_model.train()
 
-    builder.log_model_stats(logger, "Original model  :", teacher_model_stats)
-    builder.log_model_stats(logger, "Decomposed model:", student_model_stats)
+    # builder.log_model_stats(logger, "Original model  :", teacher_model_stats)
+    # builder.log_model_stats(logger, "Decomposed model:", student_model_stats)
 
     return teacher_model, student_model, student_decompose_config
 
@@ -249,6 +249,22 @@ def get_decomposed_parameters(
         submodule = m.get_submodule(submodule_name)
         res.extend(list(submodule.parameters()))
     return res
+
+
+def is_decomposed_param(param_name: str, decompose_config: dict[str, Any]) -> bool:
+    for k in decompose_config:
+        if param_name.startswith(k):
+            return True
+    return False
+
+
+def disable_grad_for_non_decomposed(
+    m: torch.nn.Module, decompose_config: dict[str, Any]
+) -> None:
+    for param_name, param in m.named_parameters():
+        if not is_decomposed_param(param_name, decompose_config):
+            logger.info(f"Disabling gradient for {param_name}")
+            param.requires_grad = False
 
 
 def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
@@ -329,14 +345,17 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
         output_path=output_path,
     )
 
+    parameters = model.student_model.parameters()
+
     if config.finetune_only_decomposed:
         logger.info("Fine-tuning ONLY DECOMPOSED layers")
-        parameters = get_decomposed_parameters(
-            model.student_model, student_decompose_config
-        )
+        disable_grad_for_non_decomposed(model.student_model, student_decompose_config)
+        # parameters = get_decomposed_parameters(
+        #     model.student_model, student_decompose_config
+        # )
     else:
-        # "listify" to make mypy happy
-        parameters = list(model.student_model.parameters())
+        # # "listify" to make mypy happy
+        # parameters = list(model.student_model.parameters())
         logger.info("Fine-tuning ALL layers")
 
     optimizers = configurator.get_optimizer(parameters, config)
