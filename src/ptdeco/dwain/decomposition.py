@@ -709,7 +709,7 @@ def decompose_in_place(
 
     utils.free_gpu_reserved_memory()
 
-    for i, submodule_name in enumerate(reversed(modules_to_decompose)):
+    for i, submodule_name in enumerate(reversed(modules_to_decompose), start=1):
         msg = f"PROCESSING {submodule_name} MODULE {i} OUT OF {n}"
         logger.info(f"{msg}")
         with torch.no_grad():

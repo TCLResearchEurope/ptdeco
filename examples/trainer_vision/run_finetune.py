@@ -2,6 +2,7 @@ import collections
 import json
 import logging
 import pathlib
+import time
 import typing
 from typing import Any
 
@@ -19,6 +20,8 @@ import torchmetrics
 import builder
 import configurator
 import datasets_dali
+import metrics
+
 
 TENSORBOARD_DIRNAME = "tensorboard"
 CHECKPOINTS_DIRNAME = "checkpoints"
@@ -249,17 +252,12 @@ def get_decomposed_parameters(
 
 
 def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
+    t_start = time.perf_counter()
     config = configurator.FinetuneConfig(**config_raw)
+    device_composer = composer.devices.DeviceGPU()
+    device = torch.device("cuda")
 
-    (
-        teacher_model,
-        student_model,
-        student_decompose_config,
-    ) = make_teacher_student_models(config)
-
-    out_decompose_config_path = output_path / "decompose_config.json"
-    with open(out_decompose_config_path, "wt") as f:
-        json.dump(student_decompose_config, f)
+    b_c_h_w = (1, 3, *config.input_h_w)
 
     train_pipeline, valid_pipeline = datasets_dali.make_imagenet_pipelines(
         imagenet_root_dir=config.imagenet_root_dir,
@@ -282,13 +280,55 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
         )
     )
 
+    (
+        teacher_model,
+        student_model,
+        student_decompose_config,
+    ) = make_teacher_student_models(config)
+
+    # Get teacher or orig model statistics
+
+    stats_orig = builder.get_model_stats(teacher_model, b_c_h_w)
+    stats_orig.update(
+        builder.get_decomposeable_model_stats(
+            teacher_model, b_c_h_w, ptdeco.dwain.is_decomposeable_module
+        )
+    )
+    accuracy_val_orig = 100.0 * metrics.calc_accuracy(
+        model=teacher_model,
+        val_iter=valid_dataloader,
+        device=device,
+    )
+    stats_orig["accuracy_val"] = accuracy_val_orig
+    builder.log_model_stats(logger, "Original model:", stats_orig)
+
+    # Get decomposed model statistics
+
+    stats_final = builder.get_model_stats(student_model, b_c_h_w)
+    stats_final.update(
+        builder.get_decomposeable_model_stats(
+            student_model, b_c_h_w, ptdeco.dwain.is_decomposeable_module
+        )
+    )
+
+    accuracy_val_initial = 100.0 * metrics.calc_accuracy(
+        model=student_model,
+        val_iter=valid_dataloader,
+        device=device,
+    )
+    stats_final["accuracy_val"] = accuracy_val_initial  # Only for printing
+    builder.log_model_stats(logger, "Decomposed model:", stats_final)
+
+    out_decompose_config_path = output_path / "decompose_config.json"
+    with open(out_decompose_config_path, "wt") as f:
+        json.dump(student_decompose_config, f)
+
     model = KdClassificationModel(
         student_model=student_model,
         teacher_model=teacher_model,
         output_path=output_path,
     )
 
-    device = composer.devices.DeviceGPU()
     if config.finetune_only_decomposed:
         logger.info("Fine-tuning ONLY DECOMPOSED layers")
         parameters = get_decomposed_parameters(
@@ -320,7 +360,7 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
         max_duration=config.max_duration,
         optimizers=optimizers,
         schedulers=lr_schedulers,
-        device=device,
+        device=device_composer,
         algorithms=algorithms,
         autoresume=True,
         save_folder=str(output_path / CHECKPOINTS_DIRNAME),
@@ -340,3 +380,50 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
     trainer.fit()
     out_decompose_state_dict_path = output_path / "decompose_state_dict.pt"
     torch.save(student_model.state_dict(), out_decompose_state_dict_path)
+
+    accuracy_val_final = 100.0 * metrics.calc_accuracy(
+        model=student_model,
+        val_iter=valid_dataloader,
+        device=device,
+    )
+    stats_final["accuracy_val"] = accuracy_val_final
+    builder.log_model_stats(logger, "Decomposed finetuned model:", stats_final)
+    device_str = str(device)
+    if "cuda" in device_str:
+        device_str += " @ " + torch.cuda.get_device_name(device)
+
+    mparams_deco_frac = (
+        stats_final["mparams_decomposeable"] / stats_orig["mparams_decomposeable"]
+    )
+    gflops_deco_frac = (
+        stats_final["gflops_decomposeable"] / stats_orig["gflops_decomposeable"]
+    )
+    t_finetue = time.perf_counter() - t_start
+
+    summary = {
+        "accuracy_val_orig": accuracy_val_orig,
+        "accuracy_val_initial": accuracy_val_initial,
+        "accuracy_val_final": accuracy_val_final,
+        "mparams_initial": stats_orig["mparams"],
+        # number of parameters in decomposeable operations
+        "mparams_orig_decomposeable": stats_orig["mparams_decomposeable"],
+        "mparams_final": stats_final["mparams"],
+        "mparams_final_decomposeable": stats_final["mparams_decomposeable"],
+        "mparams_frac": stats_final["mparams"] / stats_orig["mparams"] * 100.0,
+        "mparams_decomposeable_frac": mparams_deco_frac * 100.0,
+        "gflops_initial": stats_orig["gflops"],
+        # number of gflops in decomposeable operations
+        "gflops_orig_decomposeable": stats_orig["gflops_decomposeable"],
+        "gflops_final": stats_final["gflops"],
+        "gflops_final_decomposeable": stats_final["gflops_decomposeable"],
+        "gflops_frac": stats_final["gflops"] / stats_orig["gflops"] * 100.0,
+        "gflops_frac_decomposeable": gflops_deco_frac * 100.0,
+        "kmapps_initial": stats_orig["kmapps"],
+        "kmapps_finall": stats_final["kmapps"],
+        # Should be the same as "gflops_frac", but we log it for completeness
+        "kmapps_frac": stats_final["kmapps"] / stats_orig["kmapps"] * 100.0,
+        "device": device_str,
+        "time_finetune": t_finetue,
+    }
+    with open(output_path / "summary.json", "wt") as f:
+        json.dump(summary, f)

@@ -134,6 +134,11 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
     t_decomposition = time.perf_counter() - t_decomposition_start
 
     stats_final = builder.get_model_stats(model, b_c_h_w)
+    stats_final.update(
+        builder.get_decomposeable_model_stats(
+            model, b_c_h_w, ptdeco.dwain.is_decomposeable_module
+        )
+    )
     t_eval_start = time.perf_counter()
     accuracy_val_final = 100.0 * metrics.calc_accuracy(
         model=model,
@@ -154,7 +159,12 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
     device_str = str(device)
     if "cuda" in device_str:
         device_str += " @ " + torch.cuda.get_device_name(device)
-
+    mparams_deco_frac = (
+        stats_final["mparams_decomposeable"] / stats_initial["mparams_decomposeable"]
+    )
+    gflops_deco_frac = (
+        stats_final["gflops_decomposeable"] / stats_initial["gflops_decomposeable"]
+    )
     summary = {
         "accuracy_val_initial": accuracy_val_initial,
         "accuracy_val_final": accuracy_val_final,
@@ -162,12 +172,16 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
         # number of parameters in decomposeable operations
         "mparams_initial_decomposeable": stats_initial["mparams_decomposeable"],
         "mparams_final": stats_final["mparams"],
+        "mparams_final_decomposeable": stats_final["mparams_decomposeable"],
         "mparams_frac": stats_final["mparams"] / stats_initial["mparams"] * 100.0,
+        "mparams_decomposeable_frac": mparams_deco_frac * 100.0,
         "gflops_initial": stats_initial["gflops"],
         # number of gflops in decomposeable operations
         "gflops_initial_decomposeable": stats_initial["gflops_decomposeable"],
         "gflops_final": stats_final["gflops"],
+        "gflops_final_decomposeable": stats_final["gflops_decomposeable"],
         "gflops_frac": stats_final["gflops"] / stats_initial["gflops"] * 100.0,
+        "gflops_frac_decomposeable": gflops_deco_frac * 100.0,
         "kmapps_initial": stats_initial["kmapps"],
         "kmapps_finall": stats_final["kmapps"],
         # Should be the same as "gflops_frac", but we log it for completeness
