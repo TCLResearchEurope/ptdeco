@@ -339,6 +339,8 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
     with open(out_decompose_config_path, "wt") as f:
         json.dump(student_decompose_config, f)
 
+    student_model.train()
+    teacher_model.eval()
     model = KdClassificationModel(
         student_model=student_model,
         teacher_model=teacher_model,
