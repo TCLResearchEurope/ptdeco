@@ -85,7 +85,10 @@ def copy_config(config_path: pathlib.Path, output_path: pathlib.Path) -> None:
         f_out.write(f'ptdeco_trainer_version: "{version.__version__}"\n')
         f_out.write(f'ptdeco_version: "{ptdeco.__version__}"\n\n')
         for line in f_in:
-            f_out.write(f"{line}")
+            if not line.startswith("ptdeco_trainer_version:") and not line.startswith(
+                "ptdeco_version:"
+            ):
+                f_out.write(f"{line}")
 
 
 def save_requirements(
