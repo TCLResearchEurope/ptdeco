@@ -5,9 +5,8 @@ import pathlib
 import time
 from typing import Any
 
-import torch
-
 import ptdeco
+import torch
 
 PREFIX = "raw_model."
 

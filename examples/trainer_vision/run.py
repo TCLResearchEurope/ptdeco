@@ -9,9 +9,9 @@ from typing import Any
 import ptdeco
 import yaml
 
+import run_decompose_dwain
 import run_decompose_falor
 import run_decompose_lockd
-import run_decompose_dwain
 import run_finetune
 import version
 

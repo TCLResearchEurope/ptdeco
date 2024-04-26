@@ -9,7 +9,6 @@ import nvidia.dali.plugin.pytorch  # type:ignore
 import ptdeco.falor
 import torch
 
-
 import builder
 import configurator
 import datasets_dali

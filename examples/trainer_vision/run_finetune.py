@@ -22,7 +22,6 @@ import configurator
 import datasets_dali
 import metrics
 
-
 TENSORBOARD_DIRNAME = "tensorboard"
 CHECKPOINTS_DIRNAME = "checkpoints"
 
