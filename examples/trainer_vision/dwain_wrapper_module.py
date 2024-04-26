@@ -63,6 +63,7 @@ def finetune_full(
     decomposed_modules: list[str],
     num_last_modules_to_finetune: int = 8,
     num_steps: int = 100,
+    num_log_steps: int = 10,
     lr: float = 0.0001,
 ) -> torch.nn.Module:
 
@@ -102,7 +103,7 @@ def finetune_full(
         # lr_scheduler.step()
         total_loss += loss.item()
 
-        if step % 10 == 0:
+        if step % num_log_steps == 0:
             logger.info(f"Step: {step}/{num_steps}, loss: {total_loss / counter}")
             total_loss = 0.0
             counter = 0

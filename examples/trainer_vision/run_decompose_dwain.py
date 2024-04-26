@@ -46,6 +46,7 @@ def make_finetune_fn(
             decomposed_modules=decomposed_modules,
             ft_iterator=ft_iterator,
             num_steps=config.finetuning_num_steps,
+            num_log_steps=config.finetuning_num_log_steps,
             lr=config.finetuning_lr,
             num_last_modules_to_finetune=config.finetuning_num_last_finetuned_modules,
         )

@@ -82,6 +82,7 @@ class DecomposeDWAINConfig(_VersionConfig, _DataConfig):
     finetuning_run: bool
     finetuning_lr: float
     finetuning_num_steps: int
+    finetuning_num_log_steps: int
     finetuning_num_last_finetuned_modules: int
 
     model_config = pydantic.ConfigDict(extra="forbid")

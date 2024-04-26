@@ -31,4 +31,5 @@ blacklisted_modules: []
 finetuning_run: true
 finetuning_lr: 5.0e-5
 finetuning_num_steps: 50
+finetuning_num_log_steps: 10
 finetuning_num_last_finetuned_modules: 10000
