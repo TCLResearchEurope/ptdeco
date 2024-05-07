@@ -27,6 +27,10 @@ def ce_loss(input_dict: dict[str, torch.Tensor], output: torch.Tensor) -> torch.
     return torch.nn.functional.cross_entropy(input=output, target=target)
 
 
+def add_prefix(module_names: list[str]) -> list[str]:
+    return [PREFIX + m_name for m_name in module_names]
+
+
 def strip_prefix_dict(d: dict[str, Any]) -> dict[str, Any]:
 
     res: dict[str, Any] = {}
