@@ -360,7 +360,9 @@ def _process_module(
     decomposed_submodule = root_module.get_submodule(decomposed_submodule_name)
     assert isinstance(decomposed_submodule, WrappedDWAINModule)
 
-    dim_out, dim_in = orig_weight.shape
+    dims = orig_weight.shape
+    dim_out, dim_in = dims[0], dims[1]
+
     full_rank = min(dim_in, dim_out)
     msg_prefix = f"Processing {decomposed_submodule_name}:"
 
