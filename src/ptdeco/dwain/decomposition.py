@@ -351,18 +351,15 @@ def _process_module(
     indent = "    "
 
     decomposed_submodule = root_module.get_submodule(decomposed_submodule_name)
-    original_module = decomposed_submodule
-    orig_weight = original_module.weight.clone()
     orig_device = decomposed_submodule.weight.device
     orig_dtype = decomposed_submodule.weight.dtype
     decomposed_type = utils.get_type_name(decomposed_submodule)
     _wrap_in_place(root_module, decomposed_submodule_name)
     decomposed_submodule = root_module.get_submodule(decomposed_submodule_name)
     assert isinstance(decomposed_submodule, WrappedDWAINModule)
+    orig_weight = decomposed_submodule.get_weight_copy()
 
-    dims = orig_weight.shape
-    dim_out, dim_in = dims[0], dims[1]
-
+    dim_out, dim_in = orig_weight.shape
     full_rank = min(dim_in, dim_out)
     msg_prefix = f"Processing {decomposed_submodule_name}:"
 
