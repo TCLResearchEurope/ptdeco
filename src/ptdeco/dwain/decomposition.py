@@ -712,7 +712,6 @@ def decompose_in_place(
         msg = f"PROCESSING {submodule_name} MODULE {i} OUT OF {n}"
         logger.info(f"{msg}")
         with torch.no_grad():
-            old_module = module.get_submodule(submodule_name)
             msg = f"start reserved gpu mem={utils.get_gpu_reserved_memory_gb():.2f} GB"
             logger.info(msg)
             result = _process_module(
@@ -739,11 +738,14 @@ def decompose_in_place(
         new_module = result["decomposed_module"]
 
         proportion = result["proportion"]
-        if new_module is not None and _check_if_decompose(
-            proportion=proportion,
-            in_features=old_module.in_features,
-            out_features=old_module.out_features,
-        ):
+        if new_module is not None:
+            # # This should be always true, as check if decompose is already
+            # # verified in _process_module
+            # assert _check_if_decompose(
+            #     proportion=proportion,
+            #     in_features=old_module.in_features,
+            #     out_features=old_module.out_features,
+            # )
             decomposed_submodules.append(submodule_name)
             utils.replace_submodule_in_place(module, submodule_name, new_module)
             num_decomposed_layers = len(decomposed_submodules)
