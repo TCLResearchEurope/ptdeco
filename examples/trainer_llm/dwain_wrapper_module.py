@@ -3,7 +3,7 @@ import json
 import logging
 import pathlib
 import time
-from typing import Any, Optional
+from typing import Any
 
 import peft
 import ptdeco.utils
@@ -46,9 +46,7 @@ def ce_loss(input_dict: dict[str, torch.Tensor], output: torch.Tensor) -> torch.
     return loss
 
 
-def add_prefix(module_names: Optional[list[str]]) -> Optional[list[str]]:
-    if module_names is None:
-        return None
+def add_prefix(module_names: list[str]) -> list[str]:
     return [PREFIX + m_name for m_name in module_names]
 
 
