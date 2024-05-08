@@ -89,8 +89,6 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
         use_float64=config.use_float64,
         use_mean=False,
         use_damping=True,
-        #use_mean=config.use_mean,
-        #use_damping=config.use_damping,
     )
     t_decomposition = time.perf_counter() - t_decomposition_start
 
