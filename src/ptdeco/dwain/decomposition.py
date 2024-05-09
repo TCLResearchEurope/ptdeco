@@ -137,6 +137,10 @@ class WrappedDWAINConv2d1x1(WrappedDWAINModule):
         )
         conv_1.weight.copy_(u[:, :, None, None])
         conv_2.weight.copy_(v[:, :, None, None])
+        if use_bias:
+            assert conv_2.bias is not None and self.conv_orig.bias is not None
+            conv_2.bias.copy_(self.conv_orig.bias)
+
         return torch.nn.Sequential(conv_1, conv_2)
 
 
