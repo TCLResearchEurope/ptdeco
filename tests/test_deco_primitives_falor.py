@@ -1,3 +1,5 @@
+import collections.abc
+
 import torch
 
 import ptdeco
@@ -8,14 +10,18 @@ from ptdeco.falor.decomposition import (
 )
 
 
-def data_iterator_lin(bs, fin, h, w):
+def data_iterator_lin(
+    bs: int, fin: int, h: int, w: int
+) -> collections.abc.Generator[torch.Tensor, None, None]:
     gen = torch.Generator()
     gen.manual_seed(314159)
     while True:
         yield torch.rand(bs, h, w, fin, generator=gen)
 
 
-def data_iterator_conv(bs, fin, h, w):
+def data_iterator_conv(
+    bs: int, fin: int, h: int, w: int
+) -> collections.abc.Generator[torch.Tensor, None, None]:
     gen = torch.Generator()
     gen.manual_seed(314159)
     while True:
@@ -23,30 +29,35 @@ def data_iterator_conv(bs, fin, h, w):
 
 
 class MyNetworkLinear(torch.nn.Module):
-    def __init__(self, in_features, out_features):
+    def __init__(self, in_features: int, out_features: int):
         super().__init__()
         self.mod = torch.nn.Linear(in_features=in_features, out_features=out_features)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         y = self.mod(x)
         return torch.flatten(y, start_dim=1)
 
 
 class MyNetworkConv1x1(torch.nn.Module):
-    def __init__(self, in_features, out_features):
+    def __init__(self, in_features: int, out_features: int):
         super().__init__()
         self.mod = torch.nn.Conv2d(
             in_channels=in_features, out_channels=out_features, kernel_size=(1, 1)
         )
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         y = self.mod(x)
         return torch.flatten(y, start_dim=1)
 
 
 def get_output_before_and_after_decomposition(
-    *, root_module, decomposed_submodule_name, device, data_iterator, deco_rank
-):
+    *,
+    root_module: torch.nn.Module,
+    decomposed_submodule_name: str,
+    device: torch.device,
+    data_iterator: collections.abc.Iterator[torch.Tensor],
+    deco_rank: int,
+) -> tuple[torch.Tensor, torch.Tensor]:
     x = next(data_iterator)
     with torch.no_grad():
         y0 = root_module(x)
@@ -88,7 +99,7 @@ def get_output_before_and_after_decomposition(
     return y0, y1
 
 
-def test_linear_decomposition_cpu():
+def test_linear_decomposition_cpu() -> None:
     dim_in = 64
     dim_out = 32
     dim_h, dim_w = 16, 16
@@ -111,7 +122,7 @@ def test_linear_decomposition_cpu():
     assert torch.max(torch.abs(y0 - y1).mean()) < 1.0e-6
 
 
-def test_conv1x1_decomposition_cpu():
+def test_conv1x1_decomposition_cpu() -> None:
     dim_in = 64
     dim_out = 32
     dim_h, dim_w = 16, 16
