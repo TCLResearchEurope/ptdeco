@@ -32,7 +32,7 @@ check_mypy:
 		(echo "FAILED mypy"; cat make.mypy.log; exit 1)
 
 test:
-	pytest -vv
+	pytest -vv tests
 
 
 clean:
