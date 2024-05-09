@@ -479,12 +479,13 @@ def decompose_in_place(
         assert submodule_name in results_all
         result = results_all[submodule_name]
         new_module = result["decomposed_module"]
+        proportion = result["proportion"]
 
         if new_module is None:
-            logger.info(f"{msg_prefix} SKIPPED module decomposed to full rank")
+            msg = f"SKIPPED {proportion=:.4f} leads to num param increase"
+            logger.info(f"{msg_prefix} {msg}")
             continue
 
-        proportion = result["proportion"]
         if proportion < proportion_threshold:
             old_module = module.get_submodule(submodule_name)
             old_module_type_name = utils.get_type_name(old_module)
