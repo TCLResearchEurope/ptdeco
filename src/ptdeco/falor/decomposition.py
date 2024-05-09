@@ -267,6 +267,17 @@ def _unwrap_in_place(
     )
 
 
+def _is_num_params_reduced(
+    proportion: float,
+    in_features: int,
+    out_features: int,
+) -> bool:
+    baseline_params = in_features * out_features
+    original_rank = min(in_features, out_features)
+    proposed_params = (in_features + out_features) * proportion * original_rank
+    return proposed_params < baseline_params
+
+
 def _process_module(
     *,
     root_module: torch.nn.Module,
@@ -366,13 +377,14 @@ def _process_module(
     msg_metrics = f"{proportion=:.4f} nsr={nsr_best:.6f} kl={kl_new:.6f}"
     logger.info(f"{msg_prefix} iter=FINAL rank={rank_best} {msg_metrics}")
 
-    if full_rank != rank_best:
+    if full_rank != rank_best and _is_num_params_reduced(proportion, dim_in, dim_out):
         new_decomposed_submodule = decomposed_submodule.get_decomposed_module(
             u=U.T, v=V.T
         )
         new_decomposed_submodule.to(orig_device)
     else:
-        logger.info(f"{msg_prefix} Module decomposed to full rank, not decomposing")
+        msg = f"{proportion=:.4f} leads to num param increase, not decomposing"
+        logger.info(f"{msg_prefix} {msg}")
         new_decomposed_submodule = None
 
     _unwrap_in_place(root_module, decomposed_submodule_name)

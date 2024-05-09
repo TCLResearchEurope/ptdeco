@@ -469,11 +469,14 @@ def _process_module(
         msg_metrics = f"{proportion=:.4f} nsr={nsr_best:.6f} ppl={ppl_best:.6f}"
         logger.info(f"{indent}i=FINAL rank={rank_best}/{full_rank} {msg_metrics}")
 
-        decompose_decision = _check_if_decompose(
+        decompose_decision = _is_num_params_reduced(
             proportion=proportion,
             in_features=dim_in,
             out_features=dim_out,
         )
+        if not decompose_decision:
+            msg = "{proportion=:.4f} leads to num param increase, not decomposing"
+            logger.info(f"{indent}{msg}")
     else:
         decompose_decision = False
 
@@ -539,7 +542,7 @@ def _add_meta_to_module_config(
     module_config[utils.modconfig.MODCONFIG_META_KEY] = meta
 
 
-def _check_if_decompose(
+def _is_num_params_reduced(
     proportion: float,
     in_features: int,
     out_features: int,
