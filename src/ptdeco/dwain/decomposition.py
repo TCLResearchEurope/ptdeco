@@ -739,8 +739,8 @@ def decompose_in_place(
 
         proportion = result["proportion"]
         if new_module is not None:
-            # # This should be always true, as check if decompose is already
-            # # verified in _process_module
+            # # This should be always true, as `check_if_decompose` is already
+            # # verified in `_process_module`
             # assert _check_if_decompose(
             #     proportion=proportion,
             #     in_features=old_module.in_features,
