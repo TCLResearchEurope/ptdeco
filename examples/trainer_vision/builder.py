@@ -150,7 +150,9 @@ def make_model(
         for name, module in model.named_modules():
             i = n_linears + n_conv1x1 + 1
             if isinstance(module, torch.nn.Linear):
-                logger.info(f"  - {name} # ({i}) linear {tuple(module.weight.shape)}")
+                bias = "+ bias" if module.bias is not None else "no bias"
+                msg = f"  - {name} # ({i}) linear {bias} {tuple(module.weight.shape)}"
+                logger.info(msg)
                 n_linears += 1
             elif (
                 isinstance(module, torch.nn.Conv2d)
@@ -158,8 +160,11 @@ def make_model(
                 and module.kernel_size[1] == 1
                 and module.groups == 1
             ):
+                bias = "+ bias" if module.bias is not None else "no bias"
+                msg = f"  - {name} # ({i}) conv1x1 {bias} {tuple(module.weight.shape)}"
+                logger.info(msg)
                 n_conv1x1 += 1
-                logger.info(f"  - {name} # ({i}) conv1x1 {tuple(module.weight.shape)}")
+
         logger.info(f"Decomposeable module statistics {n_linears=} {n_conv1x1=}")
     return model
 
