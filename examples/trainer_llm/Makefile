@@ -12,6 +12,8 @@ PYTHON_FILES=$(PYTHON_LIB_FILES) $(PYTHON_RUN_FILE)
 
 BUILD_DIR=dist
 
+all: build
+
 check:
 	-isort --check --profile=black $(PYTHON_FILES)
 	-black --check  $(PYTHON_FILES)
