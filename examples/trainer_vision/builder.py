@@ -147,6 +147,8 @@ def make_model(
         n_linears = 0
         n_conv1x1 = 0
         i = 1
+        msg_list = ["All decomposeable modules of the model:"]
+
         for name, module in model.named_modules():
             i = n_linears + n_conv1x1 + 1
             if isinstance(module, torch.nn.Linear):
@@ -162,9 +164,9 @@ def make_model(
             ):
                 bias = "+ bias" if module.bias is not None else "no bias"
                 msg = f"  - {name} # ({i}) conv1x1 {bias} {tuple(module.weight.shape)}"
-                logger.info(msg)
+                msg_list.append(msg)
                 n_conv1x1 += 1
-
+        logger.info("\n".join(msg_list))
         logger.info(f"Decomposeable module statistics {n_linears=} {n_conv1x1=}")
     return model
 
