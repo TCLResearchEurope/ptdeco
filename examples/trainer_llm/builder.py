@@ -9,16 +9,16 @@ logger = logging.getLogger(__name__)
 
 
 def _log_linear_submodules(m: torch.nn.Module) -> None:
-    res = ["All Linear modules of the model:"]
+    msg_list = ["All linear modules of the model:"]
 
     i = 1
     for name, module in m.named_modules():
         if isinstance(module, torch.nn.Linear):
             bias = "+ bias" if module.bias is not None else "no bias"
             msg = f"  - {name} # ({i}) {bias} {tuple(module.weight.shape)}"
-            res.append(msg)
+            msg_list.append(msg)
             i += 1
-    logger.info("\n".join(res))
+    logger.info("\n".join(msg_list))
 
 
 def _add_pad_token(
