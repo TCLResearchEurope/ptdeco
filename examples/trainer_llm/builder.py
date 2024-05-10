@@ -14,7 +14,9 @@ def _log_linear_submodules(m: torch.nn.Module) -> None:
     i = 1
     for name, module in m.named_modules():
         if isinstance(module, torch.nn.Linear):
-            res.append(f"  - {name}  # ({i}) {tuple(module.weight.shape)}")
+            bias = "+ bias" if module.bias is not None else "no bias"
+            msg = f"  - {name} # ({i}) {bias} {tuple(module.weight.shape)}"
+            res.append(msg)
             i += 1
     logger.info("\n".join(res))
 
