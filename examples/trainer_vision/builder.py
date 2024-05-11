@@ -132,7 +132,7 @@ def log_model_stats(
 
 
 def make_model(
-    model_name: str, log_linears_an_conv1x1: bool = False
+    model_name: str, log_linears_and_conv1x1: bool = False
 ) -> torch.nn.Module:
     builder, model_name = model_name.split(".", maxsplit=1)
 
@@ -143,7 +143,7 @@ def make_model(
     else:
         raise ValueError(f"Unknown model builder {builder}")
 
-    if log_linears_an_conv1x1:
+    if log_linears_and_conv1x1:
         n_linears = 0
         n_conv1x1 = 0
         i = 1
@@ -154,7 +154,7 @@ def make_model(
             if isinstance(module, torch.nn.Linear):
                 bias = "+ bias" if module.bias is not None else "no bias"
                 msg = f"  - {name} # ({i}) linear {bias} {tuple(module.weight.shape)}"
-                logger.info(msg)
+                msg_list.append(msg)
                 n_linears += 1
             elif (
                 isinstance(module, torch.nn.Conv2d)
