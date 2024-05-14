@@ -1,9 +1,10 @@
 import collections
 import json
 import logging
+import os
 import pathlib
 import time
-from typing import Any
+from typing import Any, Optional
 
 import ptdeco
 import torch
@@ -69,6 +70,7 @@ def finetune_full(
     num_steps: int = 100,
     num_log_steps: int = 10,
     lr: float = 0.0001,
+    reverting_checkpoints_dir: Optional[pathlib.Path] = None,
 ) -> torch.nn.Module:
 
     if len(decomposed_modules) == 0:
@@ -94,6 +96,14 @@ def finetune_full(
     counter = 0
     model.train()
     total_loss = 0.0
+    initial_loss = float("nan")
+    last_loss = float("nan")
+
+    if reverting_checkpoints_dir is not None:
+        pid = os.getpid()
+        sd_path = reverting_checkpoints_dir / f"tmp_reverting_state_dict_{pid}.pt"
+        torch.save(model.state_dict, sd_path)
+
     for step in range(num_steps):
         batch = ptdeco.utils.to_device(next(ft_iterator), device)
         counter += 1
@@ -109,8 +119,24 @@ def finetune_full(
 
         if step % num_log_steps == 0:
             logger.info(f"Step: {step}/{num_steps}, loss: {total_loss / counter}")
+            # Thist cheks for NaN
+            if initial_loss != initial_loss:
+                initial_loss = total_loss
+            last_loss = total_loss
             total_loss = 0.0
             counter = 0
+
+    if (
+        reverting_checkpoints_dir is not None
+        and initial_loss == initial_loss
+        and last_loss > initial_loss
+    ):
+        logger.info(f"{initial_loss:.4f=} < {last_loss=:.4f}, REVERTING orig weights")
+        model.load_state_dict(torch.load(sd_path))
+
+    if reverting_checkpoints_dir is not None:
+        sd_path.unlink(missing_ok=True)
+
     model.eval()
     stop = time.perf_counter()
     logger.info(f"Full fine-tuning took {stop-start:.2f} seconds")
