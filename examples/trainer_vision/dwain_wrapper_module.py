@@ -86,7 +86,6 @@ def finetune_full(
         else:
             param.requires_grad = False
 
-
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
     # optimizer = "sgd"
     # if optimizer == "sgd":
@@ -122,7 +121,7 @@ def finetune_full(
             logger.info(f"Step: {step}/{num_steps}, loss: {total_loss / counter}")
             # Thist cheks for NaN
             if initial_loss != initial_loss:
-                initial_loss = total_loss /counter
+                initial_loss = total_loss / counter
             last_loss = total_loss / counter
             total_loss = 0.0
             counter = 0
