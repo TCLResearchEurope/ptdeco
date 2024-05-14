@@ -71,6 +71,7 @@ def finetune_full(
     num_log_steps: int = 10,
     lr: float = 0.0001,
     reverting_checkpoints_dir: Optional[pathlib.Path] = None,
+    optimizer_name: str,
 ) -> torch.nn.Module:
 
     if len(decomposed_modules) == 0:
@@ -85,15 +86,14 @@ def finetune_full(
             logger.info(msg)
         else:
             param.requires_grad = False
-
-    optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
-    # optimizer = "sgd"
-    # if optimizer == "sgd":
-    #     optimizer = torch.optim.SGD(model.parameters(), lr=lr)
-    #     logger.info(f"Using SGD optimizer")
-    # else:
-    #     optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
-    #     logger.info(f"Using AdamW optimizer")
+    if optimizer_name == "SGD":
+        optimizer: torch.optim.Optimizer = torch.optim.SGD(model.parameters(), lr=lr)
+        logger.info("Using SGD optimizer")
+    elif optimizer_name == "AdamW":
+        optimizer: torch.optim.Optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
+        logger.info("Using AdamW optimizer")
+    else:
+        raise ValueError(f"Unknown {optimizer_name=} only SGD and AdamW are allowed")
 
     counter = 0
     model.train()

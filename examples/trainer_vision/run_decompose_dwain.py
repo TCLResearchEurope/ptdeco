@@ -41,6 +41,12 @@ def make_finetune_fn(
 ]:
     if config.finetuning_run:
         logger.info("Creating full finetuning function")
+        if config.finetuning_reverting:
+            reverting_checkpoints_dir = output_path
+            logger.info("Reverting finetuning is ON")
+        else:
+            reverting_checkpoints_dir = None
+            logger.info("Reverting finetuning is OFF")
         return lambda m, device, decomposed_modules: dwain_wrapper_module.finetune_full(
             model=m,
             device=device,
@@ -50,7 +56,8 @@ def make_finetune_fn(
             num_log_steps=config.finetuning_num_log_steps,
             lr=config.finetuning_lr,
             num_last_modules_to_finetune=config.finetuning_num_last_finetuned_modules,
-            reverting_checkpoints_dir=output_path,
+            reverting_checkpoints_dir=reverting_checkpoints_dir,
+            optimizer_name=config.finetuning_optimizer,
         )
     else:
         logger.info("Creating empty finetuning function")
