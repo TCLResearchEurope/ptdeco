@@ -86,13 +86,16 @@ def finetune_full(
         else:
             param.requires_grad = False
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
 
-    # lr_scheduler = transformers.get_linear_schedule_with_warmup(
-    #     optimizer=optimizer,
-    #     num_warmup_steps=10,
-    #     num_training_steps=num_steps,
-    # )
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
+    # optimizer = "sgd"
+    # if optimizer == "sgd":
+    #     optimizer = torch.optim.SGD(model.parameters(), lr=lr)
+    #     logger.info(f"Using SGD optimizer")
+    # else:
+    #     optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
+    #     logger.info(f"Using AdamW optimizer")
+
     counter = 0
     model.train()
     total_loss = 0.0
@@ -102,13 +105,11 @@ def finetune_full(
     if reverting_checkpoints_dir is not None:
         pid = os.getpid()
         sd_path = reverting_checkpoints_dir / f"tmp_reverting_state_dict_{pid}.pt"
-        torch.save(model.state_dict, sd_path)
+        torch.save(model.state_dict(), sd_path)
 
-    for step in range(num_steps):
+    for step in range(1, num_steps + 1):
         batch = ptdeco.utils.to_device(next(ft_iterator), device)
         counter += 1
-        if step > num_steps:
-            break
         optimizer.zero_grad()
         outputs = model(batch)
         loss = ce_loss(batch, outputs)
@@ -121,20 +122,19 @@ def finetune_full(
             logger.info(f"Step: {step}/{num_steps}, loss: {total_loss / counter}")
             # Thist cheks for NaN
             if initial_loss != initial_loss:
-                initial_loss = total_loss
-            last_loss = total_loss
+                initial_loss = total_loss /counter
+            last_loss = total_loss / counter
             total_loss = 0.0
             counter = 0
 
-    if (
-        reverting_checkpoints_dir is not None
-        and initial_loss == initial_loss
-        and last_loss > initial_loss
-    ):
-        logger.info(f"{initial_loss=:.4f} < {last_loss=:.4f}, REVERTING orig weights")
-        model.load_state_dict(torch.load(sd_path))
-
     if reverting_checkpoints_dir is not None:
+        if initial_loss == initial_loss and initial_loss < last_loss:
+            loss_msg = f"{initial_loss=:.4f} < {last_loss=:.4f}"
+            logger.info(f"{loss_msg}: keeping the orig weights")
+            model.load_state_dict(torch.load(sd_path))
+        elif initial_loss == initial_loss and initial_loss >= last_loss:
+            loss_msg = f"{initial_loss=:.4f} >= {last_loss=:.4f}"
+            logger.info(f"{loss_msg}: using the fine-tuned weights")
         sd_path.unlink(missing_ok=True)
 
     model.eval()
