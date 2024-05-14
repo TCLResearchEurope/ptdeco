@@ -479,7 +479,7 @@ def _process_module(
             out_features=dim_out,
         )
         if not decompose_decision:
-            msg = "{proportion=:.4f} leads to num param increase, not decomposing"
+            msg = f"{proportion=:.4f} leads to num param increase, not decomposing"
             logger.info(f"{indent}{msg}")
     else:
         decompose_decision = False
