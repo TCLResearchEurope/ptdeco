@@ -81,6 +81,7 @@ class DecomposeDWAINConfig(_VersionConfig, _DataConfig):
     finetuning_lr: float
     finetuning_optimizer: Literal["SGD", "AdamW"]
     finetuning_reverting: bool
+    finetuning_batch_norms_in_eval: bool
     finetuning_num_steps: int
     finetuning_num_log_steps: int
     finetuning_num_last_finetuned_modules: int

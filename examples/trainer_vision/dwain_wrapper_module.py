@@ -7,6 +7,7 @@ import time
 from typing import Any, Optional
 
 import ptdeco
+import timm  # type:ignore
 import torch
 
 PREFIX = "raw_model."
@@ -60,6 +61,22 @@ def save_raw_model_decompose_config_and_state_dict(
     torch.save(strip_prefix_dict(state_dict), out_decompose_state_dict_path)
 
 
+_BATCH_NORM_TYPES = (
+    torch.nn.BatchNorm1d,
+    torch.nn.BatchNorm2d,
+    torch.nn.BatchNorm3d,
+    timm.layers.norm_act.BatchNormAct2d,
+)
+
+
+def _batch_norms_in_eval(m: torch.nn.Module) -> None:
+    for mod_name, mod in m.named_modules():
+        if isinstance(mod, _BATCH_NORM_TYPES):
+            mod.eval()
+            mod_type_name = ptdeco.utils.get_type_name(mod)
+            logger.info(f"Switching {mod_name} ({mod_type_name}) to eval mode")
+
+
 def finetune_full(
     *,
     model: torch.nn.Module,
@@ -72,6 +89,7 @@ def finetune_full(
     lr: float = 0.0001,
     reverting_checkpoints_dir: Optional[pathlib.Path] = None,
     optimizer_name: str,
+    batch_norms_in_eval: bool,
 ) -> torch.nn.Module:
 
     if len(decomposed_modules) == 0:
@@ -90,13 +108,15 @@ def finetune_full(
         optimizer: torch.optim.Optimizer = torch.optim.SGD(model.parameters(), lr=lr)
         logger.info("Using SGD optimizer")
     elif optimizer_name == "AdamW":
-        optimizer: torch.optim.Optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
+        optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
         logger.info("Using AdamW optimizer")
     else:
         raise ValueError(f"Unknown {optimizer_name=} only SGD and AdamW are allowed")
 
     counter = 0
     model.train()
+    if batch_norms_in_eval:
+        _batch_norms_in_eval(model)
     total_loss = 0.0
     initial_loss = float("nan")
     last_loss = float("nan")

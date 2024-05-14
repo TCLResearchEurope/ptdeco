@@ -58,6 +58,7 @@ def make_finetune_fn(
             num_last_modules_to_finetune=config.finetuning_num_last_finetuned_modules,
             reverting_checkpoints_dir=reverting_checkpoints_dir,
             optimizer_name=config.finetuning_optimizer,
+            batch_norms_in_eval=config.finetuning_batch_norms_in_eval,
         )
     else:
         logger.info("Creating empty finetuning function")
