@@ -34,6 +34,7 @@ def no_finetune(
 
 def make_finetune_fn(
     config: configurator.DecomposeDWAINConfig,
+    output_path: pathlib.Path,
     ft_iterator: collections.abc.Iterator[dict[str, torch.Tensor]],
 ) -> collections.abc.Callable[
     [torch.nn.Module, torch.device, list[str]], torch.nn.Module
@@ -49,6 +50,7 @@ def make_finetune_fn(
             num_log_steps=config.finetuning_num_log_steps,
             lr=config.finetuning_lr,
             num_last_modules_to_finetune=config.finetuning_num_last_finetuned_modules,
+            reverting_checkpoints_dir=output_path,
         )
     else:
         logger.info("Creating empty finetuning function")
@@ -113,7 +115,7 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
 
     t_decomposition_start = time.perf_counter()
 
-    finetune_fn = make_finetune_fn(config, decomposition_it)
+    finetune_fn = make_finetune_fn(config, output_path, decomposition_it)
 
     blacklisted_module_names_wrapped = dwain_wrapper_module.add_prefix(
         config.blacklisted_modules

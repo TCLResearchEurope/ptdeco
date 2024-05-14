@@ -131,7 +131,7 @@ def finetune_full(
         and initial_loss == initial_loss
         and last_loss > initial_loss
     ):
-        logger.info(f"{initial_loss:.4f=} < {last_loss=:.4f}, REVERTING orig weights")
+        logger.info(f"{initial_loss=:.4f} < {last_loss=:.4f}, REVERTING orig weights")
         model.load_state_dict(torch.load(sd_path))
 
     if reverting_checkpoints_dir is not None:
