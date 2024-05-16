@@ -28,7 +28,7 @@ class _TrainConfig(pydantic.BaseModel):
     lr: float
     lr_t_warmup: str
     max_duration: str
-    optimizer: Literal["Adam", "SGD"]
+    optimizer: Literal["SGD", "Adam", "AdamW"]
     precision: Optional[Literal["fp32", "amp_fp16", "amp_bf16", "amp_fp8"]]
     alg_channel_last: bool
     alg_gradient_clipping_type: Optional[Literal["norm", "value", "adaptive"]]
@@ -79,7 +79,7 @@ class DecomposeDWAINConfig(_VersionConfig, _DataConfig):
 
     finetuning_run: bool
     finetuning_lr: float
-    finetuning_optimizer: Literal["SGD", "AdamW"]
+    finetuning_optimizer: Literal["SGD", "Adam", "AdamW"]
     finetuning_reverting: bool
     finetuning_batch_norms_in_eval: bool
     finetuning_num_steps: int
@@ -151,6 +151,8 @@ def get_optimizer(
     logger.info(f"Using optimizer {optimizer_name}")
     if optimizer_name == "Adam":
         return torch.optim.Adam(params=params, lr=config.lr)
+    elif optimizer_name == "AdamW":
+        return torch.optim.AdamW(params=params, lr=config.lr)
     elif optimizer_name == "SGD":
         return torch.optim.SGD(params=params, lr=config.lr)
     else:

@@ -107,6 +107,8 @@ def finetune_full(
     if optimizer_name == "SGD":
         optimizer: torch.optim.Optimizer = torch.optim.SGD(model.parameters(), lr=lr)
         logger.info("Using SGD optimizer")
+    elif optimizer_name == "Adam":
+        optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     elif optimizer_name == "AdamW":
         optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
         logger.info("Using AdamW optimizer")
