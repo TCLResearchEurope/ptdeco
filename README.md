@@ -51,7 +51,8 @@ convolutions.
 GPU hour (depending on model size and parameters). It can decompose linear
 layers and 1x1 convolutions.
 
-**dwain** method does not require pretraining. It can decompose linear layers.
+**dwain** method does not require pretraining. It can decompose linear layers and
+1x1 convolutions.
 
 ## Installation
 
