@@ -27,6 +27,9 @@ def parse_args() -> argparse.Namespace:
 
     arg_parser = argparse.ArgumentParser()
     arg_parser.add_argument("--version", action="store_true")
+    arg_parser.add_argument("--output-path", type=pathlib.Path)
+    arg_parser.add_argument("--config", type=pathlib.Path)
+
     args = arg_parser.parse_args()
 
     # If no --version, run parsing of trainign/decomposition arguments
@@ -44,6 +47,7 @@ def parse_args() -> argparse.Namespace:
             required=True,
         )
         args = arg_parser.parse_args()
+        args.version = False
 
     return args
 
