@@ -7,6 +7,7 @@ import time
 from typing import Any
 
 import ptdeco
+import torch
 import yaml
 
 import run_decompose_dwain
@@ -21,18 +22,29 @@ REPRO_SUBDIR = "repro"
 
 
 def parse_args() -> argparse.Namespace:
+
+    # Try to parse --version
+
     arg_parser = argparse.ArgumentParser()
-    arg_parser.add_argument(
-        "--output-path",
-        type=pathlib.Path,
-        required=True,
-    )
-    arg_parser.add_argument(
-        "--config",
-        type=pathlib.Path,
-        required=True,
-    )
+    arg_parser.add_argument("--version", action="store_true")
     args = arg_parser.parse_args()
+
+    # If no --version, run parsing of trainign/decomposition arguments
+
+    if not args.version:
+        arg_parser = argparse.ArgumentParser()
+        arg_parser.add_argument(
+            "--output-path",
+            type=pathlib.Path,
+            required=True,
+        )
+        arg_parser.add_argument(
+            "--config",
+            type=pathlib.Path,
+            required=True,
+        )
+        args = arg_parser.parse_args()
+
     return args
 
 
@@ -126,7 +138,16 @@ def save_requirements(
                 f.write(r + "\n")
 
 
+def print_version() -> None:
+    print(f"Using ptdeco vision trainer {version.__version__}")
+    print(f"Using ptdeco {ptdeco.__version__}")
+    print(f"Using torch {torch.__version__}")
+
+
 def main(args: argparse.Namespace) -> None:
+    if args.version:
+        print_version()
+        return
     start = time.perf_counter()
     setup_logging()
     output_path = pathlib.Path(args.output_path)
@@ -138,8 +159,9 @@ def main(args: argparse.Namespace) -> None:
     )
     config = read_config(args.config)
     task = config.get("task")
-    logger.info(f"Using ptdeco trainer {version.__version__}")
+    logger.info(f"Using ptdeco vision trainer {version.__version__}")
     logger.info(f"Using ptdeco {ptdeco.__version__}")
+    logger.info("Using torch {torch.__version__}")
 
     if task == "decompose_lockd":
         run_decompose_lockd.main(config=config, output_path=output_path)
