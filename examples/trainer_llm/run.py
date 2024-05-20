@@ -51,18 +51,28 @@ REPRO_SUBDIR = "repro"
 
 
 def parse_args() -> argparse.Namespace:
+    # Try to parse --version
+
     arg_parser = argparse.ArgumentParser()
-    arg_parser.add_argument(
-        "--output-path",
-        type=pathlib.Path,
-        required=True,
-    )
-    arg_parser.add_argument(
-        "--config",
-        type=pathlib.Path,
-        required=True,
-    )
+    arg_parser.add_argument("--version", action="store_true")
     args = arg_parser.parse_args()
+
+    # If no --version, run parsing of trainign/decomposition arguments
+
+    if not args.version:
+        arg_parser = argparse.ArgumentParser()
+        arg_parser.add_argument(
+            "--output-path",
+            type=pathlib.Path,
+            required=True,
+        )
+        arg_parser.add_argument(
+            "--config",
+            type=pathlib.Path,
+            required=True,
+        )
+        args = arg_parser.parse_args()
+
     return args
 
 
@@ -131,7 +141,17 @@ def save_requirements(
                 f.write(r + "\n")
 
 
+def print_version() -> None:
+    print(f"Using ptdeco LLM trainer {version.__version__}")
+    print(f"Using ptdeco {ptdeco.__version__}")
+    print(f"Using torch {torch.__version__}")
+
+
 def main(args: argparse.Namespace) -> None:
+    if args.version:
+        print_version()
+        return
+
     start = time.perf_counter()
     output_path = pathlib.Path(args.output_path)
     output_path.mkdir(exist_ok=True, parents=True)
@@ -142,9 +162,10 @@ def main(args: argparse.Namespace) -> None:
     )
     config = read_config(args.config)
     task = config.get("task")
-    logger.info(f"Using torch {torch.__version__}")
+
     logger.info(f"Using ptdeco LLM trainer {version.__version__}")
     logger.info(f"Using ptdeco {ptdeco.__version__}")
+    logger.info(f"Using torch {torch.__version__}")
 
     if task == "decompose_dwain":
         run_decompose_dwain.main(config_raw=config, output_path=output_path)
