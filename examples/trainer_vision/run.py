@@ -165,7 +165,7 @@ def main(args: argparse.Namespace) -> None:
     task = config.get("task")
     logger.info(f"Using ptdeco vision trainer {version.__version__}")
     logger.info(f"Using ptdeco {ptdeco.__version__}")
-    logger.info("Using torch {torch.__version__}")
+    logger.info(f"Using torch {torch.__version__}")
 
     if task == "decompose_lockd":
         run_decompose_lockd.main(config=config, output_path=output_path)
