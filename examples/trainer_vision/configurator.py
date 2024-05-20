@@ -27,6 +27,7 @@ class _TrainConfig(pydantic.BaseModel):
     finetune_only_decomposed: bool
     lr: float
     lr_t_warmup: str
+    lr_scheduler: Literal["cosine", "fixed"]
     max_duration: str
     optimizer: Literal["SGD", "Adam", "AdamW"]
     precision: Optional[Literal["fp32", "amp_fp16", "amp_bf16", "amp_fp8"]]
@@ -111,10 +112,23 @@ def get_precision(config: _TrainConfig) -> Optional[composer.core.Precision]:
 
 def get_lr_scheduler(config: _TrainConfig) -> composer.optim.ComposerScheduler:
     lr_t_warmup = config.lr_t_warmup
-    logger.info(f"Using CosineAnnealingWithWarmupScheduler, {lr_t_warmup=}")
-    lr_scheduler = composer.optim.CosineAnnealingWithWarmupScheduler(
-        t_warmup=lr_t_warmup
-    )
+
+    if config.lr_scheduler == "cosine":
+        logger.info(f"Using cosine lr schedule, {lr_t_warmup=}")
+        lr_scheduler: composer.optim.ComposerScheduler = (
+            composer.optim.CosineAnnealingWithWarmupScheduler(t_warmup=lr_t_warmup)
+        )
+    elif config.lr_scheduler == "fixed":
+        logger.info(f"Using fixed lr schedule, {lr_t_warmup=}")
+        lr_scheduler = composer.optim.LinearWithWarmupScheduler(
+            t_warmup=lr_t_warmup,
+            alpha_i=1.0,
+            alpha_f=1.0,
+        )
+    else:
+        msg = f"Unknow scheduler {config.lr_scheduler} != cosine or fixed"
+        raise ValueError(msg)
+
     return lr_scheduler
 
 
