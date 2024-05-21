@@ -8,7 +8,10 @@
 
 ## DONE
 
-## ptdeco 0.4.0, ptdeco trainer 0.8.0
+## ptdeco llm trainer  0.1.0
++ **[trainer_llm]** Implements decomposing llms with falor method and finetuning of
+
+## ptdeco 0.4.0, ptdeco vision trainer 0.8.0
 + **[general]** Implement and test building a wheel package
 + **[general]** Move to src project layout
 + **[utils]** Add logging num of decomposed modules of each type in apply_decompose_config_in_place
@@ -19,12 +22,12 @@
 + **[trainer]** Fix typing
 + **[trainer]** Move notebooks to a sepearte dir
 
-## ptdeco trainer 0.7.0
+## ptdeco vision trainer 0.7.0
 + **[tranier]** Add logging state dict stats
 + **[trainer]** Fix state dict bug
 + **[trainer]** Unify logged stats of decomposed models in lockd/falor/finetune
 
-## ptdeco 0.3.0, ptdeco trainer 0.6.0
+## ptdeco 0.3.0, ptdeco vision trainer 0.6.0
 + **[falor]** Refactor `fal` -> `falor` and move module to separate directory
 + **[general]** Refactor wrapping class names
 + **[lockd]** Get rid of needless module copies in lockd wrapping
@@ -32,7 +35,7 @@
 + **[lockd]** Remove `uwrap_in_place`
 + **[trainer]** Refactor compile config to Optional in trainer
 
-## ptdeco 0.2.0, ptdeco trainer 0.5.0
+## ptdeco 0.2.0, ptdeco vision trainer 0.5.0
 + **[falor]** Add decomposition params handling through config
 + **[general]** Add checking if all blacklisted modules are present in the model
 + **[general]** Clean-up configurator getters to make use of pydantic models
