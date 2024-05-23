@@ -17,16 +17,6 @@
 * [Saving and loading a decomposed model](#saving-and-loading-a-decomposed-model)
    * [Saving a decomposed model](#saving-a-decomposed-model)
    * [Loading a decomposed model](#loading-a-decomposed-model)
-* [Sample results](#sample-results)
-   * [convnext_femto.d1_in1k](#convnext_femtod1_in1k)
-   * [convnextv2_nano.fcmae_ft_in22k_in1k](#convnextv2_nanofcmae_ft_in22k_in1k)
-   * [rexnetr_200.sw_in12k_ft_in1k](#rexnetr_200sw_in12k_ft_in1k)
-   * [efficientformerv2_s2.snap_dist_in1k](#efficientformerv2_s2snap_dist_in1k)
-   * [mobilevitv2_200.cvnets_in22k_ft_in1k](#mobilevitv2_200cvnets_in22k_ft_in1k)
-   * [swinv2_cr_tiny_ns_224.sw_in1k](#swinv2_cr_tiny_ns_224sw_in1k)
-   * [deit3_small_patch16_224.fb_in1k](#deit3_small_patch16_224fb_in1k)
-   * [resnet18.a2_in1k](#resnet18a2_in1k)
-   * [resnet50d.a1_in1k](#resnet50da1_in1k)
 
 </details>
 
