@@ -1,5 +1,3 @@
 .ipynb_checkpoints
 build
-notebooks/nb_deco_timing_analysis.ipynb
-notebooks/nb_deco_train_analysis.ipynb
 out
