@@ -9,7 +9,10 @@
 ## DONE
 
 ## ptdeco llm trainer  0.1.0
-+ **[trainer_llm]** Implements decomposing llms with falor method and finetuning of
++ **[trainer_llm]** Implements decomposing llms with dwain method and finetuning of
+
+## ptdeco 0.5.0
++ **[dwain]** Add new decomposition method - dwain
 
 ## ptdeco 0.4.0, ptdeco vision trainer 0.8.0
 + **[general]** Implement and test building a wheel package
