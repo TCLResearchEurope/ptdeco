@@ -152,8 +152,8 @@ def _update_Eyyt_in_place(Eyyt: torch.Tensor, y_reshaped: torch.Tensor) -> None:
     Eyyt += torch.einsum("bp,bq->pq", y_reshaped, y_reshaped) / y_reshaped.shape[0]
 
 
-def _get_eigenvectors(Eyyt: torch.Tensor, num_data_steps: int) -> torch.Tensor:
-    Eyyt = Eyyt / num_data_steps
+def _get_eigenvectors(Eyyt: torch.Tensor) -> torch.Tensor:
+    # Eyyt = Eyyt / num_data_steps
     # https://stats.stackexchange.com/questions/390532/adding-a-small-constant-to-the-diagonals-of-a-matrix-to-stabilize
     damp = EIGEN_DAMPEN_FACTOR * torch.mean(torch.diag(Eyyt))
     diag = torch.arange(Eyyt.shape[-1], device=Eyyt.device)
@@ -204,7 +204,7 @@ class CovarianceComputingLinearModule(torch.nn.Module):
         return y
 
     def get_eigenvectors(self) -> torch.Tensor:
-        u = _get_eigenvectors(self.Eyyt, self.num_data_steps)
+        u = _get_eigenvectors(self.Eyyt / self.num_data_steps)
         return u.to(self.weight.dtype).to("cpu")
 
 
@@ -234,13 +234,12 @@ def _compute_covariance_matrix_decomposition(
 
     for _ in range(num_data_steps):
         inputs = utils.to_device(next(data_iterator), device)
-        # TODO: ML check this call
         _ = root_module(inputs)
         x = decomposed_submodule.get_last_input()
         y = x @ weight.T
         _update_Eyyt_in_place(Eyyt, y)
 
-    u = _get_eigenvectors(Eyyt, num_data_steps)
+    u = _get_eigenvectors(Eyyt / num_data_steps)
 
     return u
 
@@ -382,7 +381,7 @@ def _process_module(
     logger.info(f"{msg_prefix} {nsr_final_threshold=:.6f} {ppl_diff_threshold=:.6f}")
 
     if u_matrix is not None:
-        logger.info("Using pre-computed u_matrix")
+        logger.info(f"Using pre-computed u_matrix, {u_matrix.dtype=}")
     else:
         u_matrix = _compute_covariance_matrix_decomposition(
             root_module=root_module,
@@ -393,6 +392,7 @@ def _process_module(
             device=device,
             decompose_in_float64=decompose_in_float64,
         )
+        logger.info(f"Computed u_matrix, {u_matrix.dtype=}")
 
     U, V = torch.empty(0), torch.empty(0)
 
