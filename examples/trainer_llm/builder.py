@@ -1,3 +1,4 @@
+from typing import Optional
 import json
 import logging
 
@@ -102,3 +103,16 @@ def apply_decompose_config_and_state_dict_in_place(
 
     if log_linears:
         _log_linear_submodules(model)
+
+
+def validate_module_names(
+    model: torch.nn.Module, module_names: Optional[list[str]]
+) -> None:
+    if module_names is not None:
+        known_module_names = {name for name, _ in model.named_modules()}
+        unknown_modules = [
+            name for name in module_names if name not in known_module_names
+        ]
+        if unknown_modules:
+            msg = ", ".join(unknown_modules)
+            raise ValueError(f"Unknown module names specified: {msg}")

@@ -131,6 +131,7 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
         log_linears=True,
     )
     model.to(device)
+    builder.validate_module_names(model, config.blacklisted_modules)
 
     # 3. PREPARE DATALOADERS
 
