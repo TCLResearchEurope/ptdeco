@@ -1,6 +1,5 @@
 SHELL=bash
 
-MODULE_NAME=ptdeco
 VER_FILE=version.py
 
 PYTHON_LIB_FILES=builder.py configurator.py datasets_hf.py dwain_wrapper_module.py metrics.py utils.py \
@@ -43,7 +42,7 @@ build:
 	@cp $(PYTHON_RUN_FILE)  __main__.py
 		ZIP_SUFFIX="-mod"; \
 		git diff --exit-code && ZIP_SUFFIX=""; \
-		ZIP_NAME="$(BUILD_DIR)/ptdeco-$$(git rev-list --count HEAD)-$$(git rev-parse --short HEAD)$${ZIP_SUFFIX}.zip"; \
+		ZIP_NAME="$(BUILD_DIR)/ptdeco-llm-$$(git rev-list --count HEAD)-$$(git rev-parse --short HEAD)$${ZIP_SUFFIX}.zip"; \
 		zip -r $${ZIP_NAME} $(PYTHON_LIB_FILES) __main__.py ptdeco; \
 		rm -rf ptdeco __main__.py; \
 		echo "Build - created $${ZIP_NAME}"
