@@ -91,6 +91,7 @@ def finetune_full(
     optimizer_name: str,
     batch_norms_in_eval: bool,
 ) -> torch.nn.Module:
+    REVERTING_FACTOR = 1.2
 
     if len(decomposed_modules) == 0:
         logger.info("Skipping full fine-tuning - empty list of decomposed modules")
@@ -149,12 +150,14 @@ def finetune_full(
             counter = 0
 
     if reverting_checkpoints_dir is not None:
-        if initial_loss == initial_loss and initial_loss < last_loss:
-            loss_msg = f"{initial_loss=:.4f} < {last_loss=:.4f}"
+        max_loss = REVERTING_FACTOR * initial_loss
+        logger.info(f"{max_loss=:.4f} <- {REVERTING_FACTOR:.2f} * {initial_loss=:.4f}")
+        if initial_loss == initial_loss and last_loss > max_loss:
+            loss_msg = f"{max_loss=:.4f} < {last_loss=:.4f}"
             logger.info(f"{loss_msg}: keeping the orig weights")
             model.load_state_dict(torch.load(sd_path))
-        elif initial_loss == initial_loss and initial_loss >= last_loss:
-            loss_msg = f"{initial_loss=:.4f} >= {last_loss=:.4f}"
+        elif initial_loss == initial_loss and last_loss <= max_loss:
+            loss_msg = f"{max_loss=:.4f} >= {last_loss=:.4f}"
             logger.info(f"{loss_msg}: using the fine-tuned weights")
         sd_path.unlink(missing_ok=True)
 
