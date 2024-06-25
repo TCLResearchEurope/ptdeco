@@ -160,7 +160,7 @@ class ImagenetPipeline(nvidia.dali.pipeline.Pipeline):
             output_type=nvidia.dali.types.RGB,
         )
         if resize_interp not in INTERPOLATION:
-            msg_interp = ", ".join(NORMALIZATION.keys())
+            msg_interp = ", ".join(INTERPOLATION.keys())
             msg = f"{resize_interp=} not supported, use {msg_interp}"
             raise ValueError(msg)
         self.resize_interp = INTERPOLATION[resize_interp]
@@ -279,18 +279,18 @@ class ImagenetPipeline(nvidia.dali.pipeline.Pipeline):
         return [images, classes]
 
 
-def make_imagenet_pipelines(
+def make_imagenet_trn_pipeline(
     *,
     batch_size: int,
     normalization: str = "IMAGENET",
     trn_image_classes_fname: str,
-    val_image_classes_fname: str,
     imagenet_root_dir: str,
     h_w: tuple[int, int] = (224, 224),
     resize_interp: str = DEFAULT_RESIZE_INTERP,
     resize_subpixel_scale: bool = DEFAULT_RESIZE_SUBPIXEL_SCALE,
-) -> tuple[ImagenetPipeline, ImagenetPipeline]:
-    pipeline = ImagenetPipeline(
+) -> ImagenetPipeline:
+
+    return ImagenetPipeline(
         batch_size=batch_size,
         resize_image_size=h_w,
         in_training=True,
@@ -303,7 +303,19 @@ def make_imagenet_pipelines(
         resize_subpixel_scale=resize_subpixel_scale,
     )
 
-    valid_pipeline = ImagenetPipeline(
+
+def make_imagenet_val_pipeline(
+    *,
+    batch_size: int,
+    normalization: str = "IMAGENET",
+    val_image_classes_fname: str,
+    imagenet_root_dir: str,
+    h_w: tuple[int, int] = (224, 224),
+    resize_interp: str = DEFAULT_RESIZE_INTERP,
+    resize_subpixel_scale: bool = DEFAULT_RESIZE_SUBPIXEL_SCALE,
+) -> ImagenetPipeline:
+
+    return ImagenetPipeline(
         batch_size=batch_size,
         resize_image_size=h_w,
         in_training=False,
@@ -315,7 +327,41 @@ def make_imagenet_pipelines(
         resize_interp=resize_interp,
         resize_subpixel_scale=resize_subpixel_scale,
     )
-    return pipeline, valid_pipeline
+
+
+def make_imagenet_pipelines(
+    *,
+    batch_size: int,
+    normalization: str = "IMAGENET",
+    trn_image_classes_fname: str,
+    val_image_classes_fname: str,
+    imagenet_root_dir: str,
+    h_w: tuple[int, int] = (224, 224),
+    resize_interp: str = DEFAULT_RESIZE_INTERP,
+    resize_subpixel_scale: bool = DEFAULT_RESIZE_SUBPIXEL_SCALE,
+) -> tuple[ImagenetPipeline, ImagenetPipeline]:
+
+    train_pipeline = make_imagenet_trn_pipeline(
+        batch_size=batch_size,
+        normalization=normalization,
+        trn_image_classes_fname=trn_image_classes_fname,
+        imagenet_root_dir=imagenet_root_dir,
+        h_w=h_w,
+        resize_interp=resize_interp,
+        resize_subpixel_scale=resize_subpixel_scale,
+    )
+
+    valid_pipeline = make_imagenet_val_pipeline(
+        batch_size=batch_size,
+        normalization=normalization,
+        val_image_classes_fname=val_image_classes_fname,
+        imagenet_root_dir=imagenet_root_dir,
+        h_w=h_w,
+        resize_interp=resize_interp,
+        resize_subpixel_scale=resize_subpixel_scale,
+    )
+
+    return train_pipeline, valid_pipeline
 
 
 class DaliGenericIteratorWrapper:
