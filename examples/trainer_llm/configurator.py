@@ -97,7 +97,7 @@ class DecomposeDWAINConfig(_VersionConfig):
     num_data_steps: int
     num_metric_steps: int
     trade_off_factor: float
-    reduction_factor: int
+    reduction_factor: float
     proportion_threshold: float
     ppl_diff_threshold: float
     nsr_final_threshold: float
