@@ -347,6 +347,7 @@ def _process_module(
     num_params: int,
     min_rank: int = 32,
     trade_off_factor: float = 1.0,
+    reduction_factor: int,
     max_accepted_ppl_diff: float = 0.1,
     decompose_in_float64: bool = True,
     u_matrix: Optional[torch.Tensor] = None,
@@ -405,7 +406,7 @@ def _process_module(
     drop_in_params = 0
 
     while rank_new > min_rank:
-        rank_new = rank_new // 2
+        rank_new = int(rank_new * reduction_factor)
 
         previous_params_in_module = _get_params_for_proportion(1.0, dim_in, dim_out)
         current_params_in_module = _get_params_for_proportion(
@@ -673,6 +674,7 @@ def decompose_in_place(
     ],
     min_rank: int = 32,
     trade_off_factor: float = 0.5,
+    reduction_factor: int = 0.5,
     decompose_in_float64: bool = True,
     precomputing_covariance_num_splits: Optional[int] = None,
 ) -> dict[str, Any]:
@@ -734,6 +736,7 @@ def decompose_in_place(
                 device=device,
                 num_params=num_params,
                 trade_off_factor=trade_off_factor,
+                reduction_factor=reduction_factor,
                 min_rank=min_rank,
                 decompose_in_float64=decompose_in_float64,
                 u_matrix=u_dict.pop(submodule_name) if len(u_dict) > 0 else None,
