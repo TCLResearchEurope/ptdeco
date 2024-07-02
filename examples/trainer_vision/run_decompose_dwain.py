@@ -143,6 +143,7 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
         num_metric_steps=config.num_metric_steps,
         min_rank=config.min_rank,
         trade_off_factor=config.trade_off_factor,
+        reduction_factor=config.reduction_factor,
         decompose_in_float64=config.decompose_in_float64,
         precomputing_covariance_num_splits=config.precomputing_covariance_num_splits,
     )
