@@ -347,7 +347,7 @@ def _process_module(
     num_params: int,
     min_rank: int = 32,
     trade_off_factor: float = 1.0,
-    reduction_factor: int,
+    reduction_factor: float,
     max_accepted_ppl_diff: float = 0.1,
     decompose_in_float64: bool = True,
     u_matrix: Optional[torch.Tensor] = None,
@@ -674,7 +674,7 @@ def decompose_in_place(
     ],
     min_rank: int = 32,
     trade_off_factor: float = 0.5,
-    reduction_factor: int = 0.5,
+    reduction_factor: float = 0.5,
     decompose_in_float64: bool = True,
     precomputing_covariance_num_splits: Optional[int] = None,
 ) -> dict[str, Any]:
