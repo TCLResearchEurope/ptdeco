@@ -1,6 +1,6 @@
-from typing import Optional
 import json
 import logging
+from typing import Optional
 
 import ptdeco.utils
 import torch
