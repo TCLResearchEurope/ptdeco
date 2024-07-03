@@ -339,7 +339,6 @@ def _process_module(
         [dict[str, torch.Tensor], torch.Tensor], torch.Tensor
     ],
     nsr_final_threshold: float,
-    ppl_diff_threshold: float,
     num_data_steps: int,
     num_metric_steps: int,
     device: torch.device,
@@ -379,7 +378,7 @@ def _process_module(
 
     msg1 = f"{msg_prefix} {decomposed_type} weight_shape={tuple(orig_weight.shape)}"
     logger.info(msg1 + f" {orig_weight.dtype}")
-    logger.info(f"{msg_prefix} {nsr_final_threshold=:.6f} {ppl_diff_threshold=:.6f}")
+    logger.info(f"{msg_prefix} {nsr_final_threshold=:.4f} {max_accepted_ppl_diff:=.4}")
 
     if u_matrix is not None:
         logger.info(f"Using pre-computed u_matrix, {u_matrix.dtype=}")
@@ -688,7 +687,6 @@ def decompose_in_place(
     num_metric_steps: int,
     blacklisted_module_names: Optional[list[str]] = None,
     nsr_final_threshold: float,
-    ppl_diff_threshold: float,
     finetune_fn: collections.abc.Callable[
         [torch.nn.Module, torch.device, list[str]], torch.nn.Module
     ],
@@ -751,7 +749,6 @@ def decompose_in_place(
                 loss_fn=loss_fn,
                 metric_iterator=metric_iterator,
                 nsr_final_threshold=nsr_final_threshold,
-                ppl_diff_threshold=ppl_diff_threshold,
                 num_data_steps=num_data_steps,
                 num_metric_steps=num_metric_steps,
                 device=device,
