@@ -170,12 +170,12 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
         finetune_fn=finetune_fn,
         metric_iterator=decomposition_it,
         nsr_final_threshold=config.nsr_final_threshold,
-        ppl_diff_threshold=config.ppl_diff_threshold,
         num_data_steps=config.num_data_steps,
         num_metric_steps=config.num_metric_steps,
         min_rank=config.min_rank,
         trade_off_factor=config.trade_off_factor,
         reduction_factor=config.reduction_factor,
+        max_accepted_ppl_diff=config.max_accepted_ppl_diff,
         decompose_in_float64=config.decompose_in_float64,
         precomputing_covariance_num_splits=config.precomputing_covariance_num_splits,
     )
