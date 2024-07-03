@@ -457,12 +457,13 @@ def _process_module(
         logger.info(f"{indent}{i=} {msg1} {msg2}")
 
         msg1 = f"{indent}{i=} REJECTING rank {rank_new}/{full_rank}"
-        if nsr_new >= nsr_final_threshold:
-            logger.info(f"{msg1} {nsr_new=:.4f} >= {nsr_final_threshold=:.4f}")
-        elif ppl_diff_new >= ppl_diff_threshold:
+
+        if ppl_diff_new >= ppl_diff_threshold:
             logger.info(f"{msg1} {ppl_diff_new=:.2f} >= {ppl_diff_threshold=:.2f}")
         elif ppl_diff_new >= max_accepted_ppl_diff:
             logger.info(f"{msg1} {ppl_diff_new=:.3f} >= {max_accepted_ppl_diff:.3f}")
+        elif nsr_new >= nsr_final_threshold:
+            logger.info(f"{msg1} {nsr_new=:.4f} >= {nsr_final_threshold=:.4f}")
         else:
             rank_best = rank_new
             nsr_best = nsr_new
