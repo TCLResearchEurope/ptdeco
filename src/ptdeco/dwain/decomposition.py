@@ -346,9 +346,9 @@ def _process_module(
     metric_iterator: collections.abc.Iterator[dict[str, torch.Tensor]],
     num_params: int,
     min_rank: int = 32,
-    trade_off_factor: float = 1.0,
+    trade_off_factor: float,
     reduction_factor: float,
-    max_accepted_ppl_diff: float = 0.1,
+    max_accepted_ppl_diff: float,
     decompose_in_float64: bool = True,
     u_matrix: Optional[torch.Tensor] = None,
 ) -> dict[str, Any]:
@@ -695,6 +695,7 @@ def decompose_in_place(
     min_rank: int = 32,
     trade_off_factor: float = 0.5,
     reduction_factor: float = 0.5,
+    max_accepted_ppl_diff: float = 0.1,
     decompose_in_float64: bool = True,
     precomputing_covariance_num_splits: Optional[int] = None,
 ) -> dict[str, Any]:
@@ -757,6 +758,7 @@ def decompose_in_place(
                 num_params=num_params,
                 trade_off_factor=trade_off_factor,
                 reduction_factor=reduction_factor,
+                max_accepted_ppl_diff=max_accepted_ppl_diff,
                 min_rank=min_rank,
                 decompose_in_float64=decompose_in_float64,
                 u_matrix=u_dict.pop(submodule_name) if len(u_dict) > 0 else None,
