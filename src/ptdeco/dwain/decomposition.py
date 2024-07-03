@@ -377,8 +377,8 @@ def _process_module(
             "decomposed_module": None,
         }
 
-    msg = f"{msg_prefix} {decomposed_type} weight_shape={tuple(orig_weight.shape)}"
-    logger.info(msg + f" {orig_weight.dtype}")
+    msg1 = f"{msg_prefix} {decomposed_type} weight_shape={tuple(orig_weight.shape)}"
+    logger.info(msg1 + f" {orig_weight.dtype}")
     logger.info(f"{msg_prefix} {nsr_final_threshold=:.6f} {ppl_diff_threshold=:.6f}")
 
     if u_matrix is not None:
@@ -402,7 +402,7 @@ def _process_module(
     # Best rank satisfying conditions kl < kl_threshold and nsr < nsr_threshold
     rank_best = full_rank
     rank_new = full_rank
-    nsr_best, ppl_best = 0.0, 0.0
+    nsr_best, ppl_deco_best = 0.0, 0.0
     drop_in_params = 0
 
     while rank_new > min_rank:
@@ -417,8 +417,8 @@ def _process_module(
         ppl_diff_threshold = fraction_of_params_to_be_removed * trade_off_factor
 
         if drop_in_params == 0:
-            msg = f"{indent}{i=} {rank_new=} does not lead to params drop, skipping"
-            logger.info(msg)
+            msg1 = f"{indent}{i=} {rank_new=} does not lead to params drop, skipping"
+            logger.info(msg1)
             continue
 
         # TODO: ML U@V in full precision and then cast to orig_dtype
@@ -430,13 +430,12 @@ def _process_module(
         deco_weight = (U @ V).T
 
         nsr_new = 0.0
-        ppl_new = 0.0
-        log_data = f"{ppl_diff_threshold:.6f} {fraction_of_params_to_be_removed=:.4f}"
-        logger.info(f"{indent}{i=} {log_data}")
+        ppl_deco_new = 0.0
+        ppl_diff_new = 0.0
 
         for _ in range(num_metric_steps):
             input_dict = utils.to_device(next(metric_iterator), device)
-            nsr_sample, ppl_deco, ppl_orig = _compute_metrics(
+            nsr_sample, ppl_deco_sample, ppl_orig_sample = _compute_metrics(
                 input_dict=input_dict,
                 root_module=root_module,
                 decomposed_submodule=decomposed_submodule,
@@ -444,26 +443,46 @@ def _process_module(
                 deco_weight=deco_weight,
                 loss_fn=loss_fn,
             )
-            ppl_diff_sample = (ppl_deco - ppl_orig) / ppl_orig
+            ppl_diff_sample = (ppl_deco_sample - ppl_orig_sample) / ppl_orig_sample
+            ppl_diff_new += ppl_diff_sample.item()
             nsr_new += nsr_sample.item()
-            ppl_new += ppl_diff_sample.item()
-        nsr_new /= num_metric_steps
-        ppl_new /= num_metric_steps
+            ppl_deco_new += ppl_deco_sample.item()
 
-        if (
-            nsr_new < nsr_final_threshold
-            and ppl_new < ppl_diff_threshold
-            and ppl_new < max_accepted_ppl_diff
-        ):
+        nsr_new /= num_metric_steps
+        ppl_deco_new /= num_metric_steps
+        ppl_diff_new /= num_metric_steps
+
+        msg1 = f"{ppl_deco_new=:.4f} {ppl_diff_new=:.4f} {ppl_diff_threshold=:.4f}"
+        msg2 = f"{fraction_of_params_to_be_removed=:.4f} {nsr_new=:.4f}"
+        logger.info(f"{indent}{i=} {msg1} {msg2}")
+
+        msg1 = f"{indent}{i=} REJECTING rank {rank_new}/{full_rank}"
+        if nsr_new >= nsr_final_threshold:
+            logger.info(f"{msg1} {nsr_new=:.4f} >= {nsr_final_threshold=:.4f}")
+        elif ppl_diff_new >= ppl_diff_threshold:
+            logger.info(f"{msg1} {ppl_diff_new=:.2f} >= {ppl_diff_threshold=:.2f}")
+        elif ppl_diff_new >= max_accepted_ppl_diff:
+            logger.info(f"{msg1} {ppl_diff_new=:.3f} >= {max_accepted_ppl_diff:.3f}")
+        else:
             rank_best = rank_new
             nsr_best = nsr_new
-            ppl_best = ppl_new
+            ppl_deco_best = ppl_deco_new
             logger.info(f"{indent}{i=} ACCEPTING rank {rank_best}/{full_rank}")
 
-        msg_iter = f"{i=} {rank_new=}/{full_rank} {nsr_new=:.6f} {ppl_new=:.6f} "
-        msg_cur = f"{rank_best=} {nsr_best=:.6f} {ppl_best=:.6f}"
+        # if (
+        #     nsr_new < nsr_final_threshold
+        #     and ppl_diff_new < ppl_diff_threshold
+        #     and ppl_diff_new < max_accepted_ppl_diff
+        # ):
+        #     rank_best = rank_new
+        #     nsr_best = nsr_new
+        #     ppl_deco_best = ppl_deco_new
+        #     logger.info(f"{indent}{i=} ACCEPTING rank {rank_best}/{full_rank}")
+
+        msg_iter = f"{i=} {rank_new=}/{full_rank} {nsr_new=:.6f} {ppl_diff_new=:.6f} "
+        msg_cur = f"{rank_best=} {nsr_best=:.6f} {ppl_deco_best=:.6f}"
         logger.info(f"{indent}{msg_iter} {msg_cur}")
-        logger.info(f"{indent}{i=} {ppl_deco=:.6f}, {ppl_orig=:.6f}")
+        logger.info(f"{indent}{i=} {ppl_deco_new=:.6f}, {ppl_orig_sample=:.6f}")
         logger.info(f"{indent}---")
         i += 1
 
@@ -471,7 +490,7 @@ def _process_module(
 
     if decomposition_occurred:
         proportion = rank_best / full_rank
-        msg_metrics = f"{proportion=:.4f} nsr={nsr_best:.6f} ppl={ppl_best:.6f}"
+        msg_metrics = f"{proportion=:.4f} nsr={nsr_best:.6f} ppl={ppl_deco_best:.6f}"
         logger.info(f"{indent}i=FINAL rank={rank_best}/{full_rank} {msg_metrics}")
 
         decompose_decision = _is_num_params_reduced(
@@ -480,8 +499,8 @@ def _process_module(
             out_features=dim_out,
         )
         if not decompose_decision:
-            msg = f"{proportion=:.4f} leads to num param increase, not decomposing"
-            logger.info(f"{indent}{msg}")
+            msg1 = f"{proportion=:.4f} leads to num param increase, not decomposing"
+            logger.info(f"{indent}{msg1}")
     else:
         decompose_decision = False
 
@@ -502,19 +521,19 @@ def _process_module(
         drop_in_params = previous_params_in_module - current_params_in_module
     else:
         proportion = 1.0
-        nsr_new = 0.0
-        ppl_new = 0.0
-        logger.info(f"{msg_prefix} Skipping module decomposition")
+        nsr_best = 0.0
+        ppl_deco_best = 0.0
         drop_in_params = 0
         new_decomposed_submodule = None
+        logger.info(f"{msg_prefix} Skipping module decomposition")
         _unwrap_in_place(root_module, decomposed_submodule_name)
 
     return {
         "proportion": proportion,
-        "nsr_final": nsr_new,
-        "ppl_final": ppl_new,
-        "decomposed_module": new_decomposed_submodule,
+        "nsr_final": nsr_best,
+        "ppl_final": ppl_deco_best,
         "drop_in_params": drop_in_params,
+        "decomposed_module": new_decomposed_submodule,
     }
 
 
