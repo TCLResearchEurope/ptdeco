@@ -97,14 +97,13 @@ class DecomposeDWAINConfig(_VersionConfig):
     num_data_steps: int
     num_metric_steps: int
     trade_off_factor: float
-    max_accepted_ppl_diff: float
     reduction_factor: float
+    max_accepted_ppl_diff: float
     nsr_final_threshold: float
-    min_proportion: float
     min_rank: int
-    blacklisted_modules: list[str]
     decompose_in_float64: bool
     precomputing_covariance_num_splits: Optional[int]
+    blacklisted_modules: list[str]
 
     # Finetuning params
 
