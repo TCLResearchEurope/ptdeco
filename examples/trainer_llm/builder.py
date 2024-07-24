@@ -25,12 +25,16 @@ def _log_linear_submodules(m: torch.nn.Module) -> None:
 def _add_pad_token(
     model: torch.nn.Module, tokenizer: transformers.PreTrainedTokenizer, model_name: str
 ) -> None:
-    if model_name in (
-        "meta-llama/Llama-2-7b-hf",
-        "microsoft/phi-2",
-        "Qwen/Qwen1.5-1.8B",
-        "upstage/SOLAR-10.7B-v1.0",
-        "mistralai/Mistral-7B-Instruct-v0.2",
+    if (
+        model_name
+        in (
+            "meta-llama/Llama-2-7b-hf",
+            "microsoft/phi-2",
+            "upstage/SOLAR-10.7B-v1.0",
+            "mistralai/Mistral-7B-Instruct-v0.2",
+        )
+        or model_name.startswith("Qwen/Qwen1.5-")
+        or model_name.startswith("Qwen/Qwen2-")
     ):
         tokenizer.pad_token = (
             tokenizer.eos_token
@@ -38,10 +42,11 @@ def _add_pad_token(
         model.config.pad_token_id = tokenizer.pad_token_id  # llama, phi
         logger.info("Setting pad_token to eos_token")
 
-    if model_name == "Qwen/Qwen-1_8B":
-        "https://github.com/QwenLM/Qwen/blob/main/tokenization_note.md"
+    elif model_name == "Qwen/Qwen-1_8B":
+        # See "https://github.com/QwenLM/Qwen/blob/main/tokenization_note.md
         tokenizer.pad_token = "<|endoftext|>"
         tokenizer.eos_token = "<|endoftext|>"
+        logger.info("Setting pad_token to <|endoftext|>")
 
 
 def make_model_and_tokenizer(
