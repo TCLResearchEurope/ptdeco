@@ -66,7 +66,6 @@ class DecomposeDWAINConfig(_VersionConfig, _DataConfig):
     decompose_model_name: str
 
     # Decomposition params
-    blacklisted_modules: list[str]
     num_data_steps: int
     num_metric_steps: int
     trade_off_factor: float
@@ -76,6 +75,7 @@ class DecomposeDWAINConfig(_VersionConfig, _DataConfig):
     min_rank: int
     decompose_in_float64: bool
     precomputing_covariance_num_splits: Optional[int]
+    blacklisted_modules: list[str]
 
     finetuning_run: bool
     finetuning_lr: float
