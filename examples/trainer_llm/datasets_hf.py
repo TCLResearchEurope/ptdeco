@@ -6,6 +6,11 @@ import datasets  # type: ignore
 import torch
 import transformers  # type: ignore
 
+# TODO: Remove the dataset.config setup when the PR below gets packaged
+# TODO: https://github.com/EleutherAI/lm-evaluation-harness/pull/2092
+
+datasets.config.HF_DATASETS_TRUST_REMOTE_CODE = True
+
 logger = logging.getLogger(__name__)
 
 
