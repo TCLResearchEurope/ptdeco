@@ -83,11 +83,7 @@ def calc_lm_eval_metrics(
     tasks: list[str],
     tokenizer: transformers.PreTrainedTokenizerBase,
     device: torch.device,
-    suppress_initialize_tasks: bool = False,
 ) -> tuple[dict[str, Any], str]:
-
-    if not suppress_initialize_tasks:
-        lm_eval.tasks.initialize_tasks()
 
     lm_eval_model = lm_eval.models.huggingface.HFLM(
         pretrained=model, tokenizer=tokenizer, device=device
