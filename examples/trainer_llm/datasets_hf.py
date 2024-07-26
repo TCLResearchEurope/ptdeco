@@ -14,20 +14,40 @@ datasets.config.HF_DATASETS_TRUST_REMOTE_CODE = True
 logger = logging.getLogger(__name__)
 
 
+def get_dataset_from_json(fname: str) -> datasets.Dataset:
+    ds = datasets.load_dataset("json", data_files=fname)
+    split_name = "train"
+    data_column = "text"
+    cols_to_remove = [c for c in ds[split_name].column_names if c != data_column]
+    if cols_to_remove:
+        cols_to_remove_str = ", ".join(cols_to_remove)
+        logger.info(f"Removing columns {cols_to_remove_str}")
+        ds = ds.remove_columns(cols_to_remove)
+    res = ds[split_name]
+    assert len(res.column_names) == 1
+    return res
+
+
 def get_dataset(dataset_and_split_name: str) -> datasets.Dataset:
-    ds_properties: dict[str, dict[str, Any]] = {
+
+    if dataset_and_split_name.endswith(".json") or dataset_and_split_name.endswith(
+        ".json.gz"
+    ):
+        return get_dataset_from_json(dataset_and_split_name)
+
+    DS_PROPERTIES: dict[str, dict[str, Any]] = {
         "wikitext2": {"path": "wikitext", "config_name": "wikitext-2-raw-v1"},
         "alpaca": {
             "path": "tatsu-lab/alpaca",
             "cols_to_remove": ["input", "output", "instruction"],
         },
     }
-    ds_available = set(ds_properties.keys())
+    ds_available = set(DS_PROPERTIES.keys())
     dataset_name, split_name = dataset_and_split_name.split(".")
     if dataset_name not in ds_available:
         raise ValueError(f"Unkown dataset {dataset_name}, available are {ds_available}")
 
-    properties = ds_properties[dataset_name]
+    properties = DS_PROPERTIES[dataset_name]
     ds = datasets.load_dataset(
         properties["path"],
         name=properties.get("config_name"),
@@ -47,8 +67,9 @@ def get_dataset(dataset_and_split_name: str) -> datasets.Dataset:
 
     if "cols_to_remove" in properties:
         ds = ds.remove_columns(properties["cols_to_remove"])
-
-    return ds[split_name]
+    res = ds[split_name]
+    assert len(res.column_names) == 1
+    return res
 
 
 def _normalize_separator(
@@ -90,7 +111,7 @@ def prepare_dataloader_v1(
             "varied_seqlen=False, but nsamples is not specified. This will lead to "
             "tokenization of the entire dataset, which will be slow."
         )
-
+    assert len(dataset.column_names) == 1
     data_name = dataset.column_names[0]
     logger.info(f"v1 dataloader - using data column={data_name}")
     ds = dataset.filter(lambda x: len(x[data_name]) > 0)
@@ -171,7 +192,7 @@ def prepare_dataloader_v2(
         padding=False,
         add_special_tokens=False,
     )["input_ids"]
-
+    assert len(dataset.column_names) == 1
     data_name = dataset.column_names[0]
     ds = dataset.filter(lambda x: len(x[data_name]) > 0)
 
