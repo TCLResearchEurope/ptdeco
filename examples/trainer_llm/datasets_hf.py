@@ -20,10 +20,12 @@ def _remove_all_but_selected_columns(
     split_name: str,
     selected_columns: collections.abc.Iterable | collections.abc.Container,
 ) -> datasets.Dataset:
-    cols_to_remove = [c for c in ds[split_name].column_names if c in selected_columns]
+    cols_to_remove = [
+        c for c in ds[split_name].column_names if c not in selected_columns
+    ]
     if cols_to_remove:
         cols_to_remove_str = ", ".join(cols_to_remove)
-        logger.info(f"Removing columns {cols_to_remove_str}")
+        logger.info(f"Removing columns: {cols_to_remove_str}")
         ds = ds.remove_columns(cols_to_remove)
     return ds
 
@@ -36,7 +38,8 @@ def _get_dataset_from_json(fname: str) -> datasets.Dataset:
         ds, split_name=split_name, selected_columns={data_column}
     )
     res = ds[split_name]
-    assert len(res.column_names) == 1
+    msg = ", ".join(res.column_names)
+    assert len(res.column_names) == 1, f"More than one column detected: {msg}"
     return res
 
 
@@ -85,7 +88,9 @@ def _get_dataset_from_hf(dataset_and_split_name: str) -> datasets.Dataset:
             ds, split_name=split_name, selected_columns=properties["data_column"]
         )
     res = ds[split_name]
-    assert len(res.column_names) == 1
+    msg = ", ".join(res.column_names)
+    assert len(res.column_names) == 1, f"More than one column detected: {msg}"
+
     return res
 
 
@@ -135,8 +140,11 @@ def prepare_dataloader_v1(
             "varied_seqlen=False, but nsamples is not specified. This will lead to "
             "tokenization of the entire dataset, which will be slow."
         )
-    assert len(dataset.column_names) == 1
+
+    msg = ", ".join(dataset.column_names)
+    assert len(dataset.column_names) == 1, f"More than one column detected: {msg}"
     data_name = dataset.column_names[0]
+
     logger.info(f"v1 dataloader - using data column={data_name}")
     ds = dataset.filter(lambda x: len(x[data_name]) > 0)
 
@@ -216,8 +224,11 @@ def prepare_dataloader_v2(
         padding=False,
         add_special_tokens=False,
     )["input_ids"]
-    assert len(dataset.column_names) == 1
+
+    msg = ", ".join(dataset.column_names)
+    assert len(dataset.column_names) == 1, f"More than one column detected: {msg}"
     data_name = dataset.column_names[0]
+
     ds = dataset.filter(lambda x: len(x[data_name]) > 0)
 
     data_list = ds[data_name]
