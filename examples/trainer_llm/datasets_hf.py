@@ -1,4 +1,5 @@
 import codecs
+import collections.abc
 import logging
 from typing import Any
 
@@ -14,21 +15,32 @@ datasets.config.HF_DATASETS_TRUST_REMOTE_CODE = True
 logger = logging.getLogger(__name__)
 
 
-def get_dataset_from_json(fname: str) -> datasets.Dataset:
-    ds = datasets.load_dataset("json", data_files=fname)
-    split_name = "train"
-    data_column = "text"
-    cols_to_remove = [c for c in ds[split_name].column_names if c != data_column]
+def _remove_all_but_selected_columns(
+    ds: datasets.Dataset,
+    split_name: str,
+    selected_columns: collections.abc.Iterable | collections.abc.Container,
+) -> datasets.Dataset:
+    cols_to_remove = [c for c in ds[split_name].column_names if c in selected_columns]
     if cols_to_remove:
         cols_to_remove_str = ", ".join(cols_to_remove)
         logger.info(f"Removing columns {cols_to_remove_str}")
         ds = ds.remove_columns(cols_to_remove)
+    return ds
+
+
+def _get_dataset_from_json(fname: str) -> datasets.Dataset:
+    ds = datasets.load_dataset("json", data_files=fname)
+    split_name = "train"
+    data_column = "text"
+    ds = _remove_all_but_selected_columns(
+        ds, split_name=split_name, selected_columns={data_column}
+    )
     res = ds[split_name]
     assert len(res.column_names) == 1
     return res
 
 
-def is_json_fname(fname: str) -> bool:
+def _is_json_fname(fname: str) -> bool:
     return (
         fname.endswith(".json")
         or fname.endswith(".json.gz")
@@ -37,16 +49,12 @@ def is_json_fname(fname: str) -> bool:
     )
 
 
-def get_dataset(dataset_and_split_name: str) -> datasets.Dataset:
-
-    if is_json_fname(dataset_and_split_name):
-        return get_dataset_from_json(dataset_and_split_name)
-
+def _get_dataset_from_hf(dataset_and_split_name: str) -> datasets.Dataset:
     DS_PROPERTIES: dict[str, dict[str, Any]] = {
         "wikitext2": {"path": "wikitext", "config_name": "wikitext-2-raw-v1"},
         "alpaca": {
             "path": "tatsu-lab/alpaca",
-            "cols_to_remove": ["input", "output", "instruction"],
+            "data_column": "text",
         },
     }
     ds_available = set(DS_PROPERTIES.keys())
@@ -72,11 +80,20 @@ def get_dataset(dataset_and_split_name: str) -> datasets.Dataset:
             ds["test"] = temp_ds["train"]
             ds["validation"] = temp_ds["test"]
 
-    if "cols_to_remove" in properties:
-        ds = ds.remove_columns(properties["cols_to_remove"])
+    if "data_column" in properties:
+        ds = _remove_all_but_selected_columns(
+            ds, split_name=split_name, selected_columns=properties["data_column"]
+        )
     res = ds[split_name]
     assert len(res.column_names) == 1
     return res
+
+
+def get_dataset(dataset_and_split_name: str) -> datasets.Dataset:
+
+    if _is_json_fname(dataset_and_split_name):
+        return _get_dataset_from_json(dataset_and_split_name)
+    return _get_dataset_from_hf(dataset_and_split_name)
 
 
 def _normalize_separator(
