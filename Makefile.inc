@@ -45,6 +45,7 @@ fixall:
 	ISORT_FLAGS="$(ISORT_FLAGS)" ./aux/fix.sh $(PY_MYPY_FLAKE8)
 
 commit:
+	./aux/block_empty_commit.sh
 	git commit -e
 
 show_version:
@@ -53,12 +54,14 @@ show_version:
 vercommit:
 	git restore --staged $(VER_FILE)
 	git checkout $(VER_FILE)
+	./aux/block_empty_commit.sh
 	./aux/update_version.py --version-segment=2 --version-file=$(VER_FILE)
 	git add $(VER_FILE)
 	-VER=$$(./aux/get_version.py --version-file=$(VER_FILE)) && git commit -m "$${VER}" -e
 	git restore --staged  $(VER_FILE) && git checkout $(VER_FILE) # In case of failed commit
 
 manualvercommit:
+	./aux/block_empty_commit.sh
 	git add $(VER_FILE)
 	VER=$$(./aux/get_version.py --version-file=$(VER_FILE)) && git commit -m "$${VER}" -e
 
