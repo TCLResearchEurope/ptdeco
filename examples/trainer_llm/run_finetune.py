@@ -279,7 +279,6 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
         )
         logger.info("\n" + lm_eval_results_str)
         lm_eval_path = output_path / "lm_eval_initial.json"
-        lm_eval_results["config"]["device"] = str(lm_eval_results["config"]["device"])
         with open(lm_eval_path, "wt") as f:
             json.dump(lm_eval_results, f)
         logger.info(f"Initial lm_eval results saved to {lm_eval_path}")
@@ -362,7 +361,6 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
         )
         logger.info("\n" + lm_eval_results_str)
         lm_eval_path = output_path / "lm_eval_final.json"
-        lm_eval_results["config"]["device"] = str(lm_eval_results["config"]["device"])
         with open(lm_eval_path, "wt") as f:
             json.dump(lm_eval_results, f)
         logger.info(f"Final lm_eval results saved to {lm_eval_path}")

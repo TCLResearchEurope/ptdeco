@@ -99,6 +99,11 @@ def calc_lm_eval_metrics(
         device=device,
     )
     results_str = lm_eval.utils.make_table(results)
+
+    # Make results JSON-serializeable
+    results["config"]["device"] = str(results["config"]["device"])
+    results["config"]["model_dtype"] = str(results["config"]["device"])
+
     return results, results_str
 
 
