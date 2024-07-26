@@ -22,17 +22,19 @@ check:
 	-mypy --color-output --disallow-incomplete-defs --disallow-untyped-defs  $(PYTHON_FILES)
 
 commit:
+	../../aux/block_empty_commit.sh
 	git commit -m "[trainer] " -e
-
 
 vercommit:
 	git restore --staged $(VER_FILE)
 	git checkout $(VER_FILE)
+	../../aux/block_empty_commit.sh
 	../../aux/update_version.py --version-segment=2 --version-file=$(VER_FILE)
 	git add $(VER_FILE)
 	VER=$$(../../aux/get_version.py --version-file=$(VER_FILE)) && git commit -m "[trainer] $${VER} " -e
 
 manualvercommit:
+	../../aux/block_empty_commit.sh
 	git add $(VER_FILE)
 	VER=$$(../../aux/get_version.py --version-file=$(VER_FILE)) && git commit -m "[trainer] $${VER}" -e
 
