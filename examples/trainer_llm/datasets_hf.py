@@ -28,11 +28,18 @@ def get_dataset_from_json(fname: str) -> datasets.Dataset:
     return res
 
 
+def is_json_fname(fname: str) -> bool:
+    return (
+        fname.endswith(".json")
+        or fname.endswith(".json.gz")
+        or fname.endswith(".jsonl")
+        or fname.endswith(".jsonl.gz")
+    )
+
+
 def get_dataset(dataset_and_split_name: str) -> datasets.Dataset:
 
-    if dataset_and_split_name.endswith(".json") or dataset_and_split_name.endswith(
-        ".json.gz"
-    ):
+    if is_json_fname(dataset_and_split_name):
         return get_dataset_from_json(dataset_and_split_name)
 
     DS_PROPERTIES: dict[str, dict[str, Any]] = {
