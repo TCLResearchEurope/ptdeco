@@ -82,7 +82,7 @@ class DecomposeDWAINConfig(_VersionConfig):
     decomposed_model_enable_gradient_checkpointing: bool
 
     # Tokenizer and data handling params
-    decomposition_data_name: str
+    decomposition_data_name: str | list[str]
     decomposition_data_separator: str
     decomposition_data_max_length: int
     decomposition_data_batch_size: int

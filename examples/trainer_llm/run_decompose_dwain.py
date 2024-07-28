@@ -3,6 +3,7 @@ import gzip
 import json
 import logging
 import pathlib
+import random
 import time
 from typing import Any
 
@@ -19,11 +20,12 @@ import utils
 
 PPL_N_SAMPLES = 1000
 LOADER_SEED = 42
+LOADER_MERGER_SEED = 314159
 
 logger = logging.getLogger(__name__)
 
 
-def make_inifinte_iterator(
+def make_infinite_iterator_single(
     dl: collections.abc.Iterable[Any],
 ) -> collections.abc.Generator[Any, None, None]:
     while True:
@@ -31,28 +33,51 @@ def make_inifinte_iterator(
             yield x
 
 
+def make_infinite_iterator_multi(
+    dls: collections.abc.Sequence[collections.abc.Iterable[Any]],
+    seed: int,
+) -> collections.abc.Generator[Any, None, None]:
+
+    rng = random.Random(seed)
+    iterators = [make_infinite_iterator_single(dl) for dl in dls]
+    n = len(iterators)
+
+    while True:
+        i = rng.randrange(n)
+        yield from iterators[i]
+
+
 def make_dataloaders(
     config: configurator.DecomposeDWAINConfig,
     tokenizer: transformers.PreTrainedTokenizer,
 ) -> tuple[
-    torch.utils.data.DataLoader[dict[str, torch.Tensor]],
+    list[torch.utils.data.DataLoader[dict[str, torch.Tensor]]],
     torch.utils.data.DataLoader[dict[str, torch.Tensor]],
 ]:
-    decomposition_ds = datasets_hf.get_dataset(config.decomposition_data_name)
+    if isinstance(config.decomposition_data_name, str):
+        decomposition_dataset_names = [config.decomposition_data_name]
+    else:
+        decomposition_dataset_names = config.decomposition_data_name
 
-    logger.info(
-        f"Created decomposition dataset {config.decomposition_data_name}, "
-        f"{len(decomposition_ds)} examples"
-    )
+    decomposition_dls: list[torch.utils.data.DataLoader[dict[str, torch.Tensor]]] = []
 
-    decomposition_dl = datasets_hf.prepare_dataloader_v2(
-        dataset=decomposition_ds,
-        tokenizer=tokenizer,
-        max_seqlen=config.decomposition_data_max_length,
-        batch_size=config.decomposition_data_batch_size,
-        separator=config.decomposition_data_separator,
-        seed=LOADER_SEED,
-    )
+    for dataset_name in decomposition_dataset_names:
+        decomposition_ds = datasets_hf.get_dataset(dataset_name)
+
+        logger.info(
+            f"Created decomposition dataset {dataset_name}, "
+            f"{len(decomposition_ds)} examples"
+        )
+
+        decomposition_dl = datasets_hf.prepare_dataloader_v2(
+            dataset=decomposition_ds,
+            tokenizer=tokenizer,
+            max_seqlen=config.decomposition_data_max_length,
+            batch_size=config.decomposition_data_batch_size,
+            separator=config.decomposition_data_separator,
+            seed=LOADER_SEED,
+        )
+        decomposition_dls.append(decomposition_dl)
 
     perplexity_ds = datasets_hf.get_dataset(config.perplexity_data_name)
 
@@ -70,7 +95,7 @@ def make_dataloaders(
         nsamples=PPL_N_SAMPLES,
         seed=LOADER_SEED,
     )
-    return decomposition_dl, perplexity_dl
+    return decomposition_dls, perplexity_dl
 
 
 def make_finetune_fn(
@@ -136,7 +161,7 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
 
     # 3. PREPARE DATALOADERS
 
-    decomposition_dl, perplexity_dl = make_dataloaders(config, tokenizer)
+    decomposition_dls, perplexity_dl = make_dataloaders(config, tokenizer)
 
     # 4. LOG INITIAL STATISTICS
 
@@ -154,7 +179,14 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
     model_wrapped = dwain_wrapper_module.WrapperModule(model)
     model_wrapped.eval()
 
-    decomposition_it = make_inifinte_iterator(decomposition_dl)
+    if len(decomposition_dls) > 1:
+        logger.info("Using multi-loader data iterator")
+        decomposition_it = make_infinite_iterator_multi(
+            decomposition_dls, LOADER_MERGER_SEED
+        )
+    else:
+        logger.info("Using single-loader data iterator")
+        decomposition_it = make_infinite_iterator_single(decomposition_dls[0])
 
     finetune_fn = make_finetune_fn(config, decomposition_it)
 
