@@ -1,4 +1,5 @@
 import collections.abc
+import gzip
 import json
 import logging
 import pathlib
@@ -221,8 +222,8 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
             tasks=config.lm_eval_tasks,
         )
         logger.info("\n" + lm_eval_results_str)
-        lm_eval_path = output_path / "lm_eval.json"
-        with open(lm_eval_path, "wt") as f:
+        lm_eval_path = output_path / "lm_eval.json.gz"
+        with gzip.open(lm_eval_path, "wt") as f:
             json.dump(lm_eval_results, f)
         logger.info(f"lm_eval results saved to {lm_eval_path}")
         time_lm_eval = time.perf_counter() - start
