@@ -116,6 +116,7 @@ class DecomposeDWAINConfig(_VersionConfig):
     finetuning_use_rank_pattern: bool
 
     # lm_eval evaluation params
+    lm_eval_initial: bool
     lm_eval_tasks: Optional[list[str]]
 
     model_config = pydantic.ConfigDict(extra="forbid")

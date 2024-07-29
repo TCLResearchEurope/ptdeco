@@ -174,6 +174,23 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
 
     logger.info(f"{perplexity_initial=} {params_initial=} {gflops_initial=}")
 
+    time_lm_eval_initial = -1.0
+    if config.lm_eval_initial and config.lm_eval_tasks:
+        start = time.perf_counter()
+        lm_eval_results, lm_eval_results_str = metrics.calc_lm_eval_metrics(
+            model=model,
+            tokenizer=tokenizer,
+            device=device,
+            tasks=config.lm_eval_tasks,
+        )
+        logger.info("\n" + lm_eval_results_str)
+        lm_eval_path = output_path / "lm_eval_initial.json.gz"
+        with gzip.open(lm_eval_path, "wt") as f:
+            json.dump(lm_eval_results, f)
+        logger.info(f"Initial lm_eval results saved to {lm_eval_path}")
+        time_lm_eval_initial = time.perf_counter() - start
+        logger.info(f"Initial lm_eval took {time_lm_eval_initial:.2f} s")
+
     # 5. DO ACTUAL DECOMPOSITION
 
     model_wrapped = dwain_wrapper_module.WrapperModule(model)
@@ -243,7 +260,7 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
 
     # 8. RUN BENCHMARK TASKS ON LM EVAL
 
-    time_lm_eval = -1.0
+    time_lm_eval_final = -1.0
 
     if config.lm_eval_tasks:
         start = time.perf_counter()
@@ -254,12 +271,12 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
             tasks=config.lm_eval_tasks,
         )
         logger.info("\n" + lm_eval_results_str)
-        lm_eval_path = output_path / "lm_eval.json.gz"
+        lm_eval_path = output_path / "lm_eval_final.json.gz"
         with gzip.open(lm_eval_path, "wt") as f:
             json.dump(lm_eval_results, f)
-        logger.info(f"lm_eval results saved to {lm_eval_path}")
-        time_lm_eval = time.perf_counter() - start
-        logger.info(f"lm_eval took {time_lm_eval:.2f} s")
+        logger.info(f"Final lm_eval results saved to {lm_eval_path}")
+        time_lm_eval_final = time.perf_counter() - start
+        logger.info(f"Final lm_eval took {time_lm_eval_final:.2f} s")
 
     # 9. SAVE SUMMARY
 
@@ -277,7 +294,8 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
         "gflops_final": gflops_final,
         "gflops_frac": gflops_frac,
         "time_decomposition_and_perplex_eval": time_decomposition_and_perplex_eval,
-        "time_lm_eval": time_lm_eval,
+        "time_lm_eval_initial": time_lm_eval_initial,
+        "time_lm_eval_final": time_lm_eval_final,
         "device": device_str,
     }
 
