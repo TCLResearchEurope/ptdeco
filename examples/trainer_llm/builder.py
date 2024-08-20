@@ -28,11 +28,13 @@ def _add_pad_token(
     if (
         model_name
         in (
-            "meta-llama/Llama-2-7b-hf",
             "microsoft/phi-2",
             "upstage/SOLAR-10.7B-v1.0",
             "mistralai/Mistral-7B-Instruct-v0.2",
         )
+        or model_name.startswith("meta-llama/Llama-2-")
+        or model_name.startswith("meta-llama/Meta-Llama-3-")
+        or model_name.startswith("meta-llama/Meta-Llama-3.1-")
         or model_name.startswith("Qwen/Qwen1.5-")
         or model_name.startswith("Qwen/Qwen2-")
     ):
