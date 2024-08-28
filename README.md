@@ -8,7 +8,9 @@
 
 `ptdeco` is a library for model optimization by matrix decomposition built on top of PyTorch.
 
-There is a introductory presentation on `ptdeco` from Warsaw AI meetup 2024.05.23 - [Practical low-rank decomposition (not only) for large language models](https://www.youtube.com/watch?v=8CcRsX4IMnU&t=1800s).
+There is a introductory presentation about `ptdeco` from Warsaw AI meetup
+2024.05.23 - [Practical low-rank decomposition (not only) for large language
+models](https://www.youtube.com/watch?v=8CcRsX4IMnU&t=1800s).
 
 <details>
 
