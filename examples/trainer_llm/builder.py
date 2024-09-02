@@ -59,20 +59,21 @@ def make_model_and_tokenizer(
     dtype: torch.dtype,
     log_linears: bool = False,
 ) -> tuple[transformers.AutoModelForCausalLM, transformers.PreTrainedTokenizer]:
-    model_name = model_name
-    model_revision = model_revision
-    tokenizer = transformers.AutoTokenizer.from_pretrained(
-        model_name, trust_remote_code=True
-    )
+
     msg = f"Creating {model_name} revision={model_revision} with {dtype=} "
     msg += f"grad_checkpointing={enable_gradient_checkpointing}"
     logger.info(msg)
+
+    tokenizer = transformers.AutoTokenizer.from_pretrained(
+        model_name, trust_remote_code=True, revision=model_revision,
+    )
     model = transformers.AutoModelForCausalLM.from_pretrained(
         model_name,
         revision=model_revision,
         torch_dtype=dtype,
         trust_remote_code=True,
     )
+
     if enable_gradient_checkpointing:
         model.gradient_checkpointing_enable()
     _add_pad_token(model=model, tokenizer=tokenizer, model_name=model_name)
