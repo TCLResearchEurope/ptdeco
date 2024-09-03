@@ -149,7 +149,7 @@ def save_requirements(
 def save_custom_builder(
     config: dict[str, Any], custom_builder_path: pathlib.Path
 ) -> None:
-    if config.get("decomposed_model_custom_builder_path") is None:
+    if config.get("decomposed_model_custom_builder_path") is not None:
         src_custom_builder_path = pathlib.Path(
             config["decomposed_model_custom_builder_path"]
         )
