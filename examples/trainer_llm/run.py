@@ -1,6 +1,7 @@
 import argparse
 import logging
 import pathlib
+import shutil
 import subprocess
 import sys
 import time
@@ -145,6 +146,19 @@ def save_requirements(
                 f.write(r + "\n")
 
 
+def save_custom_builder(
+    config: dict[str, Any], custom_builder_path: pathlib.Path
+) -> None:
+    if config.get("decomposed_model_custom_builder_path") is None:
+        src_custom_builder_path = pathlib.Path(
+            config["decomposed_model_custom_builder_path"]
+        )
+        if not src_custom_builder_path.exists():
+            msg = f"Custom builder file {src_custom_builder_path} does not exist"
+            raise ValueError(msg)
+        shutil.copy2(src_custom_builder_path, custom_builder_path)
+
+
 def print_version() -> None:
     print(f"Using ptdeco LLM trainer {version.__version__}")
     print(f"Using ptdeco {ptdeco.__version__}")
@@ -165,6 +179,7 @@ def main(args: argparse.Namespace) -> None:
         output_path / REPRO_SUBDIR / "requirements_unsafe.txt",
     )
     config = read_config(args.config)
+    save_custom_builder(config, output_path / REPRO_SUBDIR / "custom_builder.py")
     task = config.get("task")
 
     logger.info(f"Using ptdeco LLM trainer {version.__version__}")
