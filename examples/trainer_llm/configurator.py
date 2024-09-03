@@ -1,4 +1,4 @@
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 import pydantic
 from typing_extensions import Annotated
@@ -76,6 +76,8 @@ class DecomposeDWAINConfig(_VersionConfig):
 
     decomposed_model_name: str
     decomposed_model_revision: str
+    decomposed_model_custom_builder_path: Optional[str]
+    decomposed_model_custom_builder_config: Optional[dict[str, Any]]
     decomposed_model_dtype: Annotated[
         str, pydantic.StringConstraints(pattern=DTYPES_PATTERN)
     ]

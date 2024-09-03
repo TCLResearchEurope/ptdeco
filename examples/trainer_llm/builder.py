@@ -1,5 +1,7 @@
+import importlib.util
 import json
 import logging
+import sys
 from typing import Optional
 
 import ptdeco.utils
@@ -55,24 +57,47 @@ def make_model_and_tokenizer(
     *,
     model_name: str,
     model_revision: str,
+    model_custom_builder_path: Optional[str],
+    model_custom_builder_config: Optional[str],
     enable_gradient_checkpointing: bool,
     dtype: torch.dtype,
     log_linears: bool = False,
 ) -> tuple[transformers.AutoModelForCausalLM, transformers.PreTrainedTokenizer]:
+    if model_custom_builder_path is not None:
+        msg = f"Custom builder {model_custom_builder_path} - "
+        msg += f"{model_name} revision={model_revision} "
+        msg += f"with {dtype=} grad_checkpointing={enable_gradient_checkpointing}"
+        logger.info(msg)
 
-    msg = f"Creating {model_name} revision={model_revision} with {dtype=} "
-    msg += f"grad_checkpointing={enable_gradient_checkpointing}"
-    logger.info(msg)
+        module_name = "builder_custom"
+        spec = importlib.util.spec_from_file_location(
+            model_name, model_custom_builder_path
+        )
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[module_name] = module
+        spec.loader.exec_module(module)
+        model, tokenizer = module.make_model_and_tokenizer(
+            model_name=model_name,
+            model_revision=model_revision,
+            dtype=dtype,
+            model_builder_config=model_custom_builder_config,
+        )
+    else:
+        msg = f"Standard builder - {model_name} revision={model_revision} "
+        msg += f"with {dtype=} grad_checkpointing={enable_gradient_checkpointing}"
+        logger.info(msg)
 
-    tokenizer = transformers.AutoTokenizer.from_pretrained(
-        model_name, trust_remote_code=True, revision=model_revision,
-    )
-    model = transformers.AutoModelForCausalLM.from_pretrained(
-        model_name,
-        revision=model_revision,
-        torch_dtype=dtype,
-        trust_remote_code=True,
-    )
+        tokenizer = transformers.AutoTokenizer.from_pretrained(
+            model_name,
+            trust_remote_code=True,
+            revision=model_revision,
+        )
+        model = transformers.AutoModelForCausalLM.from_pretrained(
+            model_name,
+            revision=model_revision,
+            torch_dtype=dtype,
+            trust_remote_code=True,
+        )
 
     if enable_gradient_checkpointing:
         model.gradient_checkpointing_enable()
