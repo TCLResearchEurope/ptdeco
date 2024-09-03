@@ -3,10 +3,13 @@
 + **[falor]** Add tests
 + **[lockd]** Idea - add some options to customize decomposition process (e.g, type of deconvolution decomposition)
 + **[trainer]** Add requirements.txt
-+ **[trainer]** Check device switching handling (cpu decomposition, gpu trainining etc.)
++ **[trainer]** Check device switching handling (cpu decomposition, gpu training etc.)
 + **[trainer]** Specify device via config
++ **[trainer_llm]** Remove temporarily added `llm_pipelines` from build of `trainer_llm`
 
 ## DONE
++ **[dwain]** Add `reduction_factor` and `max_accepted_ppl_diff` parameters in dwain method
++ **[dwain]** Clean-up metrics logging
 
 ## ptdeco llm trainer  0.1.0
 + **[trainer_llm]** Implements decomposing llms with dwain method and finetuning of
@@ -20,10 +23,10 @@
 + **[utils]** Add logging num of decomposed modules of each type in apply_decompose_config_in_place
 + **[falor]** Fix nsr loss bug
 + **[lockd]** Improve typing in losses
-+ **[trainer]** Add timming to every run
++ **[trainer]** Add timing to every run
 + **[trainer]** Add saving final decompose config and state dict of finetuned model
 + **[trainer]** Fix typing
-+ **[trainer]** Move notebooks to a sepearte dir
++ **[trainer]** Move notebooks to a separate dir
 
 ## ptdeco vision trainer 0.7.0
 + **[tranier]** Add logging state dict stats
