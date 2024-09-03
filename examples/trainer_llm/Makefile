@@ -46,7 +46,7 @@ build:
 		ZIP_SUFFIX="-mod"; \
 		git diff --exit-code && ZIP_SUFFIX=""; \
 		ZIP_NAME="$(BUILD_DIR)/ptdeco-llm-$$(git rev-list --count HEAD)-$$(git rev-parse --short HEAD)$${ZIP_SUFFIX}.zip"; \
-		zip -r $${ZIP_NAME} $(PYTHON_LIB_FILES) __main__.py ptdeco; \
+		zip -r $${ZIP_NAME} $(PYTHON_LIB_FILES) __main__.py ptdeco llm_pipelines; \
 		rm -rf ptdeco __main__.py; \
 		echo "Build - created $${ZIP_NAME}"
 
