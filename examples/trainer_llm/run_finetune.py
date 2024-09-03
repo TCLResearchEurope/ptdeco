@@ -231,6 +231,8 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
     model, tokenizer = builder.make_model_and_tokenizer(
         model_name=config.decomposed_model_name,
         model_revision=config.decomposed_model_revision,
+        model_custom_builder_path=config.decomposed_model_custom_builder_path,
+        model_custom_builder_config=config.decomposed_model_custom_builder_config,
         enable_gradient_checkpointing=egc,
         dtype=dtype,
         log_linears=False,

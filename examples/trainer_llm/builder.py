@@ -2,7 +2,7 @@ import importlib.util
 import json
 import logging
 import sys
-from typing import Optional
+from typing import Any, Optional
 
 import ptdeco.utils
 import torch
@@ -58,7 +58,7 @@ def make_model_and_tokenizer(
     model_name: str,
     model_revision: str,
     model_custom_builder_path: Optional[str],
-    model_custom_builder_config: Optional[str],
+    model_custom_builder_config: Optional[dict[str, Any]],
     enable_gradient_checkpointing: bool,
     dtype: torch.dtype,
     log_linears: bool = False,
@@ -73,8 +73,15 @@ def make_model_and_tokenizer(
         spec = importlib.util.spec_from_file_location(
             model_name, model_custom_builder_path
         )
+        err_msg = f"Error loading custom builder {model_custom_builder_path}"
+        if spec is None:
+            raise ValueError(err_msg)
         module = importlib.util.module_from_spec(spec)
+        if module is None:
+            raise ValueError(err_msg)
         sys.modules[module_name] = module
+        if spec.loader is None:
+            raise ValueError(err_msg)
         spec.loader.exec_module(module)
         model, tokenizer = module.make_model_and_tokenizer(
             model_name=model_name,
