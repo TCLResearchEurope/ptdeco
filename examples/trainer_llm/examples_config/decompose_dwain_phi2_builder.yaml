@@ -10,6 +10,7 @@ decomposed_model_revision: "main"
 decomposed_model_custom_builder_path: "examples_builder/bp_builder.py"
 decomposed_model_custom_builder_config:
   bp_model_path: "/nas/people/michal_sokolski/phi-small-prune/bp_ckpt_step_TEST/"
+  bp_load_state_dict: true
 decomposed_model_enable_gradient_checkpointing: false
 decomposed_model_dtype: "torch.bfloat16"
 

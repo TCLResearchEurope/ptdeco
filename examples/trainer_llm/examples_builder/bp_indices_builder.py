@@ -24,7 +24,7 @@ def make_model_and_tokenizer(
         torch_dtype=dtype,
         trust_remote_code=True,
     )
-    attn_indices = model_builder_config["bp_attn_inices"]
+    attn_indices = model_builder_config["bp_attn_indices"]
     mlp_indices = model_builder_config["bp_mlp_indices"]
     model = bpp.build_pruned_model_from_indices(
         model=original_model,

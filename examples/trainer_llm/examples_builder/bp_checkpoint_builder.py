@@ -25,6 +25,12 @@ def make_model_and_tokenizer(
         trust_remote_code=True,
     )
     model_path = model_builder_config["bp_model_path"]
-    model = bpl.load_bp_model(model_name, original_model, model_path)
+    load_state_dict = model_builder_config["bp_load_state_dict"]
+    model = bpl.load_bp_model(
+        model_name=model_name,
+        original_model=original_model,
+        pruned_model_path=model_path,
+        load_state_dict=load_state_dict,
+    )
 
     return model, tokenizer
