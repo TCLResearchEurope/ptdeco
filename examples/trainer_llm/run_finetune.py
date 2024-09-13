@@ -370,10 +370,8 @@ def main(config_raw: dict[str, Any], output_path: pathlib.Path) -> None:
         time_lm_eval_final = time.perf_counter() - start_eval
         logger.info(f"Final lm_eval took {time_lm_eval_initial:.2f} s")
 
-        device_str = str(device)
-
     # 7. SAVE SUMMARY
-
+    device_str = str(device)
     if "cuda" in device_str:
         device_str += " @ " + torch.cuda.get_device_name(device)
 
