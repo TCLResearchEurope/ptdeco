@@ -32,5 +32,11 @@ def make_model_and_tokenizer(
         attn_indices=attn_indices,
         mlp_indices=mlp_indices,
     )
+    sd_path = model_builder_config["bp_state_dict"]
+    if sd_path is not None:
+        # Load to cpu, to avoid OOM on cude if sd was saved from GPU
+        device_cpu = torch.device("cpu")
+        sd = torch.load(sd_path, map_location=device_cpu)
+        model.load_state_dict(sd)
 
     return model, tokenizer
