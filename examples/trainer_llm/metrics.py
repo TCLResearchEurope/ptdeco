@@ -51,7 +51,7 @@ def calc_perplexity(
 
     nlls = []
 
-    logging.info("Perplexity evaluation started")
+    logger.info("Perplexity evaluation started")
     for batch in testloader:
         batch = _map_tensors(batch, device=device)
 
@@ -73,7 +73,7 @@ def calc_perplexity(
 
     t2 = time.perf_counter()
 
-    logging.info(f"Perplexity evaluation finished, it took {t2-t1:.2f}")
+    logger.info(f"Perplexity evaluation finished, it took {t2-t1:.2f}")
 
     return perplexity.item()
 
