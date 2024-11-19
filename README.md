@@ -12,30 +12,30 @@ There is an introductory presentation about `ptdeco` from Warsaw AI meetup
 2024.05.23 - [Practical low-rank decomposition (not only) for large language
 models](https://www.youtube.com/watch?v=8CcRsX4IMnU&t=1800s).
 
-<details>
-
-<summary>Table of contents</summary>
+Contents of this README:
 
 * [Introduction](#introduction)
 * [Installation](#installation)
 * [Saving and loading a decomposed model](#saving-and-loading-a-decomposed-model)
    * [Saving a decomposed model](#saving-a-decomposed-model)
    * [Loading a decomposed model](#loading-a-decomposed-model)
-
-</details>
+* [Links to other methods for model compression by decomposition](#links-to-other-methods-for-model-compression-by-decomposition)
 
 ## Introduction
 
 Currently, `ptdeco` implements the following methods:
 
-* **lockd** - method based on local knowledge distillation, tested on vision models
-  (lockd = **LOC**al **K**nowledge **D**istillation)
+* **dwain** - iterative method based on low-rank decomposition of features
+  (dwain =  **D**ecomposing **W**eights **A**lgorithm - an **I**terative tech**N**ique). Tested on **LLMs** (large language models) and **vision models**
 
-* **falor** - method based on low-rank decomposition of features inspired by [Compressing Transformers: Features Are Low-Rank, but Weights Are Not! by Yu Hao, Wu Jianxin (2023)](https://doi.org/10.1609/aaai.v37i9.26304), tested on vision models
-  (falor = **F**eatures **Are** **LO**w **R**ank)
+* **lockd** - method based on local knowledge distillation.
+  (lockd = **LOC**al **K**nowledge **D**istillation). Tested on **vision models**
 
-* **dwain** - iterative method based on low-rank decomposition of features, tested on Large Language Models
-  (dwain =  **D**ecomposing **W**eights **A**lgorithm - an **I**terative tech**N**ique)
+* **falor** - method based on low-rank decomposition of features inspired by [Compressing Transformers: Features Are Low-Rank, but Weights Are Not! by Yu Hao, Wu Jianxin (2023)](https://doi.org/10.1609/aaai.v37i9.26304), (falor = **F**eatures **Are** **LO**w **R**ank). Tested on **vision models**
+
+
+**dwain** method does not require pretraining. It can decompose linear layers and
+1x1 convolutions.
 
 **lockd** method requires short (~ 10 ImageNet epochs) knowledge distillation
 pretraining before decomposition is made. It can decompose linear layers and
@@ -45,8 +45,6 @@ convolutions.
 GPU hour (depending on model size and parameters). It can decompose linear
 layers and 1x1 convolutions.
 
-**dwain** method does not require pretraining. It can decompose linear layers and
-1x1 convolutions.
 
 ## Installation
 
@@ -105,3 +103,31 @@ model.load_state_dict(sd, map_location=device)
 
 # Now `model` is decomposed and contains appropriate weights
 ```
+
+## Links to other methods for model compression by decomposition
+
+Other methods using decomposition for model compression, not implemented in this package:
+
++ [(2024) Feature-based Low-Rank Compression of Large Language Models via Bayesian Optimization by Ji Yixin, Xiang Yang, Li Juntao, Chen Wei, Liu Zhongyi, Chen Kehai, Zhang Min](https://arxiv.org/pdf/2405.10616)
+
++ [(2024) SVD-LLM: Truncation-aware Singular Value Decomposition for Large Language Model Compression by Wang Xin, Zheng Yu, Wan Zhongwei, Zhang Mi](https://arxiv.org/pdf/2403.07378)
+
++ [(2024) SliceGPT: Compress Large Language Models by Deleting Rows and Columns by Ashkboos Saleh, Croci Maximilian L., Nascimento Marcelo Gennari do, Hoefler Torsten, Hensman James](https://arxiv.org/pdf/2401.15024)
+
++ [(2023) ASVD: Activation-aware Singular Value Decomposition for Compressing Large Language Models by Yuan Zhihang, Shang Yuzhang, Song Yue, Wu Qiang, Yan Yan, Sun Guangyu](https://arxiv.org/pdf/2312.05821)
+
++ [(2023) LORD: Low Rank Decomposition Of Monolingual Code LLMs For One-Shot Compression by Kaushal Ayush, Vaidhya Tejas, Rish Irina](https://arxiv.org/pdf/2309.14021)
+
++ [(2023) LoSparse: Structured Compression of Large Language Models based on Low-Rank and Sparse Approximation by Li Yixiao, Yu Yifan, Zhang Qingru, Liang Chen, He Pengcheng, Chen Weizhu, Zhao Tuo](https://arxiv.org/pdf/2306.11222)
+
++ [(2023) Rethinking Compression: Reduced Order Modelling of Latent Features in Large Language Models by Chavan Arnav, Lele Nahush, Gupta Deepak](https://arxiv.org/pdf/2312.07046)
+
++ [(2023) The Truth is in There: Improving Reasoning in Language Models with Layer-Selective Rank Reduction by Sharma Pratyusha, Ash Jordan T., Misra Dipendra](https://arxiv.org/pdf/2312.13558)
+
++ [(2022) Numerical Optimizations for Weighted Low-rank Estimation on Language Model by Hua Ting, Hsu Yen-Chang, Wang Felicity, Lou Qian, Shen Yilin, Jin Hongxia](https://arxiv.org/pdf/2211.09718)
+
++ [(2022) Language model compression with weighted low-rank factorization by Hsu Yen-Chang, Hua Ting, Chang Sungen, Lou Qian, Shen Yilin, Jin Hongxia](https://arxiv.org/pdf/2207.00112)
+
++ [(2021) DRONE: Data-aware Low-rank Compression for Large NLP Models by Chen Patrick H., Yu Hsiang-Fu, Dhillon I., Hsieh Cho-Jui](https://proceedings.neurips.cc/paper/2021/file/f56de5ef149cf0aedcc8f4797031e229-Paper.pdf)
+
++ [(2020) Compressing Pre-trained Language Models by Matrix Decomposition by Noach Matan Ben, Goldberg Yoav](https://aclanthology.org/2020.aacl-main.88.pdf)
