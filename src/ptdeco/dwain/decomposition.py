@@ -378,7 +378,7 @@ def _process_module(
 
     msg1 = f"{msg_prefix} {decomposed_type} weight_shape={tuple(orig_weight.shape)}"
     logger.info(msg1 + f" {orig_weight.dtype}")
-    logger.info(f"{msg_prefix} {nsr_final_threshold=:.4f} {max_accepted_ppl_diff=:.4}")
+    logger.info(f"{msg_prefix} {nsr_final_threshold=:.4f} {max_accepted_ppl_diff=:.4f}")
 
     if u_matrix is not None:
         logger.info(f"Using pre-computed u_matrix, {u_matrix.dtype=}")
